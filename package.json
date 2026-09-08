@@ -1,0 +1,18 @@
+{
+  "name": "gradedesk",
+  "version": "1.0.0",
+  "description": "Offline desktop grade-recording and transmutation tool for WVSTU instructors",
+  "main": "src/main.js",
+  "author": "Kwitee D. Gaylah",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "verify": "node --test test/verification.test.js",
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "exceljs": "^4.4.0"
+  }
+}

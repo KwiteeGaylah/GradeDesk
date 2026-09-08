@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<!--
+  GradeDesk UI MOCKUP — DESIGN REFERENCE ONLY.
+  This file shows layout, screens, and interactions. It is NOT the app and NOT the source of truth.
+  - Grade math: use Appendix A pseudocode in GradeDesk_PRD.md.
+  - Transmutation data: use transmutation_tables.json (this file's inline table is a partial demo subset).
+  - Some computed columns here are faked for display and are labelled in the JS. Do not copy them.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GradeDesk — UI Mockup</title>
+<style>
+  :root{
+    --ink:#1b2230;          /* primary text */
+    --ink-soft:#5b6472;     /* secondary text */
+    --line:#dde3ec;         /* hairlines */
+    --line-strong:#c4ccd8;
+    --paper:#ffffff;        /* cards / grid */
+    --canvas:#eef1f6;       /* app background */
+    --rail:#20293a;         /* left navigation */
+    --rail-soft:#2c374d;
+    --rail-ink:#c3ccdb;
+    --brand:#2f6d4f;        /* GradeDesk green — grade/pass connotation */
+    --brand-ink:#215439;
+    --brand-tint:#e7f1eb;
+    --amber:#a25a12;
+    --amber-tint:#fbf1e2;
+    --red:#a3372f;
+    --read:#f4f6fa;         /* read-only computed cells */
+    --focus:#2f6d4f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink);background:var(--canvas);font-size:14px;line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{display:grid;grid-template-columns:232px 1fr;height:100vh;overflow:hidden;}
+
+  /* ---------- Left rail ---------- */
+  .rail{background:var(--rail);color:var(--rail-ink);display:flex;flex-direction:column;}
+  .brand{padding:18px 20px 16px;border-bottom:1px solid var(--rail-soft);}
+  .brand h1{font-size:17px;margin:0;color:#fff;letter-spacing:.2px;font-weight:600;}
+  .brand .tag{font-size:11.5px;color:#8b97ab;margin-top:2px;}
+  .rail .sem{padding:12px 16px;border-bottom:1px solid var(--rail-soft);}
+  .rail .sem label{font-size:11px;color:#8b97ab;display:block;margin-bottom:4px;}
+  .rail .sem select{width:100%;background:var(--rail-soft);color:#e7ecf4;border:1px solid #3b475f;border-radius:6px;padding:7px 8px;font-size:13px;}
+  .navsec{padding:14px 12px 4px;font-size:10.5px;letter-spacing:.5px;color:#78859b;text-transform:uppercase;}
+  nav a{display:flex;align-items:center;gap:9px;padding:8px 14px;color:var(--rail-ink);text-decoration:none;border-radius:7px;margin:1px 8px;font-size:13.5px;}
+  nav a .ico{width:16px;height:16px;opacity:.85;flex:none;}
+  nav a.active{background:var(--brand);color:#fff;}
+  nav a.active .ico{opacity:1;}
+  nav a:not(.active):hover{background:var(--rail-soft);}
+  .rail .foot{margin-top:auto;padding:12px 16px;border-top:1px solid var(--rail-soft);font-size:11.5px;color:#7c88a0;}
+
+  /* ---------- Main ---------- */
+  .main{overflow:auto;display:flex;flex-direction:column;}
+  .topbar{
+    background:var(--paper);border-bottom:1px solid var(--line);
+    padding:14px 24px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:5;
+  }
+  .crumbs{font-size:12.5px;color:var(--ink-soft);}
+  .crumbs b{color:var(--ink);font-weight:600;}
+  .topbar h2{font-size:16px;margin:0;font-weight:600;}
+  .spacer{flex:1;}
+  .btn{border:1px solid var(--line-strong);background:var(--paper);color:var(--ink);
+    padding:7px 13px;border-radius:7px;font-size:13px;cursor:pointer;font-weight:500;}
+  .btn:hover{border-color:#9aa6b6;}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff;}
+  .btn.primary:hover{background:var(--brand-ink);}
+  .btn.ghost{border-color:transparent;background:transparent;color:var(--brand-ink);}
+
+  .content{padding:22px 24px 40px;}
+
+  /* section chooser (assessment tabs) */
+  .assessbar{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;align-items:center;}
+  .term-pill{font-size:11px;font-weight:600;color:var(--ink-soft);background:#e3e8f0;border-radius:5px;padding:4px 8px;margin-right:4px;}
+  .atab{border:1px solid var(--line-strong);background:var(--paper);border-radius:20px;padding:6px 13px;font-size:12.5px;cursor:pointer;color:var(--ink-soft);}
+  .atab.active{background:var(--brand-tint);border-color:var(--brand);color:var(--brand-ink);font-weight:600;}
+  .atab .max{opacity:.7;font-size:11px;margin-left:4px;}
+  .atab.add{border-style:dashed;color:var(--brand-ink);}
+
+  /* grid */
+  .gridcard{background:var(--paper);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  table{border-collapse:collapse;width:100%;}
+  th,td{text-align:left;padding:0;border-bottom:1px solid var(--line);}
+  thead th{background:#f6f8fb;font-size:11.5px;color:var(--ink-soft);font-weight:600;
+    padding:9px 12px;position:sticky;top:0;border-bottom:1px solid var(--line-strong);white-space:nowrap;}
+  thead th.num{text-align:right;}
+  tbody td{padding:0;height:38px;}
+  .cellpad{padding:8px 12px;}
+  td.idx{color:var(--ink-soft);width:38px;text-align:right;padding-right:10px;font-variant-numeric:tabular-nums;}
+  td.sid{color:var(--ink-soft);font-variant-numeric:tabular-nums;width:92px;}
+  td.name{font-weight:500;min-width:190px;}
+  td.entry{width:78px;background:#fff;}
+  td.entry input{width:100%;height:38px;border:none;text-align:center;font-size:14px;color:var(--ink);
+    background:transparent;font-variant-numeric:tabular-nums;outline:none;}
+  td.entry input:focus{background:#eaf3ee;box-shadow:inset 0 0 0 2px var(--focus);}
+  td.read{background:var(--read);color:var(--ink-soft);text-align:center;width:66px;font-variant-numeric:tabular-nums;font-size:13px;}
+  td.total{background:#eef2f7;color:var(--ink);text-align:center;font-weight:600;width:74px;font-variant-numeric:tabular-nums;}
+  td.final{text-align:center;font-weight:700;width:78px;font-variant-numeric:tabular-nums;color:var(--ink);}
+  td.letter{text-align:center;width:56px;font-weight:700;}
+  .lg{display:inline-block;min-width:22px;padding:2px 7px;border-radius:5px;font-size:12.5px;}
+  .lg.A{background:#e2f0e8;color:#1f6b45;}
+  .lg.B{background:#e6eef7;color:#2b5b93;}
+  .lg.C{background:#fcf3e0;color:#8a5a10;}
+  .lg.D{background:#f8ebe2;color:#9a5322;}
+  .lg.F{background:#f7e3e0;color:#993229;}
+  .lg.I{background:#eceff3;color:#5b6472;}
+  tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter){background:#f7faf8;}
+  tbody tr:hover td.entry input{background:#f1f7f3;}
+
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:12px;color:var(--ink-soft);}
+  .legend .k{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-2px;margin-right:5px;}
+
+  .hint{font-size:12.5px;color:var(--ink-soft);margin:10px 2px 0;}
+
+  /* right helper note */
+  .note{background:var(--brand-tint);border:1px solid #cfe2d6;border-left:3px solid var(--brand);
+    border-radius:8px;padding:12px 14px;font-size:12.5px;color:var(--brand-ink);margin-bottom:16px;}
+  .note b{color:var(--brand-ink);}
+
+  /* attendance marks */
+  td.att{width:44px;text-align:center;cursor:pointer;font-weight:600;font-size:13px;}
+  td.att.P{background:#e4f1ea;color:#1f6b45;}
+  td.att.E{background:#fcf3e0;color:#8a5a10;}
+  td.att.A{background:#f7e3e0;color:#993229;}
+  td.att.blank{color:#b7c0cd;}
+
+  /* config panel */
+  .panelgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .panel h3{margin:0 0 4px;font-size:14px;}
+  .panel .sub{font-size:12px;color:var(--ink-soft);margin-bottom:12px;}
+  .arow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .arow:last-child{border-bottom:none;}
+  .arow .aname{flex:1;font-weight:500;}
+  .arow .badge{font-size:11px;color:var(--ink-soft);background:#eef2f7;border-radius:5px;padding:3px 8px;}
+  .arow .badge.exam{background:var(--amber-tint);color:var(--amber);}
+  .arow select{border:1px solid var(--line-strong);border-radius:6px;padding:5px 7px;font-size:12.5px;background:#fff;}
+  .arow .x{color:#b0b8c4;cursor:pointer;font-size:15px;padding:0 4px;}
+  .arow .x:hover{color:var(--red);}
+  .addrow{margin-top:10px;}
+
+  .kpis{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
+  .kpi{background:var(--paper);border:1px solid var(--line);border-radius:9px;padding:11px 15px;min-width:96px;}
+  .kpi .v{font-size:20px;font-weight:700;}
+  .kpi .l{font-size:11.5px;color:var(--ink-soft);}
+
+  .screens{display:none;}
+  .screens.on{display:block;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ LEFT RAIL ============ -->
+  <aside class="rail">
+    <div class="brand">
+      <h1>GradeDesk</h1>
+      <div class="tag">Offline grade recorder</div>
+    </div>
+    <div class="sem">
+      <label>Active semester</label>
+      <select>
+        <option>2026–2027 · Semester 1  (active)</option>
+        <option>2025–2026 · Semester 2  (archived)</option>
+        <option>2025–2026 · Semester 1  (archived)</option>
+      </select>
+    </div>
+
+    <div class="navsec">Courses</div>
+    <nav>
+      <a href="#" class="active" onclick="show('grades',this);return false;">
+        <span class="ico">▤</span> CSE 102 · Computer Literacy</a>
+      <a href="#" onclick="show('grades',this);return false;">
+        <span class="ico">▤</span> CSENG 308 · Software Eng.</a>
+      <a href="#" onclick="show('grades',this);return false;">
+        <span class="ico">▤</span> CSENG 402 · Comp. Practice</a>
+      <a href="#" onclick="show('grades',this);return false;">
+        <span class="ico">＋</span> New course…</a>
+    </nav>
+
+    <div class="navsec">This course</div>
+    <nav>
+      <a href="#" class="active" id="lnk-grades" onclick="show('grades',this);return false;"><span class="ico">✎</span> Grade entry</a>
+      <a href="#" id="lnk-att" onclick="show('att',this);return false;"><span class="ico">◷</span> Attendance</a>
+      <a href="#" id="lnk-roster" onclick="show('roster',this);return false;"><span class="ico">☰</span> Roster</a>
+      <a href="#" id="lnk-config" onclick="show('config',this);return false;"><span class="ico">⚙</span> Assessments &amp; policy</a>
+    </nav>
+
+    <div class="foot">All data saved locally · Last saved 2 min ago</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+    <!-- ===== GRADE ENTRY ===== -->
+    <section class="screens on" id="screen-grades">
+      <div class="topbar">
+        <div>
+          <div class="crumbs">CSE 102 · Section 2 · <b>70% policy</b></div>
+          <h2>Grade entry</h2>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn">Review issues (2)</button>
+        <button class="btn primary">Export grade sheet ▾</button>
+      </div>
+
+      <div class="content">
+        <div class="assessbar">
+          <span class="term-pill">MIDTERM TERM</span>
+          <button class="atab">Attendance<span class="max">/10</span></button>
+          <button class="atab">Assign 1<span class="max">/10</span></button>
+          <button class="atab active">Quiz 1<span class="max">/15</span></button>
+          <button class="atab">Quiz 2<span class="max">/15</span></button>
+          <button class="atab">Class Work<span class="max">/10</span></button>
+          <button class="atab">Midterm Exam<span class="max">/40</span></button>
+          <button class="atab add">＋ Add</button>
+        </div>
+
+        <div class="note">
+          Entering <b>Quiz 1</b> (out of 15). Type a score on each row and press Enter to drop down, exactly like an Excel column.
+          The grey columns are computed automatically and can't be edited.
+        </div>
+
+        <div class="gridcard">
+          <table>
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>ID</th>
+                <th>Full name</th>
+                <th style="text-align:center;background:#eef7f1;">Quiz 1 (raw)</th>
+                <th style="text-align:center;">Transmuted</th>
+                <th style="text-align:center;">Class standing</th>
+                <th style="text-align:center;">Midterm total</th>
+                <th style="text-align:center;">Final grade</th>
+                <th style="text-align:center;">Letter</th>
+              </tr>
+            </thead>
+            <tbody id="gradeBody"><!-- filled by JS --></tbody>
+          </table>
+        </div>
+
+        <div class="legend">
+          <span><span class="k" style="background:#eef7f1;border:1px solid #cfe2d6;"></span>Editable raw score</span>
+          <span><span class="k" style="background:var(--read);border:1px solid var(--line);"></span>Transmuted (lookup, 70% table)</span>
+          <span><span class="k" style="background:#eef2f7;border:1px solid var(--line);"></span>Running totals</span>
+          <span>Blank exam → letter <b>I</b> · Final grade shown to 2 decimals, no rounding</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== ATTENDANCE ===== -->
+    <section class="screens" id="screen-att">
+      <div class="topbar">
+        <div>
+          <div class="crumbs">CSE 102 · Section 2 · Midterm term</div>
+          <h2>Attendance</h2>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn">＋ Add session</button>
+        <button class="btn primary">Mark today</button>
+      </div>
+      <div class="content">
+        <div class="note">
+          Tap a cell to cycle <b>P</b> (present, full) → <b>E</b> (excused, half) → <b>A</b> (absent, zero) → blank.
+          The attendance score is computed as <b>points × (P + 0.5·E) ÷ sessions marked</b>, out of 10, then transmuted like any other assessment.
+        </div>
+        <div class="gridcard">
+          <table>
+            <thead>
+              <tr>
+                <th class="num">#</th>
+                <th>Full name</th>
+                <th style="text-align:center;">Sep 2</th>
+                <th style="text-align:center;">Sep 4</th>
+                <th style="text-align:center;">Sep 9</th>
+                <th style="text-align:center;">Sep 11</th>
+                <th style="text-align:center;">Sep 16</th>
+                <th style="text-align:center;">Sep 18</th>
+                <th style="text-align:center;background:#eef2f7;">Raw /10</th>
+                <th style="text-align:center;">Transmuted</th>
+              </tr>
+            </thead>
+            <tbody id="attBody"></tbody>
+          </table>
+        </div>
+        <div class="hint">Denominator counts sessions actually marked, not the whole semester — attendance is fair at any point in the term.</div>
+      </div>
+    </section>
+
+    <!-- ===== ROSTER ===== -->
+    <section class="screens" id="screen-roster">
+      <div class="topbar">
+        <div>
+          <div class="crumbs">CSE 102 · Section 2</div>
+          <h2>Roster</h2>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn">Paste list</button>
+        <button class="btn primary">＋ Add rows</button>
+      </div>
+      <div class="content">
+        <div class="note">Type the class list like a spreadsheet. Enter or Tab moves to the next cell. No per-student forms.</div>
+        <div class="gridcard">
+          <table>
+            <thead><tr><th class="num">#</th><th style="width:120px;">Student ID</th><th>Full name</th></tr></thead>
+            <tbody id="rosterBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== CONFIG ===== -->
+    <section class="screens" id="screen-config">
+      <div class="topbar">
+        <div>
+          <div class="crumbs">CSE 102 · Section 2</div>
+          <h2>Assessments &amp; policy</h2>
+        </div>
+        <div class="spacer"></div>
+        <button class="btn primary">Done</button>
+      </div>
+      <div class="content">
+        <div class="kpis">
+          <div class="kpi"><div class="v">70%</div><div class="l">Transmutation policy</div></div>
+          <div class="kpi"><div class="v">5</div><div class="l">Midterm assessments</div></div>
+          <div class="kpi"><div class="v">4</div><div class="l">Final assessments</div></div>
+          <div class="kpi"><div class="v">40</div><div class="l">Exam max (fixed)</div></div>
+        </div>
+
+        <div class="note">
+          Class standing is the <b>equal-weight average</b> of the assessments below × 0.6. Add or remove freely — no reweighting needed.
+          Each point value must match a real column in the 70% table (5, 10, 15, 25, 30, 35, 40, 45, 50).
+        </div>
+
+        <div class="panelgrid">
+          <div class="panel">
+            <h3>Midterm term</h3>
+            <div class="sub">Class standing (averaged equally) + one exam at 40%</div>
+            <div class="arow"><span class="aname">Attendance</span><span class="badge">auto</span>
+              <select><option>10 pts</option><option>15 pts</option><option>5 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Assign 1</span>
+              <select><option>10 pts</option><option>15 pts</option><option>25 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Quiz 1</span>
+              <select><option>15 pts</option><option>10 pts</option><option>25 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Quiz 2</span>
+              <select><option>15 pts</option><option>10 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Class Work</span>
+              <select><option>10 pts</option><option>15 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Midterm Exam</span><span class="badge exam">exam · 40 · fixed</span></div>
+            <div class="addrow"><button class="btn ghost">＋ Add assessment</button></div>
+          </div>
+
+          <div class="panel">
+            <h3>Final term</h3>
+            <div class="sub">Class standing (averaged equally) + one exam at 40%</div>
+            <div class="arow"><span class="aname">Attendance</span><span class="badge">auto</span>
+              <select><option>10 pts</option><option>15 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Assign 2</span>
+              <select><option>10 pts</option><option>25 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Quiz 3</span>
+              <select><option>15 pts</option><option>10 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Project</span>
+              <select><option>25 pts</option><option>40 pts</option><option>15 pts</option></select><span class="x">✕</span></div>
+            <div class="arow"><span class="aname">Final Exam</span><span class="badge exam">exam · 40 · fixed</span></div>
+            <div class="addrow"><button class="btn ghost">＋ Add assessment</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// ---- 70% transmutation columns (subset needed for the mock) ----
+const T70 = {
+ 10:{0:50,1:53,2:56,3:59,4:61,5:64,6:67,7:70,8:80,9:90,10:100},
+ 15:{0:50,1:52,2:54,3:55,4:57,5:59,6:61,7:63,8:65,9:66,10:68,11:70,12:78,13:85,14:93,15:100},
+ 25:{0:50,5:56,8:59,10:61,15:67,20:79,23:91,25:100},
+ 40:{0:50,10:56,16:61,20:61,24:64,25:64,28:70,30:67,33:69,35:70,38:76,40:80}
+};
+function snap(tbl,raw){ // approximate/snap-down
+  if(raw===''||raw==null) return 50;
+  raw=Number(raw); let best=null;
+  Object.keys(tbl).map(Number).sort((a,b)=>a-b).forEach(k=>{ if(k<=raw) best=tbl[k]; });
+  return best;
+}
+function letterOf(fg,examBlank){ if(examBlank) return 'I';
+  if(fg>=90)return'A'; if(fg>=80)return'B'; if(fg>=70)return'C'; if(fg>=60)return'D'; return'F'; }
+
+// ---- sample students (from the real sheet, names only) ----
+const students=[
+ ["44305","Allison, Elizabeth Y.",11,90.39],
+ ["38901","Allison, Emmanuel M.",10,83.02],
+ ["32474","Bioh, Alice T.",10,82.25],
+ ["TU-03265","Butler, Frances E.",10,84.34],
+ ["28902","Chea, Catherine",10,92.27],
+ ["34785","Chea, Theophilus G.",11,80.67],
+ ["TU-03187","Cheetoh, Michael",11,85.65],
+ ["TU-03446","Darkay, Traphena",15,91.56],
+ ["38711","Dennis, Princess",12,91.24],
+ ["36095","Dogbeh, Princess",'',null],       // blank exam example -> I
+ ["TU-03213","Foko, Gabriel M.",15,90.48],
+ ["TU-03019","Freeman, Olando M.",15,95.41],
+];
+
+const gb=document.getElementById('gradeBody');
+students.forEach((s,i)=>{
+  const [sid,name,q1,fg]=s;
+  const examBlank = (name==="Dogbeh, Princess");
+  const tr = snap(T70[15], q1);
+  // NOTE FOR IMPLEMENTERS: these two columns are FAKE, for visual layout only.
+  // Do NOT copy this. Compute class_standing and term_total from Appendix A of the PRD,
+  // and load the real lookup values from transmutation_tables.json (the inline T70 above
+  // is a partial subset for the demo, not a data source).
+  const cs = fg? (fg*0.6+22).toFixed(0): '—';
+  const mt = fg? (fg-1).toFixed(1): '—';
+  const fgTxt = examBlank? '—' : (fg!=null? fg.toFixed(2): '—');
+  const L = examBlank? 'I' : (fg!=null? letterOf(fg,false): '—');
+  gb.insertAdjacentHTML('beforeend',`
+    <tr>
+      <td class="idx">${i+1}</td>
+      <td class="sid cellpad">${sid}</td>
+      <td class="name cellpad">${name}</td>
+      <td class="entry"><input value="${q1}" ${examBlank?'placeholder="—"':''}></td>
+      <td class="read">${tr}</td>
+      <td class="read">${cs}</td>
+      <td class="total">${mt}</td>
+      <td class="final">${fgTxt}</td>
+      <td class="letter"><span class="lg ${L}">${L}</span></td>
+    </tr>`);
+});
+
+// ---- attendance sample ----
+const attRows=[
+ ["Allison, Elizabeth Y.",["P","P","P","E","P","P"]],
+ ["Allison, Emmanuel M.",["P","P","E","P","P","A"]],
+ ["Bioh, Alice T.",["P","A","P","P","E","P"]],
+ ["Butler, Frances E.",["P","P","P","P","P","P"]],
+ ["Chea, Catherine",["E","P","P","P","A","P"]],
+ ["Chea, Theophilus G.",["P","P","","P","P","E"]],
+];
+const ab=document.getElementById('attBody');
+attRows.forEach((r,i)=>{
+  const [name,marks]=r;
+  let P=0,E=0,n=0;
+  const cells=marks.map(m=>{
+    if(m==="P"){P++;n++;} else if(m==="E"){E++;n++;} else if(m==="A"){n++;}
+    const cls = m===""?"blank":m;
+    const label = m===""?"·":m;
+    return `<td class="att ${cls}" onclick="cycleAtt(this)">${label}</td>`;
+  }).join("");
+  const raw = n? (10*(P+0.5*E)/n) : null;
+  const rawTxt = raw!=null? raw.toFixed(2): '—';
+  const tr = raw!=null? snap(T70[10], Math.round(raw)) : 50;
+  ab.insertAdjacentHTML('beforeend',`
+    <tr><td class="idx">${i+1}</td><td class="name cellpad">${name}</td>
+    ${cells}
+    <td class="total">${rawTxt}</td><td class="read">${tr}</td></tr>`);
+});
+function cycleAtt(td){
+  const order=["P","E","A",""]; const cur=td.textContent.trim()==="·"?"":td.textContent.trim();
+  const next=order[(order.indexOf(cur)+1)%order.length];
+  td.className="att "+(next===""?"blank":next);
+  td.textContent = next===""?"·":next;
+}
+
+// ---- roster sample ----
+const rb=document.getElementById('rosterBody');
+students.forEach((s,i)=>{
+  rb.insertAdjacentHTML('beforeend',`
+   <tr><td class="idx">${i+1}</td>
+   <td class="sid"><div class="cellpad">${s[0]}</div></td>
+   <td class="name"><div class="cellpad">${s[1]}</div></td></tr>`);
+});
+// two empty rows to show entry affordance
+for(let k=0;k<2;k++){
+  rb.insertAdjacentHTML('beforeend',`
+   <tr><td class="idx">${students.length+k+1}</td>
+   <td class="entry"><input placeholder="type ID"></td>
+   <td class="entry" style="width:auto"><input placeholder="type name" style="text-align:left;padding-left:12px;"></td></tr>`);
+}
+
+// ---- screen switching ----
+function show(which,link){
+  document.querySelectorAll('.screens').forEach(s=>s.classList.remove('on'));
+  document.getElementById('screen-'+which).classList.add('on');
+  // sync the "this course" nav active state
+  const map={grades:'lnk-grades',att:'lnk-att',roster:'lnk-roster',config:'lnk-config'};
+  Object.values(map).forEach(id=>document.getElementById(id)?.classList.remove('active'));
+  document.getElementById(map[which])?.classList.add('active');
+}
+</script>
+</body>
+</html>
