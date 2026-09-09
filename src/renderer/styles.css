@@ -82,12 +82,37 @@ nav a.active .sub { color: #d3e6da; }
 .main { overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
 .topbar {
   background: var(--paper); border-bottom: 1px solid var(--line);
-  padding: 12px 24px; display: flex; align-items: center; gap: 12px; flex: none;
+  padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex: none;
 }
-.crumbs { font-size: 12.5px; color: var(--ink-soft); }
+/* The heading block may shrink; the action buttons may not. Without this the
+   buttons wrap onto a second line as soon as the window narrows. */
+.topbar .heading { min-width: 0; flex: 1 1 auto; }
+.crumbs {
+  font-size: 12.5px; color: var(--ink-soft);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .crumbs b { color: var(--ink); font-weight: 600; }
-.topbar h2 { font-size: 16px; margin: 0; font-weight: 600; }
-.spacer { flex: 1; }
+.topbar h2 { font-size: 16px; margin: 0; font-weight: 600; white-space: nowrap; }
+#topActions { display: flex; gap: 8px; flex: 0 0 auto; align-items: center; }
+.spacer { flex: 0 0 auto; }
+
+/* Below this width the button labels are shortened to their essentials rather
+   than allowed to wrap. The full label stays available as a tooltip. */
+@media (max-width: 1120px) {
+  #topActions .btn .long { display: none; }
+  .topbar { padding: 10px 14px; }
+}
+
+/* On a narrow window the running-total columns are dropped rather than left to
+   be sliced in half by the pinned final grade. Class standing and the term
+   total are intermediate workings; the raw score, the transmuted value and the
+   final grade are what the instructor is actually reading. */
+@media (max-width: 1180px) {
+  .col-secondary { display: none; }
+  .narrow-only { display: inline; }
+}
+/* The hint about hidden columns only appears when they are actually hidden. */
+.narrow-only { display: none; }
 
 .btn {
   border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink);
@@ -99,13 +124,29 @@ nav a.active .sub { color: #d3e6da; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .btn.primary:hover:not(:disabled) { background: var(--brand-ink); }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--brand-ink); }
+/* A row's remove control is destructive, so it stays quiet until pointed at and
+   never reads as a link the way the brand-coloured ghost button does. */
+.btn.rowdel {
+  border-color: transparent; background: transparent; color: #aab3c0;
+  font-size: 15px; line-height: 1; padding: 4px 8px;
+}
+.btn.rowdel:hover { color: var(--red); background: var(--red-tint); border-color: transparent; }
 .btn.danger { color: var(--red); }
 .btn.small { padding: 4px 9px; font-size: 12px; }
 
 .content { padding: 18px 24px 40px; overflow: auto; flex: 1; }
 
 /* ---------------- assessment tabs ---------------- */
-.assessbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+/* One scrollable row rather than three wrapped ones: vertical space is scarcer
+   than horizontal on the laptops this runs on. */
+.assessbar {
+  display: flex; gap: 6px; margin-bottom: 12px; align-items: center;
+  overflow-x: auto; overflow-y: hidden; padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+.assessbar::-webkit-scrollbar { height: 6px; }
+.assessbar::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
+.atab, .term-pill { flex: 0 0 auto; }
 .term-pill {
   font-size: 11px; font-weight: 600; color: var(--ink-soft);
   background: #e3e8f0; border-radius: 5px; padding: 4px 8px; margin-right: 2px;
@@ -121,7 +162,18 @@ nav a.active .sub { color: #d3e6da; }
 .atab.exam.active { background: var(--amber-tint); border-color: var(--amber); color: var(--amber); }
 
 /* ---------------- grid ---------------- */
-.gridcard { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; overflow: auto; }
+.gridcard {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+  overflow: auto;
+  /* A shadow on the right edge while the grid is scrolled, so it is obvious
+     there are more columns off-screen rather than silently hidden. */
+  background-image: linear-gradient(to left, rgba(27, 34, 48, .10), rgba(27, 34, 48, 0));
+  background-repeat: no-repeat;
+  background-size: 14px 100%;
+  background-position: right center;
+  background-attachment: local, scroll;
+}
+.gridcard.no-overflow { background-image: none; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 0; border-bottom: 1px solid var(--line); }
 thead th {
@@ -133,7 +185,12 @@ tbody td { padding: 0; height: 36px; }
 .cellpad { padding: 7px 12px; }
 td.idx { color: var(--ink-soft); width: 40px; text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
 td.sid { color: var(--ink-soft); font-variant-numeric: tabular-nums; width: 100px; }
-td.name { font-weight: 500; min-width: 200px; }
+/* The name column absorbs the slack so the numeric columns keep their widths.
+   Long names ellipsize rather than forcing the grid wider than the window. */
+td.name {
+  font-weight: 500; min-width: 120px; max-width: 340px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 td.entry { width: 84px; background: #fff; padding: 0; }
 td.entry input {
   width: 100%; height: 36px; border: none; text-align: center; font-size: 14px;
@@ -144,8 +201,19 @@ td.entry input:focus { background: #eaf3ee; box-shadow: inset 0 0 0 2px var(--fo
 td.entry input.over { background: var(--red-tint); color: var(--red); font-weight: 600; }
 td.read { background: var(--read); color: var(--ink-soft); text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px; }
 td.total { background: #eef2f7; color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
-td.final { text-align: center; font-weight: 700; width: 86px; font-variant-numeric: tabular-nums; }
-td.letter { text-align: center; width: 60px; font-weight: 700; }
+/* The final grade and letter are the point of this screen, so they are pinned
+   to the right edge and stay readable however narrow the window gets. */
+td.final, th.final {
+  text-align: center; font-weight: 700; width: 86px; font-variant-numeric: tabular-nums;
+  position: sticky; right: 60px; background: var(--paper);
+  box-shadow: inset 1px 0 0 var(--line);
+}
+td.letter, th.letter {
+  text-align: center; width: 60px; font-weight: 700;
+  position: sticky; right: 0; background: var(--paper);
+}
+thead th.final, thead th.letter { background: #f6f8fb; z-index: 3; }
+tbody tr:hover td.final, tbody tr:hover td.letter { background: #f7faf8; }
 tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: #f7faf8; }
 
 .lg { display: inline-block; min-width: 22px; padding: 2px 7px; border-radius: 5px; font-size: 12.5px; }
@@ -175,6 +243,23 @@ td.att.E { background: var(--amber-tint); color: #8a5a10; }
 td.att.A { background: var(--red-tint); color: #993229; }
 td.att.blank { color: #b7c0cd; }
 th.session { text-align: center; font-size: 11px; }
+/* Attendance grows a column per session, so the computed result is pinned to
+   the right the same way the final grade is on the entry screen. Otherwise it
+   scrolls out of sight the moment a term has more than a handful of meetings. */
+td.att-raw, th.att-raw {
+  position: sticky; right: 74px; background: #eef2f7;
+  text-align: center; font-weight: 600;
+  /* Wide enough for the header "Raw /10" and a two-decimal value like 10.00;
+     at 82px both were clipped. */
+  width: 92px; min-width: 92px; padding: 0 6px;
+  font-variant-numeric: tabular-nums; box-shadow: inset 1px 0 0 var(--line);
+  white-space: nowrap;
+}
+td.att-trans, th.att-trans {
+  position: sticky; right: 0; background: var(--read);
+  text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
+}
+thead th.att-raw, thead th.att-trans { background: #f6f8fb; z-index: 3; }
 th.session .del { color: #aab3c0; cursor: pointer; margin-left: 4px; }
 th.session .del:hover { color: var(--red); }
 
@@ -264,7 +349,10 @@ th.session .del:hover { color: var(--red); }
 .w-action { width: 44px; }
 .modal.wide { width: 620px; }
 .mb-16 { margin-bottom: 16px; }
-.name-input { text-align: left; padding-left: 12px; }
+/* Roster cells are text, not scores: they read left like a class list. The
+   score grid centres its inputs, so these need the higher specificity to win. */
+td.entry input.name-input { text-align: left; padding-left: 12px; }
+td.entry input.id-input { text-align: left; padding-left: 12px; }
 .paste-area {
   width: 100%; font-family: inherit; font-size: 13px; padding: 8px;
   border: 1px solid var(--line-strong); border-radius: 6px; resize: vertical;

@@ -65,6 +65,42 @@ async function explore(win, app, cmdFile, logFile) {
           setTimeout(() => app.exit(0), 150);
           return;
         }
+        if (cmd.resize) {
+          // Unmaximise first: a maximised window silently ignores a resize, so
+          // without this the requested size is quietly not applied.
+          if (win.isMaximized()) win.unmaximize();
+          if (win.isFullScreen()) win.setFullScreen(false);
+          win.setResizable(true);
+          win.setContentSize(cmd.resize[0], cmd.resize[1]);
+          await new Promise((r) => setTimeout(r, cmd.wait ?? 700));
+          const [w, h] = win.getContentSize();
+          const applied = w === cmd.resize[0] && h === cmd.resize[1];
+          write({ id: cmd.id, ok: true, requested: cmd.resize, contentSize: { w, h }, applied });
+          continue;
+        }
+        if (cmd.move) {
+          // Move the pointer without clicking, so hover states are exercised and
+          // the drawn cursor in a screenshot shows where a user is pointing.
+          const at = await win.webContents.executeJavaScript(
+            `(() => { const n = document.querySelector(${JSON.stringify(cmd.move)});
+                      if (!n) return null; const r = n.getBoundingClientRect();
+                      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`
+          );
+          if (!at) { write({ id: cmd.id, ok: false, error: 'no such element' }); continue; }
+          win.webContents.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
+          await win.webContents.executeJavaScript(
+            `(() => { let c = document.getElementById('__cursor');
+               if (!c) { c = document.createElement('div'); c.id = '__cursor';
+                 c.style.cssText = 'position:fixed;z-index:9999;width:18px;height:18px;pointer-events:none;' +
+                   'border-left:2px solid #111;border-top:2px solid #111;' +
+                   'transform:rotate(-30deg);filter:drop-shadow(0 0 2px #fff)';
+                 document.body.appendChild(c); }
+               c.style.left = ${at.x} + 'px'; c.style.top = ${at.y} + 'px'; })()`
+          );
+          await new Promise((r) => setTimeout(r, cmd.wait ?? 250));
+          write({ id: cmd.id, ok: true, at });
+          continue;
+        }
         if (cmd.shot) {
           const image = await win.webContents.capturePage();
           fs.writeFileSync(cmd.shot, image.toPNG());

@@ -93,6 +93,21 @@ function showGrade(row) {
   return row.finalGradeDisplay || '—';
 }
 
+/**
+ * A raw score as it should appear in an entry cell.
+ *
+ * Typed scores are whole numbers and must show exactly as typed. Auto-computed
+ * attendance is a division and can be 9.166666666666666, which is unreadable in
+ * a narrow cell, so a fractional value is shown to two decimals. The stored
+ * value is untouched: the engine always transmutes the full precision.
+ */
+function showRaw(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const n = Number(value);
+  if (!Number.isFinite(n)) return String(value);
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
+}
+
 // ------------------------------------------------------------------- modal
 
 function modal({ title, subtitle, body, confirmLabel = 'Save', onConfirm, danger = false, wide = false }) {
@@ -428,11 +443,15 @@ async function renderScreen() {
   };
   $('screenTitle').textContent = titles[state.screen];
 
-  if (state.screen !== 'config') {
+  // Export and issue review belong to the screens that show grades. On the
+  // roster and the configuration screen they are noise, and on a narrow window
+  // they crowd out that screen's own actions.
+  if (state.screen === 'grades' || state.screen === 'attendance') {
     const issues = (state.computed && (await api.gradebook.issues(state.courseId))) || [];
     const errorCount = issues.filter((i) => i.severity !== 'info').length;
     const reviewBtn = el('button', {
       class: 'btn',
+      title: 'Review issues before exporting',
       // Fetch fresh on click rather than reusing the list captured at render
       // time: scores change constantly between renders, and a stale review that
       // omits a real problem is worse than no review at all.
@@ -441,12 +460,18 @@ async function renderScreen() {
         showIssues(current || []);
         updateIssueCount(reviewBtn, current || []);
       },
-    }, `Review issues${errorCount ? ` (${errorCount})` : ''}`);
+    },
+      'Review',
+      el('span', { class: 'long', text: ' issues' }),
+      errorCount ? ` (${errorCount})` : ''
+    );
 
     actions.append(
       reviewBtn,
-      el('button', { class: 'btn', onclick: exportSummaryFile }, 'Export summary'),
-      el('button', { class: 'btn primary', onclick: exportRecordFile }, 'Export grade sheet')
+      el('button', { class: 'btn', title: 'Export the summary sheet', onclick: exportSummaryFile },
+        'Summary', el('span', { class: 'long', text: ' sheet' })),
+      el('button', { class: 'btn primary', title: 'Export the full grade record', onclick: exportRecordFile },
+        'Export', el('span', { class: 'long', text: ' grade sheet' }))
     );
   }
 
@@ -548,10 +573,10 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('th', { text: 'Full name' }),
       el('th', { class: 'th-entry', text: `${selected.name} (raw)` }),
       el('th', { class: 'ta-center', text: 'Transmuted' }),
-      el('th', { class: 'ta-center', text: 'Class standing' }),
-      el('th', { class: 'ta-center', text: `${termLabel} total` }),
-      el('th', { class: 'ta-center', text: 'Final grade' }),
-      el('th', { class: 'ta-center', text: 'Letter' })
+      el('th', { class: 'ta-center col-secondary', text: 'Class standing' }),
+      el('th', { class: 'ta-center col-secondary', text: `${termLabel} total` }),
+      el('th', { class: 'ta-center final', text: 'Final grade' }),
+      el('th', { class: 'ta-center letter', text: 'Letter' })
     )
   );
 
@@ -566,8 +591,15 @@ async function renderGradeEntry(content, course, policyInfo) {
     const input = el('input', {
       type: 'text',
       inputmode: 'decimal',
-      value: cell.raw === null || cell.raw === undefined ? '' : String(cell.raw),
-      dataset: { index: String(index), studentId: String(row.student.id) },
+      value: showRaw(cell.raw),
+      // `committed` is the baseline an edit is compared against. Seeding it with
+      // the displayed value means simply tabbing through a cell is not mistaken
+      // for a change, which would otherwise rewrite a rounded attendance score.
+      dataset: {
+        index: String(index),
+        studentId: String(row.student.id),
+        committed: showRaw(cell.raw),
+      },
       readonly: isAttendance,
       title: isAttendance ? 'Computed from attendance sessions' : '',
       'aria-label': `${selected.name} for ${row.student.full_name}`,
@@ -587,8 +619,8 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('td', { class: 'name cellpad', text: row.student.full_name || '' }),
       el('td', { class: 'entry' }, input),
       el('td', { class: 'read', text: show(cell.transmuted, 0) }),
-      el('td', { class: 'read', text: show(term.classStanding) }),
-      el('td', { class: 'total', text: show(term.total) }),
+      el('td', { class: 'read col-secondary', text: show(term.classStanding) }),
+      el('td', { class: 'total col-secondary', text: show(term.total) }),
       el('td', { class: 'final', text: showGrade(row) }),
       el('td', { class: 'letter' }, el('span', { class: `lg ${row.letter}`, text: row.letter }))
     ));
@@ -603,7 +635,10 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
       el('span', {}, el('span', { class: 'k k-read' }), `Transmuted (${course.policy}% table)`),
       el('span', {}, el('span', { class: 'k k-total' }), 'Running totals'),
-      el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, no rounding')
+      el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, no rounding'),
+      // Shown only when the running-total columns have been dropped, so the
+      // instructor knows they are hidden rather than missing.
+      el('span', { class: 'narrow-only' }, 'Widen the window to see class standing and term totals')
     )
   );
 }
@@ -786,8 +821,8 @@ async function renderAttendance(content, course) {
         }, '✕')
       )
     ),
-    el('th', { class: 'th-computed', text: `Raw /${attendanceAssessment.max_points}` }),
-    el('th', { class: 'ta-center', text: 'Transmuted' })
+    el('th', { class: 'th-computed att-raw', text: `Raw /${attendanceAssessment.max_points}` }),
+    el('th', { class: 'ta-center att-trans', text: 'Transmuted' })
   ));
 
   const tbody = el('tbody');
@@ -797,8 +832,8 @@ async function renderAttendance(content, course) {
       (a) => a.assessment.id === attendanceAssessment.id
     ) || { raw: null, transmuted: 50 };
 
-    const rawCell = el('td', { class: 'total', text: show(computedCell.raw) });
-    const transCell = el('td', { class: 'read', text: show(computedCell.transmuted, 0) });
+    const rawCell = el('td', { class: 'total att-raw', text: show(computedCell.raw) });
+    const transCell = el('td', { class: 'read att-trans', text: show(computedCell.transmuted, 0) });
 
     const cells = sessions.map((session, si) => {
       const code = studentMarks[si];
@@ -921,6 +956,7 @@ async function renderRoster(content, course) {
     const idInput = el('input', {
       type: 'text',
       value: student.student_id || '',
+      class: 'id-input',
       dataset: { row: String(index), col: '0' },
       'aria-label': `Student ID, row ${index + 1}`,
     });
@@ -955,7 +991,7 @@ async function renderRoster(content, course) {
       el('td', { class: 'entry w-auto' }, nameInput),
       el('td', { class: 'ta-center' },
         el('button', {
-          class: 'x btn ghost small',
+          class: 'btn rowdel',
           title: 'Remove this student',
           onclick: () => removeStudent(student),
         }, '✕'))
@@ -1284,11 +1320,20 @@ async function changePolicy(course, newPolicy, selectEl) {
 
 // ------------------------------------------------------------------ issues
 
-/** Keep the "Review issues (n)" badge honest as scores change. */
+/**
+ * Keep the "Review issues (n)" badge honest as scores change.
+ * Rebuilt rather than assigned as text so the responsive `.long` span, which
+ * collapses the label on narrow windows, survives the update.
+ */
 function updateIssueCount(button, issues) {
   if (!button || !button.isConnected) return;
   const count = issues.filter((i) => i.severity !== 'info').length;
-  button.textContent = `Review issues${count ? ` (${count})` : ''}`;
+  setChildren(
+    button,
+    document.createTextNode('Review'),
+    el('span', { class: 'long', text: ' issues' }),
+    count ? document.createTextNode(` (${count})`) : null
+  );
 }
 
 /**

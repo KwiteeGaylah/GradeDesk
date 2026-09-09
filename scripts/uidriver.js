@@ -208,6 +208,93 @@ async function drive(win, app) {
     check('all three policies are offered', ['50', '60', '70'].every((p) => config.policies.includes(p)), JSON.stringify(config.policies));
     check('the exam is shown as fixed at 40', config.examBadge);
 
+    // ---- responsive layout: the essentials survive a narrow window ----
+    const setSize = async (w, h) => {
+      if (win.isMaximized()) win.unmaximize();
+      win.setResizable(true);
+      win.setContentSize(w, h);
+      await new Promise((r) => setTimeout(r, 700));
+      return win.getContentSize();
+    };
+
+    await setSize(960, 600);
+    await run(win, `(async () => { state.screen = 'grades'; renderRail(); await renderScreen(); })()`);
+    await new Promise((r) => setTimeout(r, 500));
+
+    const narrow = await run(win, `(() => {
+      const card = document.querySelector('#content .gridcard');
+      const cr = card.getBoundingClientRect();
+      const inside = (sel) => { const n = document.querySelector(sel); if (!n) return false;
+        const b = n.getBoundingClientRect();
+        return b.width > 0 && b.right <= cr.right + 1 && b.left >= cr.left - 1; };
+      return {
+        width: window.innerWidth,
+        finalVisible: inside('#content tbody tr:first-child td.final'),
+        letterVisible: inside('#content tbody tr:first-child td.letter'),
+        topbarHeight: Math.round(document.querySelector('.topbar').getBoundingClientRect().height),
+        tabHeight: Math.round(document.querySelector('.assessbar').getBoundingClientRect().height),
+        bodyOverflows: document.body.scrollWidth > document.body.clientWidth + 1,
+        clippedCells: [...document.querySelectorAll('#content td, #content th')]
+          .filter(c => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).display !== 'none').length
+      };
+    })()`);
+
+    check('narrow window: the final grade stays visible', narrow.finalVisible, JSON.stringify(narrow));
+    check('narrow window: the letter stays visible', narrow.letterVisible, JSON.stringify(narrow));
+    check('narrow window: the top bar stays one row', narrow.topbarHeight <= 70, `${narrow.topbarHeight}px`);
+    check('narrow window: assessment tabs stay one row', narrow.tabHeight <= 60, `${narrow.tabHeight}px`);
+    check('narrow window: the page itself never scrolls sideways', !narrow.bodyOverflows, JSON.stringify(narrow));
+    check('narrow window: no cell has clipped content', narrow.clippedCells === 0, `${narrow.clippedCells} clipped`);
+
+    // Attendance is the widest grid: one column per session.
+    await run(win, `(async () => { state.screen = 'attendance'; state.selectedTermKind = 'midterm';
+      renderRail(); await renderScreen(); })()`);
+    await new Promise((r) => setTimeout(r, 600));
+    const att = await run(win, `(() => {
+      const card = document.querySelector('#content .gridcard');
+      if (!card) return { skipped: true };
+      const cr = card.getBoundingClientRect();
+      const inside = (sel) => { const n = document.querySelector(sel); if (!n) return false;
+        const b = n.getBoundingClientRect(); return b.width > 0 && b.right <= cr.right + 1; };
+      return { rawVisible: inside('#content tbody tr:first-child td.att-raw'),
+               transVisible: inside('#content tbody tr:first-child td.att-trans') };
+    })()`);
+    if (!att.skipped) {
+      check('narrow window: the attendance score stays visible', att.rawVisible, JSON.stringify(att));
+      check('narrow window: its transmuted value stays visible', att.transVisible, JSON.stringify(att));
+    }
+
+    // Wide again: everything comes back.
+    await setSize(1440, 900);
+    await run(win, `(async () => { state.screen = 'grades'; renderRail(); await renderScreen(); })()`);
+    await new Promise((r) => setTimeout(r, 600));
+    const wide = await run(win, `(() => ({
+      headers: [...document.querySelectorAll('#content thead th')]
+        .filter(th => getComputedStyle(th).display !== 'none').map(th => th.innerText.trim()),
+      labels: [...document.querySelectorAll('#topActions .btn')].map(b => b.innerText.trim())
+    }))()`);
+    check('wide window: the running-total columns return',
+      wide.headers.includes('Class standing') && wide.headers.some(h => h.endsWith('total')),
+      JSON.stringify(wide.headers));
+    check('wide window: full button labels return',
+      wide.labels.some(l => l.includes('Export grade sheet')), JSON.stringify(wide.labels));
+
+    // The roster carries only its own actions.
+    await run(win, `(async () => { state.screen = 'roster'; renderRail(); await renderScreen(); })()`);
+    await new Promise((r) => setTimeout(r, 500));
+    const rosterLayout = await run(win, `(() => ({
+      buttons: [...document.querySelectorAll('#topActions .btn')].map(b => b.innerText.trim()),
+      nameAlign: (() => { const i = document.querySelector('#content input[data-col=\"1\"]');
+        return i ? getComputedStyle(i).textAlign : null; })()
+    }))()`);
+    check('the roster shows only roster actions',
+      !rosterLayout.buttons.some(b => /Export|Review/.test(b)), JSON.stringify(rosterLayout.buttons));
+    check('roster names read left, not centred', rosterLayout.nameAlign === 'left', String(rosterLayout.nameAlign));
+
+    await setSize(1280, 800);
+    await run(win, `(async () => { state.screen = 'grades'; renderRail(); await renderScreen(); })()`);
+    await new Promise((r) => setTimeout(r, 400));
+
     // ---- issue review surfaces the blank exams ----
     const issues = await run(win, `(async () => {
       const list = await window.gradedesk.gradebook.issues(${setup.courseId});
