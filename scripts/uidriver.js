@@ -301,6 +301,35 @@ async function drive(win, app) {
       return { count: list.length, kinds: [...new Set(list.map(i => i.kind))] };
     })()`);
     check('issue review reports blank exams', issues.kinds.includes('blank_exam'), JSON.stringify(issues));
+    // ---- a long dialog keeps its heading and buttons reachable ----
+    const dlg = await run(win, `(async () => {
+      const list = await window.gradedesk.gradebook.issues(state.courseId);
+      showIssues(list);
+      await new Promise(r => setTimeout(r, 500));
+      const m = document.querySelector('.modal');
+      const head = m.querySelector('.modalhead');
+      const bodyEl = m.querySelector('.modalbody');
+      const actions = m.querySelector('.actions');
+      const headTop = head.getBoundingClientRect().top;
+      bodyEl.scrollTop = bodyEl.scrollHeight;
+      await new Promise(r => setTimeout(r, 250));
+      const mb = m.getBoundingClientRect();
+      const out = {
+        titleVisible: !!head.querySelector('h3') && head.getBoundingClientRect().bottom > 0,
+        headStaysPut: Math.abs(head.getBoundingClientRect().top - headTop) < 2,
+        actionsReachable: actions.getBoundingClientRect().bottom <= window.innerHeight + 1,
+        fitsOnScreen: mb.top >= -1 && mb.bottom <= window.innerHeight + 1,
+        buttons: [...actions.querySelectorAll('.btn')].map(b => b.textContent.trim())
+      };
+      document.querySelector('.modalbg').remove();
+      return out;
+    })()`);
+    check('a long dialog keeps its title in view while the body scrolls',
+      dlg.titleVisible && dlg.headStaysPut, JSON.stringify(dlg));
+    check('a long dialog keeps its buttons reachable', dlg.actionsReachable, JSON.stringify(dlg));
+    check('a long dialog fits on screen', dlg.fitsOnScreen, JSON.stringify(dlg));
+    check('the review dialog offers one dismiss button, not two',
+      dlg.buttons.length === 1 && dlg.buttons[0] === 'Close', JSON.stringify(dlg.buttons));
   } catch (err) {
     check('driver completed without throwing', false, err.message);
   }

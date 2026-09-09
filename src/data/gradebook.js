@@ -164,7 +164,15 @@ function reviewIssues(store, courseId, tables) {
   const result = computeCourse(store, courseId, tables);
   const issues = [];
 
+  // A roster row with no name and no ID is a blank the instructor added and has
+  // not filled in yet. Reporting it as a student with missing scores buries the
+  // real problems under noise, so those rows are counted separately instead.
+  const isBlankRow = (s) =>
+    !String(s.full_name || '').trim() && !String(s.student_id || '').trim();
+  const blankRows = result.students.filter((r) => isBlankRow(r.student));
+
   for (const row of result.students) {
+    if (isBlankRow(row.student)) continue;
     const who = row.student.full_name || `Student ${row.student.number ?? row.student.id}`;
 
     for (const termKey of ['midterm', 'final']) {
@@ -229,6 +237,17 @@ function reviewIssues(store, courseId, tables) {
         message: `${who} has ${blanks.length} blank score${blanks.length > 1 ? 's' : ''} (${blanks.join(', ')}), each counting as 50.`,
       });
     }
+  }
+
+  // One line for all the empty roster rows, rather than one line each.
+  if (blankRows.length) {
+    issues.push({
+      severity: 'warning',
+      kind: 'blank_roster_row',
+      message:
+        `${blankRows.length} empty roster row${blankRows.length === 1 ? '' : 's'} ` +
+        `will export as blank. Fill them in or remove them.`,
+    });
   }
 
   const rank = { error: 0, warning: 1, info: 2 };

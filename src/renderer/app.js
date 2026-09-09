@@ -110,7 +110,25 @@ function showRaw(value) {
 
 // ------------------------------------------------------------------- modal
 
-function modal({ title, subtitle, body, confirmLabel = 'Save', onConfirm, danger = false, wide = false }) {
+/**
+ * A modal dialog.
+ *
+ * The title and the action buttons are fixed; only the body scrolls. A long
+ * list (the issue review can run to dozens of rows) must never carry its own
+ * heading off the top of the screen or push its buttons out of reach.
+ *
+ * `cancelLabel: null` drops the cancel button, for dialogs that only dismiss.
+ */
+function modal({
+  title,
+  subtitle,
+  body,
+  confirmLabel = 'Save',
+  cancelLabel = 'Cancel',
+  onConfirm,
+  danger = false,
+  wide = false,
+}) {
   return new Promise((resolve) => {
     const root = $('modalRoot');
     const close = (value) => {
@@ -130,11 +148,12 @@ function modal({ title, subtitle, body, confirmLabel = 'Save', onConfirm, danger
         if (value !== false) close(value ?? true);
       },
     },
-      el('h3', { text: title }),
-      subtitle ? el('div', { class: 'sub', text: subtitle }) : null,
-      body,
+      el('div', { class: 'modalhead' },
+        el('h3', { text: title }),
+        subtitle ? el('div', { class: 'sub', text: subtitle }) : null),
+      el('div', { class: 'modalbody' }, body),
       el('div', { class: 'actions' },
-        el('button', { type: 'button', class: 'btn', onclick: () => close(null) }, 'Cancel'),
+        cancelLabel ? el('button', { type: 'button', class: 'btn', onclick: () => close(null) }, cancelLabel) : null,
         el('button', { type: 'submit', class: `btn primary${danger ? ' danger' : ''}` }, confirmLabel)
       )
     );
@@ -1369,6 +1388,8 @@ function showIssues(issues) {
       : 'Checked every student in this course.',
     body,
     confirmLabel: 'Close',
+    // A review only dismisses, so a second dismissing button would be noise.
+    cancelLabel: null,
     wide: true,
     onConfirm: () => true,
   });

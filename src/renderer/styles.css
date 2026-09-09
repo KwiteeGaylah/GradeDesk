@@ -310,13 +310,23 @@ th.session .del:hover { color: var(--red); }
   display: flex; align-items: center; justify-content: center; z-index: 50;
 }
 .modal {
-  background: var(--paper); border-radius: 12px; padding: 20px 22px;
-  width: 440px; max-width: calc(100vw - 40px); max-height: calc(100vh - 80px); overflow: auto;
+  background: var(--paper); border-radius: 12px;
+  width: 440px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px);
   box-shadow: 0 18px 48px rgba(16, 22, 34, .28);
+  display: flex; flex-direction: column; overflow: hidden;
 }
+.modal form { display: flex; flex-direction: column; min-height: 0; }
+/* Head and actions are fixed; only the body scrolls, so a long list never
+   carries its own title off screen or pushes its buttons out of reach. */
+.modalhead { padding: 18px 22px 0; flex: none; }
+.modalbody { padding: 0 22px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
 .modal h3 { margin: 0 0 4px; font-size: 16px; }
 .modal .sub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; }
-.modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.modal .actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 22px 18px; flex: none; border-top: 1px solid var(--line);
+  background: var(--paper);
+}
 .modal ul { margin: 8px 0 0; padding-left: 20px; font-size: 13px; }
 .modal li { margin-bottom: 4px; }
 

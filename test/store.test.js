@@ -527,3 +527,38 @@ test('an over-maximum exam score is flagged too', () => {
   assert.match(found.message, /above the maximum of 40/);
   store.close();
 });
+
+test('empty roster rows are summarised, not reported one student at a time', () => {
+  // "Add 5 rows" creates blanks the instructor has not filled in yet. Treating
+  // each as a student with nine missing scores buried the real issues.
+  const store = newStore();
+  const { course, a } = seedCourse(store);
+  const [real] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Real, Student' }]);
+  store.addStudents(course.id, [{}, {}, {}]); // three blank rows
+  store.setScore(real.id, a.midExam.id, 30);
+  store.setScore(real.id, a.finExam.id, 30);
+
+  const issues = reviewIssues(store, course.id, tables);
+  const perStudent = issues.filter((i) => i.student);
+  const summary = issues.filter((i) => i.kind === 'blank_roster_row');
+
+  assert.equal(summary.length, 1, 'one summary line for all blank rows');
+  assert.match(summary[0].message, /3 empty roster rows/);
+  assert.ok(
+    perStudent.every((i) => i.student.id === real.id),
+    'no per-student issue should name a blank row'
+  );
+  store.close();
+});
+
+test('a row with an ID but no name is still a real student', () => {
+  // Half-entered is not the same as untouched: it should still be checked.
+  const store = newStore();
+  const { course } = seedCourse(store);
+  store.addStudents(course.id, [{ studentId: '44305', fullName: '' }]);
+
+  const issues = reviewIssues(store, course.id, tables);
+  assert.equal(issues.filter((i) => i.kind === 'blank_roster_row').length, 0);
+  assert.ok(issues.some((i) => i.kind === 'blank_exam'), 'it is checked like any student');
+  store.close();
+});
