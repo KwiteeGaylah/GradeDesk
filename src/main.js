@@ -56,12 +56,21 @@ function createWindow() {
   // Nothing in this app should ever open a browser; it is offline by design.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
+  // Development harnesses only. The scripts directory is not shipped in the
+  // packaged app, so these requires are guarded: a packaged build ignores them
+  // even if one of the variables happens to be set in the environment.
   if (process.env.GRADEDESK_SMOKE) runSmokeCheck(mainWindow);
-  if (process.env.GRADEDESK_UITEST) {
-    require('../scripts/uidriver').drive(mainWindow, app);
-  }
+  if (process.env.GRADEDESK_UITEST) loadHarness('uidriver', (m) => m.drive(mainWindow, app));
   if (process.env.GRADEDESK_SHOT) {
-    require('../scripts/shotdriver').capture(mainWindow, app, process.env.GRADEDESK_SHOT);
+    loadHarness('shotdriver', (m) => m.capture(mainWindow, app, process.env.GRADEDESK_SHOT));
+  }
+}
+
+function loadHarness(name, run) {
+  try {
+    run(require(`../scripts/${name}`));
+  } catch (err) {
+    console.error(`Test harness "${name}" is unavailable in this build:`, err.message);
   }
 }
 
@@ -119,8 +128,46 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (store) store.close();
   if (process.platform !== 'darwin') app.quit();
+});
+
+/**
+ * Close the database on every exit path, not just the tidy one.
+ *
+ * Each write already commits with synchronous=FULL, so nothing typed is at risk
+ * even if the process is killed outright. Closing cleanly additionally
+ * checkpoints the write-ahead log, so the next launch starts from a single
+ * consistent file rather than replaying a journal.
+ */
+function closeStore() {
+  if (!store) return;
+  try {
+    store.close();
+  } catch {
+    // Already closed, or the process is going down mid-write. The data on disk
+    // is committed either way; there is nothing useful to do here.
+  }
+  store = null;
+}
+
+app.on('before-quit', closeStore);
+process.on('exit', closeStore);
+for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(signal, () => {
+    closeStore();
+    app.exit(0);
+  });
+}
+process.on('uncaughtException', (err) => {
+  console.error('Unexpected error:', err);
+  closeStore();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    dialog.showErrorBox(
+      'GradeDesk hit an unexpected problem',
+      `${err.message}\n\nYour data is saved. Please restart GradeDesk.`
+    );
+  }
+  app.exit(1);
 });
 
 /** A brand-new install gets an active semester so the app is never dead on arrival. */

@@ -16,10 +16,46 @@
     "screenshot": "node scripts/screenshot.js"
   },
   "devDependencies": {
-    "electron": "^44.3.0"
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "exceljs": "^4.4.0"
+  },
+  "build": {
+    "appId": "lr.wvstu.gradedesk",
+    "productName": "GradeDesk",
+    "copyright": "Kwitee D. Gaylah",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "data/transmutation_tables.json",
+      "package.json"
+    ],
+    "extraMetadata": {
+      "main": "src/main.js"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "GradeDesk-Setup-${version}.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "GradeDesk"
+    }
   }
 }

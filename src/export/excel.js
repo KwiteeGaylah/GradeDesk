@@ -36,6 +36,19 @@ function num(v) {
   return v === null || v === undefined || Number.isNaN(v) ? null : v;
 }
 
+/**
+ * "CSE 102" plus section 2 becomes "CSE 102 Sec. 2", but a code the instructor
+ * already wrote as "CSE 102 Sec. 2" is left alone rather than becoming
+ * "CSE 102 Sec. 2 Sec. 2".
+ */
+function courseLabel(course, separator = ' Sec. ') {
+  const code = (course.code || '').trim();
+  const section = (course.section || '').trim();
+  if (!section) return code;
+  if (new RegExp(`\\bsec\\.?\\s*${section}\\b`, 'i').test(code)) return code;
+  return `${code}${separator}${section}`;
+}
+
 function styleHeaderCell(cell) {
   cell.font = { bold: true, size: 10 };
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
@@ -49,7 +62,7 @@ function styleHeaderCell(cell) {
  */
 function buildGradeRecord(workbook, result) {
   const { course, terms, students } = result;
-  const sheetName = `${course.code || 'Course'}${course.section ? ` Sec ${course.section}` : ''}`
+  const sheetName = (courseLabel(course, ' Sec ') || 'Course')
     .replace(/[\\/*?:[\]]/g, '-')
     .slice(0, 31);
   const ws = workbook.addWorksheet(sheetName, {
@@ -105,7 +118,7 @@ function buildGradeRecord(workbook, result) {
 
   ws.getCell(2, 1).value = 'Course Code:';
   ws.getCell(2, 1).font = { bold: true };
-  ws.getCell(2, 3).value = `${course.code || ''}${course.section ? ` Sec. ${course.section}` : ''}`;
+  ws.getCell(2, 3).value = courseLabel(course);
   ws.getCell(3, 1).value = 'Course:';
   ws.getCell(3, 1).font = { bold: true };
   ws.getCell(3, 3).value = course.name || '';
@@ -237,7 +250,7 @@ function buildSummary(workbook, result) {
 
   ws.getCell(2, 1).value = 'Course Code:';
   ws.getCell(2, 1).font = { bold: true };
-  ws.getCell(2, 2).value = `${course.code || ''}${course.section ? ` Sec. ${course.section}` : ''}`;
+  ws.getCell(2, 2).value = courseLabel(course);
   ws.getCell(3, 1).value = 'Course:';
   ws.getCell(3, 1).font = { bold: true };
   ws.getCell(3, 2).value = course.name || '';

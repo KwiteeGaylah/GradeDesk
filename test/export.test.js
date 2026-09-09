@@ -239,6 +239,37 @@ test('an archived semester still exports', async () => {
   store.close();
 });
 
+test('the section is not repeated when the code already names it', async () => {
+  const store = new Store(':memory:');
+  const semester = store.createSemester('S1');
+  // The instructor typed the section into the code as well, as in the real file.
+  const course = store.createCourse({
+    semesterId: semester.id,
+    code: 'CSE 102 Sec. 2',
+    name: 'Computer Literacy',
+    section: '2',
+  });
+  const file = path.join(tmpDir, 'label.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  assert.equal(wb.worksheets[0].name, 'CSE 102 Sec. 2', 'sheet name should not repeat the section');
+  assert.equal(wb.worksheets[0].getCell(2, 3).value, 'CSE 102 Sec. 2');
+  store.close();
+});
+
+test('the section is appended when the code omits it', async () => {
+  const store = new Store(':memory:');
+  const semester = store.createSemester('S1');
+  const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102', section: '11' });
+  const file = path.join(tmpDir, 'label2.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  assert.equal(wb.worksheets[0].getCell(2, 3).value, 'CSE 102 Sec. 11');
+  store.close();
+});
+
 test('a course with no students still produces a valid file', async () => {
   const store = new Store(':memory:');
   const semester = store.createSemester('S1');
