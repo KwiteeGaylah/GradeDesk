@@ -47,6 +47,7 @@ function createWindow() {
     minWidth: 960,
     minHeight: 600,
     backgroundColor: '#eef1f6',
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -70,6 +71,7 @@ function createWindow() {
   if (process.env.GRADEDESK_SHOT) {
     loadHarness('shotdriver', (m) => m.capture(mainWindow, app, process.env.GRADEDESK_SHOT));
   }
+  if (process.env.GRADEDESK_MAKEICON) loadHarness('icondriver', (m) => m.makeIcons(mainWindow, app));
   if (process.env.GRADEDESK_EXPLORE) {
     loadHarness('explore', (m) =>
       m.explore(mainWindow, app, process.env.GRADEDESK_EXPLORE, process.env.GRADEDESK_EXPLORE_LOG)

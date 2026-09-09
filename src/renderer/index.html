@@ -18,11 +18,6 @@
       <div class="sem">
         <label for="semesterSelect">Active semester</label>
         <select id="semesterSelect"></select>
-        <div class="semactions">
-          <button class="linkbtn" id="newSemesterBtn">New semester</button>
-          <button class="linkbtn" id="backupBtn">Back up</button>
-          <button class="linkbtn" id="restoreBtn">Restore</button>
-        </div>
       </div>
 
       <div class="railscroll">
@@ -32,7 +27,15 @@
         <nav id="screenNav"></nav>
       </div>
 
-      <div class="foot" id="saveStatus">All data saved locally</div>
+      <div class="railfoot">
+        <button class="railbtn" id="helpBtn" title="Guide and tutorial">
+          <span class="ico">?</span> Guide
+        </button>
+        <button class="railbtn" id="settingsBtn" title="Semester, backup and restore">
+          <span class="ico">&#9881;</span> Manage
+        </button>
+        <div class="foot" id="saveStatus">All data saved locally</div>
+      </div>
     </aside>
 
     <main class="main">
@@ -48,6 +51,7 @@
   </div>
 
   <div id="modalRoot"></div>
+  <script src="guide.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

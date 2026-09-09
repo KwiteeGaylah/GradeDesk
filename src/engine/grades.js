@@ -54,6 +54,29 @@ function attendanceRaw(sessionMarks, points) {
     else if (code === 'E') credit += 0.5;
     // anything else counts as zero
   }
+  const exact = (points * credit) / marked.length;
+  // Attendance is recorded as a whole number of points, matching the
+  // instructor's workbook, where the column only ever holds 0, 5 or 10. The
+  // division above can produce 9.166666..., which is neither how they record it
+  // nor readable in a cell, so it is rounded to the nearest point. Half rounds
+  // up, in the student's favour.
+  return Math.round(exact);
+}
+
+/**
+ * The unrounded attendance score, kept for display where the working matters
+ * (a tooltip explaining how the rounded number was reached).
+ */
+function attendanceRawExact(sessionMarks, points) {
+  const marks = Array.isArray(sessionMarks) ? sessionMarks : [];
+  const marked = marks.filter((m) => !isBlank(m));
+  if (marked.length === 0) return null;
+  let credit = 0;
+  for (const m of marked) {
+    const code = String(m).trim().toUpperCase();
+    if (code === 'P') credit += 1;
+    else if (code === 'E') credit += 0.5;
+  }
   return (points * credit) / marked.length;
 }
 
@@ -192,6 +215,7 @@ module.exports = {
   MIDTERM_WEIGHT,
   FINAL_TERM_WEIGHT,
   attendanceRaw,
+  attendanceRawExact,
   classStanding,
   termTotal,
   finalGrade,

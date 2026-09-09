@@ -74,9 +74,20 @@ nav a .sub { font-size: 11px; color: #8b97ab; margin-left: auto; }
 nav a.active .sub { color: #d3e6da; }
 
 .rail .foot {
-  padding: 10px 16px; border-top: 1px solid var(--rail-soft);
-  font-size: 11.5px; color: #7c88a0; flex: none;
+  padding: 8px 16px 10px; font-size: 11px; color: #7c88a0; flex: none;
 }
+/* Semester lifecycle and backup used to be three small links under the picker,
+   where "Restore" (which replaces everything) sat one slip from daily
+   navigation. They now live behind these deliberate footer buttons. */
+.railfoot { margin-top: auto; border-top: 1px solid var(--rail-soft); padding-top: 8px; flex: none; }
+.railbtn {
+  display: flex; align-items: center; gap: 9px; width: calc(100% - 16px);
+  margin: 1px 8px; padding: 8px 14px; border-radius: 7px;
+  background: transparent; border: none; color: var(--rail-ink);
+  font: inherit; font-size: 13px; cursor: pointer; text-align: left;
+}
+.railbtn:hover { background: var(--rail-soft); color: #e7ecf4; }
+.railbtn .ico { width: 16px; text-align: center; opacity: .85; flex: none; }
 
 /* ---------------- main ---------------- */
 .main { overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
@@ -160,6 +171,39 @@ nav a.active .sub { color: #d3e6da; }
 .atab .max { opacity: .7; font-size: 11px; margin-left: 4px; }
 .atab.exam { border-color: #ddb98a; }
 .atab.exam.active { background: var(--amber-tint); border-color: var(--amber); color: var(--amber); }
+
+/* ---------------- entry toolbar ----------------
+   Replaces the old wrapping strip of assessment tabs. A course can carry a
+   dozen assessments; a dropdown costs one row at any window width. */
+.entrybar {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 12px; flex-wrap: wrap;
+}
+.pickgroup, .filtergroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.apicker {
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
+  padding: 7px 10px; font-size: 13.5px; font-family: inherit; color: var(--ink);
+  font-weight: 600; max-width: 280px;
+}
+.apicker:hover { border-color: #9aa6b6; }
+.btn.step { padding: 5px 10px; font-size: 15px; line-height: 1; color: var(--ink-soft); }
+.btn.step:disabled { opacity: .35; }
+.searchbox {
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
+  padding: 7px 10px; font-size: 13px; font-family: inherit; color: var(--ink); width: 180px;
+}
+.searchbox:focus { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
+.sortbox {
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
+  padding: 7px 9px; font-size: 12.5px; font-family: inherit; color: var(--ink-soft);
+}
+.rowcount { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+td.emptyrow { text-align: center; color: var(--ink-soft); padding: 26px 12px; }
+
+@media (max-width: 1120px) {
+  .searchbox { width: 130px; }
+  .apicker { max-width: 190px; }
+}
 
 /* ---------------- grid ---------------- */
 .gridcard {
@@ -370,3 +414,61 @@ td.entry input.id-input { text-align: left; padding-left: 12px; }
 .k-entry { background: #eef7f1; border: 1px solid #cfe2d6; }
 .k-read { background: var(--read); border: 1px solid var(--line); }
 .k-total { background: #eef2f7; border: 1px solid var(--line); }
+
+
+/* ---------------- guide ---------------- */
+.guidewrap { display: grid; grid-template-columns: 190px 1fr; gap: 18px; min-height: 340px; }
+.guidenav { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); padding-right: 12px; }
+.guidelink {
+  text-align: left; background: transparent; border: none; font: inherit; font-size: 13px;
+  color: var(--ink-soft); padding: 7px 10px; border-radius: 7px; cursor: pointer;
+}
+.guidelink:hover { background: #f2f5f9; color: var(--ink); }
+.guidelink.active { background: var(--brand-tint); color: var(--brand-ink); font-weight: 600; }
+.guidepane { min-width: 0; }
+.guidetitle { margin: 0 0 10px; font-size: 15px; }
+.guidep { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
+.guidesteps { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.guidestep {
+  display: grid; grid-template-columns: 168px 1fr; gap: 10px; align-items: baseline;
+  font-size: 13px; padding: 7px 10px; background: #f6f8fb; border-radius: 7px;
+}
+.guidestep b { color: var(--ink); }
+.guidestep span { color: var(--ink-soft); }
+.guideformula {
+  margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
+}
+.formularow {
+  display: grid; grid-template-columns: 150px 1fr; gap: 10px;
+  padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--line);
+}
+.formularow:last-child { border-bottom: none; }
+.fname { font-weight: 600; }
+.fbody { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 900px) {
+  .guidewrap { grid-template-columns: 1fr; }
+  .guidenav { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 0 0 10px; }
+  .guidestep { grid-template-columns: 1fr; gap: 2px; }
+}
+
+/* ---------------- wizard ---------------- */
+.wizhero { display: grid; grid-template-columns: 56px 1fr; gap: 14px; margin-bottom: 14px; }
+.wizmark {
+  width: 56px; height: 56px; border-radius: 16px; background: var(--brand);
+  color: #fff; font-size: 28px; display: flex; align-items: center; justify-content: center;
+}
+
+/* ---------------- manage dialog ---------------- */
+.mansec { margin: 4px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--ink-soft); }
+.managelist { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.manrow {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border-bottom: 1px solid var(--line); font-size: 13px;
+}
+.manrow:last-child { border-bottom: none; }
+.manrow.current { background: var(--brand-tint); }
+.manname { flex: 1; min-width: 0; }
+.mansub { font-size: 11.5px; color: var(--ink-soft); }
+.manactions { display: flex; gap: 8px; margin: 10px 0 18px; flex-wrap: wrap; }
+.manrow .badge { font-size: 11px; background: var(--brand); color: #fff; border-radius: 5px; padding: 3px 8px; }

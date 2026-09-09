@@ -16,6 +16,7 @@ const {
 const {
   EXAM_MAX_POINTS,
   attendanceRaw,
+  attendanceRawExact,
   classStanding,
   termTotal,
   finalGrade,
@@ -147,8 +148,25 @@ test('attendance: P full, E half, other zero, blank excluded', () => {
   assert.equal(attendanceRaw(['A', 'A'], 10), 0);
   assert.equal(attendanceRaw(['P', 'A'], 10), 5);
   assert.equal(attendanceRaw(['E', 'E'], 10), 5);
-  // 5 P + 1 E over 6 marked sessions
-  assert.equal(attendanceRaw(['P', 'P', 'P', 'E', 'P', 'P'], 10), (10 * 5.5) / 6);
+});
+
+test('attendance is recorded as a whole number of points', () => {
+  // The instructor's workbook only ever holds whole attendance values, and a
+  // raw 9.166666... is neither how they record it nor readable in a cell.
+  // 5 P + 1 E over 6 marked sessions is 9.1666..., recorded as 9.
+  assert.equal(attendanceRaw(['P', 'P', 'P', 'E', 'P', 'P'], 10), 9);
+  // 5 P + 1 A over 6 is 8.333..., recorded as 8.
+  assert.equal(attendanceRaw(['P', 'P', 'P', 'P', 'P', 'A'], 10), 8);
+  // A half rounds up, in the student's favour: 7.5 becomes 8.
+  assert.equal(attendanceRaw(['P', 'P', 'E', 'P', 'P', 'A'], 10), 8);
+  for (const marks of [['P'], ['P', 'E'], ['P', 'E', 'A'], ['E', 'E', 'E', 'P']]) {
+    assert.ok(Number.isInteger(attendanceRaw(marks, 10)), `${marks} should give a whole number`);
+  }
+});
+
+test('the exact attendance figure is still available for display', () => {
+  assert.equal(attendanceRawExact(['P', 'P', 'P', 'E', 'P', 'P'], 10), (10 * 5.5) / 6);
+  assert.equal(attendanceRawExact([], 10), null);
 });
 
 test('attendance denominator counts marked sessions, not planned ones', () => {
@@ -163,12 +181,15 @@ test('attendance with nothing marked yet is blank, not zero', () => {
 });
 
 test('attendance marks are case-insensitive', () => {
-  assert.equal(attendanceRaw(['p', 'e'], 10), (10 * 1.5) / 2);
+  assert.equal(attendanceRaw(['p', 'e'], 10), attendanceRaw(['P', 'E'], 10));
+  assert.equal(attendanceRawExact(['p', 'e'], 10), (10 * 1.5) / 2);
 });
 
 test('attendance points are configurable', () => {
   assert.equal(attendanceRaw(['P', 'P'], 15), 15);
-  assert.equal(attendanceRaw(['P', 'A'], 5), 2.5);
+  // 2.5 out of 5 rounds up to 3; the exact figure is still 2.5.
+  assert.equal(attendanceRaw(['P', 'A'], 5), 3);
+  assert.equal(attendanceRawExact(['P', 'A'], 5), 2.5);
 });
 
 // -------------------------------------------------------------- class standing

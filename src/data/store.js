@@ -379,13 +379,36 @@ class Store {
 
   // ---------------------------------------------------- attendance sessions
 
+  /**
+   * Add an attendance session.
+   *
+   * A class meets once on a given day, so the same date cannot be added twice
+   * to a course: a duplicate would quietly double that day's weight in every
+   * student's attendance score. Past dates are allowed and expected, since
+   * attendance is often entered days later from a paper register.
+   *
+   * @throws {Error} when the date already exists in this course
+   */
   addSession(courseId, termId, date) {
+    const day = String(date).trim();
+    if (!day) throw new Error('A session needs a date.');
+
+    const clash = this.db
+      .prepare('SELECT s.id, t.kind FROM sessions s JOIN terms t ON t.id = s.term_id WHERE s.course_id = ? AND s.date = ?')
+      .get(courseId, day);
+    if (clash) {
+      throw new Error(
+        `There is already a session on ${day} in the ${clash.kind} term. ` +
+          'Each class meeting is recorded once.'
+      );
+    }
+
     const order = this.db
       .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM sessions WHERE term_id = ?')
       .get(termId).n;
     const info = this.db
       .prepare('INSERT INTO sessions (course_id, term_id, date, sort_order) VALUES (?, ?, ?, ?)')
-      .run(courseId, termId, date, order);
+      .run(courseId, termId, day, order);
     return this.getSession(info.lastInsertRowid);
   }
 
@@ -393,9 +416,13 @@ class Store {
     return this.db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) || null;
   }
 
+  /**
+   * Sessions of a term in DATE order, not insertion order, so a back-dated
+   * session added later still appears in the right column of the grid.
+   */
   listSessions(termId) {
     return this.db
-      .prepare('SELECT * FROM sessions WHERE term_id = ? ORDER BY sort_order, id')
+      .prepare('SELECT * FROM sessions WHERE term_id = ? ORDER BY date, id')
       .all(termId);
   }
 

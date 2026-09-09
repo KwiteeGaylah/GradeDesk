@@ -42,7 +42,9 @@ const POLICY_STATUS = {
     confidence: CONFIDENCE.GRADE_VERIFIED,
     selectable: true,
     isDefault: true,
-    note: 'Verified against the instructor’s real workbook: 167 students, zero mismatches.',
+    // User-facing wording stays general: the person reading it is the
+    // instructor, so "the instructor's workbook" reads as someone else's.
+    note: 'Verified against 167 real student grades across 6 course sections, with zero mismatches.',
   },
   60: {
     policy: '60',

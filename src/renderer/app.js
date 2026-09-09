@@ -24,6 +24,10 @@ const state = {
   selectedTermKind: 'midterm',
   computed: null,
   policies: [],
+  /** Search and sort applied to the grade entry list. Not persisted. */
+  gradeFilter: { query: '', sort: 'roster' },
+  /** Search and sort applied to the roster grid. Not persisted. */
+  rosterFilter: { query: '', sort: 'roster' },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -291,41 +295,26 @@ function renderRail() {
 }
 
 $('semesterSelect').addEventListener('change', async (e) => {
-  const id = Number(e.target.value);
-  const target = state.semesters.find((s) => s.id === id);
-  if (!target) return;
-  if (!target.is_active) {
-    const ok = await confirmDialog({
-      title: `Switch to ${target.name}?`,
-      subtitle: 'This makes it the active semester and archives the current one.',
-      body: el('div', { class: 'note' },
-        'Archived semesters stay fully readable and exportable. You can switch back at any time.'),
-      confirmLabel: 'Switch semester',
-      danger: false,
-    });
-    if (!ok) {
-      renderRail();
-      return;
-    }
-    await guard(() => api.semesters.activate(id), 'Switching semester');
-  }
-  state.semesters = await api.semesters.list();
-  state.activeSemester = state.semesters.find((s) => s.id === id) || null;
-  await loadCourses();
+  // switchSemester confirms and re-renders; the rail is redrawn either way so
+  // the picker never shows a semester that was not actually activated.
+  await switchSemester(Number(e.target.value));
   renderRail();
-  await renderScreen();
 });
 
-$('newSemesterBtn').addEventListener('click', async () => {
+/**
+ * Create and activate a new semester. Kept as a named function because it is
+ * reached from the Manage dialog, the empty state and the setup wizard.
+ */
+async function newSemester() {
   const input = el('input', { type: 'text', required: true, placeholder: 'e.g. 2027–2028 Semester 1' });
   const result = await modal({
     title: 'New semester',
-    subtitle: 'The current semester will be archived. Nothing is deleted.',
+    subtitle: 'The current semester is archived, not deleted. You can switch back to it at any time.',
     body: el('div', { class: 'field' }, el('label', { text: 'Semester name' }), input),
     confirmLabel: 'Create and activate',
     onConfirm: () => input.value.trim() || false,
   });
-  if (!result) return;
+  if (!result) return false;
   await guard(() => api.semesters.create(result), 'Creating semester');
   state.semesters = await api.semesters.list();
   state.activeSemester = state.semesters.find((s) => s.is_active) || null;
@@ -333,19 +322,106 @@ $('newSemesterBtn').addEventListener('click', async () => {
   renderRail();
   await renderScreen();
   toast('Semester created');
-});
+  return true;
+}
 
-$('backupBtn').addEventListener('click', async () => {
+async function backupNow() {
   const file = await guard(() => api.backup.save(), 'Backup');
   if (file) toast('Backup saved');
-});
+}
 
-$('restoreBtn').addEventListener('click', async () => {
+async function restoreNow() {
   const result = await guard(() => api.backup.restore(), 'Restore');
   if (!result) return;
   toast(`Restored ${result.restored} records`);
+  // Just reload. A restore is not a first run, so the setup wizard stays away
+  // even if the restored file happens to contain no courses.
   await loadAll();
-});
+}
+
+/**
+ * The Manage dialog: semester lifecycle and data safety.
+ *
+ * These actions were previously three small links directly under the semester
+ * picker, where "Restore" (which replaces everything) sat one slip away from
+ * daily navigation. They now live behind a deliberate click.
+ */
+async function openManage() {
+  const list = el('div', { class: 'managelist' },
+    ...state.semesters.map((sem) =>
+      el('div', { class: `manrow${sem.is_active ? ' current' : ''}` },
+        el('div', { class: 'manname' },
+          el('div', {}, sem.name),
+          el('div', { class: 'mansub', text: sem.is_active ? 'Active' : 'Archived, still readable and exportable' })),
+        sem.is_active
+          ? el('span', { class: 'badge', text: 'current' })
+          : el('button', {
+              class: 'btn small',
+              onclick: async () => {
+                setChildren($('modalRoot'));
+                await switchSemester(sem.id);
+              },
+            }, 'Make active'))
+    )
+  );
+
+  await modal({
+    title: 'Manage',
+    subtitle: 'Semesters, and keeping your data safe.',
+    wide: true,
+    confirmLabel: 'Done',
+    cancelLabel: null,
+    onConfirm: () => true,
+    body: el('div', {},
+      el('h4', { class: 'mansec', text: 'Semesters' }),
+      list,
+      el('div', { class: 'manactions' },
+        el('button', {
+          class: 'btn',
+          onclick: async () => { setChildren($('modalRoot')); await newSemester(); },
+        }, '＋ New semester')),
+
+      el('h4', { class: 'mansec', text: 'Your data' }),
+      el('div', { class: 'note' },
+        'Everything is saved on this computer as you type. A backup is a single ',
+        'file you can copy to a flash drive and carry to another machine.'),
+      el('div', { class: 'manactions' },
+        el('button', { class: 'btn', onclick: backupNow }, 'Back up to a file'),
+        el('button', {
+          class: 'btn danger',
+          onclick: async () => { setChildren($('modalRoot')); await restoreNow(); },
+        }, 'Restore from a backup…')),
+      el('div', { class: 'hint' },
+        'Restoring replaces everything currently in GradeDesk. You will be asked to confirm.')),
+  });
+}
+
+/** Switch the active semester, warning that the current one gets archived. */
+async function switchSemester(id) {
+  const target = state.semesters.find((s) => s.id === id);
+  if (!target || target.is_active) return;
+  const ok = await confirmDialog({
+    title: `Switch to ${target.name}?`,
+    subtitle: 'This makes it the active semester and archives the current one.',
+    body: el('div', { class: 'note' },
+      'Archived semesters stay fully readable and exportable. You can switch back at any time.'),
+    confirmLabel: 'Switch semester',
+    danger: false,
+  });
+  if (!ok) {
+    renderRail();
+    return;
+  }
+  await guard(() => api.semesters.activate(id), 'Switching semester');
+  state.semesters = await api.semesters.list();
+  state.activeSemester = state.semesters.find((s) => s.id === id) || null;
+  await loadCourses();
+  renderRail();
+  await renderScreen();
+}
+
+$('settingsBtn').addEventListener('click', openManage);
+$('helpBtn').addEventListener('click', () => openGuide());
 
 // ----------------------------------------------------------------- courses
 
@@ -427,7 +503,7 @@ async function renderScreen() {
       title: 'No semester yet',
       text: 'Create a semester to begin. Everything you enter is saved on this computer.',
       actionLabel: 'New semester',
-      onAction: () => $('newSemesterBtn').click(),
+      onAction: newSemester,
     }));
     return;
   }
@@ -547,24 +623,97 @@ async function renderGradeEntry(content, course, policyInfo) {
   state.selectedAssessmentId = selected.id;
   state.selectedTermKind = selected.termKind;
 
-  // ---- assessment tabs, grouped by term ----
-  const bar = el('div', { class: 'assessbar' });
+  // ---- assessment picker ----
+  // A dropdown grouped by term, not a long strip of tabs: a course can carry a
+  // dozen assessments and the strip pushed the grid down or scrolled sideways.
+  // Prev/next buttons keep single-key movement between assessments.
+  const picker = el('select', {
+    class: 'apicker',
+    'aria-label': 'Assessment being entered',
+    onchange: async (e) => {
+      const pick = all.find((a) => String(a.id) === e.target.value);
+      if (!pick) return;
+      state.selectedAssessmentId = pick.id;
+      state.selectedTermKind = pick.termKind;
+      await renderScreen();
+      focusFirstEntry();
+    },
+  });
   for (const kind of ['midterm', 'final']) {
     const list = all.filter((a) => a.termKind === kind);
     if (!list.length) continue;
-    bar.append(el('span', { class: 'term-pill', text: kind === 'midterm' ? 'MIDTERM TERM' : 'FINAL TERM' }));
+    const group = el('optgroup', { label: kind === 'midterm' ? 'Midterm term' : 'Final term' });
     for (const a of list) {
-      bar.append(el('button', {
-        class: `atab${a.id === selected.id ? ' active' : ''}${a.kind === 'exam' ? ' exam' : ''}`,
-        onclick: async () => {
-          state.selectedAssessmentId = a.id;
-          state.selectedTermKind = a.termKind;
-          await renderScreen();
-          focusFirstEntry();
-        },
-      }, a.name, el('span', { class: 'max', text: `/${a.max_points}` })));
+      group.append(el('option', {
+        value: String(a.id),
+        selected: a.id === selected.id,
+      }, `${a.name}  (out of ${a.max_points})${a.kind === 'exam' ? ' · exam' : ''}`));
     }
+    picker.append(group);
   }
+
+  const step = async (delta) => {
+    const i = all.findIndex((a) => a.id === selected.id);
+    const next = all[i + delta];
+    if (!next) return;
+    state.selectedAssessmentId = next.id;
+    state.selectedTermKind = next.termKind;
+    await renderScreen();
+    focusFirstEntry();
+  };
+  const index = all.findIndex((a) => a.id === selected.id);
+
+  const search = el('input', {
+    type: 'search',
+    class: 'searchbox',
+    placeholder: 'Search name or ID',
+    value: state.gradeFilter.query,
+    'aria-label': 'Filter the class list',
+    oninput: (e) => {
+      state.gradeFilter.query = e.target.value;
+      // Re-render only the rows, so the caret stays in the search box.
+      renderGradeRows();
+    },
+  });
+
+  const sort = el('select', {
+    class: 'sortbox',
+    'aria-label': 'Sort the class list',
+    onchange: (e) => {
+      state.gradeFilter.sort = e.target.value;
+      renderGradeRows();
+    },
+  },
+    ...[
+      ['roster', 'Roster order'],
+      ['name', 'Name (A–Z)'],
+      ['id', 'Student ID'],
+      ['raw-desc', 'This score, high to low'],
+      ['raw-asc', 'This score, low to high'],
+      ['grade-desc', 'Final grade, high to low'],
+      ['grade-asc', 'Final grade, low to high'],
+      ['letter', 'Letter grade'],
+      ['blank', 'Blanks first'],
+    ].map(([v, label]) => el('option', { value: v, selected: state.gradeFilter.sort === v }, label))
+  );
+
+  const countLabel = el('span', { class: 'rowcount' });
+
+  const bar = el('div', { class: 'entrybar' },
+    el('div', { class: 'pickgroup' },
+      el('span', { class: 'term-pill', text: selected.termKind === 'midterm' ? 'MIDTERM' : 'FINAL' }),
+      picker,
+      el('button', {
+        class: 'btn small step', title: 'Previous assessment',
+        disabled: index <= 0, onclick: () => step(-1),
+      }, '‹'),
+      el('button', {
+        class: 'btn small step', title: 'Next assessment',
+        disabled: index >= all.length - 1, onclick: () => step(1),
+      }, '›')),
+    el('div', { class: 'spacer' }),
+    el('div', { class: 'filtergroup' }, search, sort, countLabel)
+  );
 
   const isAttendance = selected.kind === 'attendance';
   const note = isAttendance
@@ -600,50 +749,113 @@ async function renderGradeEntry(content, course, policyInfo) {
   );
 
   const tbody = el('tbody');
-  students.forEach((row, index) => {
-    const term = row[selected.termKind];
-    const isExam = selected.kind === 'exam';
-    const cell = isExam
-      ? { raw: term.examRaw, transmuted: term.examTransmuted }
-      : term.assessments.find((a) => a.assessment.id === selected.id) || { raw: null, transmuted: 50 };
 
-    const input = el('input', {
-      type: 'text',
-      inputmode: 'decimal',
-      value: showRaw(cell.raw),
-      // `committed` is the baseline an edit is compared against. Seeding it with
-      // the displayed value means simply tabbing through a cell is not mistaken
-      // for a change, which would otherwise rewrite a rounded attendance score.
-      dataset: {
-        index: String(index),
-        studentId: String(row.student.id),
-        committed: showRaw(cell.raw),
-      },
-      readonly: isAttendance,
-      title: isAttendance ? 'Computed from attendance sessions' : '',
-      'aria-label': `${selected.name} for ${row.student.full_name}`,
+  /**
+   * Build the visible rows from the current search and sort.
+   *
+   * Kept as a closure so typing in the search box re-renders only the rows and
+   * never disturbs the caret, and so the entry column's keyboard order always
+   * matches what is actually on screen.
+   */
+  function renderGradeRows() {
+    const q = state.gradeFilter.query.trim().toLowerCase();
+    const cellOf = (row) => {
+      const term = row[selected.termKind];
+      if (selected.kind === 'exam') return { raw: term.examRaw, transmuted: term.examTransmuted };
+      return term.assessments.find((a) => a.assessment.id === selected.id) || { raw: null, transmuted: 50 };
+    };
+
+    let visible = students.filter((row) => {
+      if (!q) return true;
+      const name = String(row.student.full_name || '').toLowerCase();
+      const id = String(row.student.student_id || '').toLowerCase();
+      return name.includes(q) || id.includes(q);
     });
-    if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
 
-    if (!isAttendance) {
-      input.addEventListener('keydown', (e) => onEntryKey(e, index, students.length));
-      input.addEventListener('focus', () => input.select());
-      input.addEventListener('change', () => commitScore(input, row.student.id, selected));
-      input.addEventListener('blur', () => commitScore(input, row.student.id, selected));
+    const rawOf = (r) => { const v = cellOf(r).raw; return v === null || v === undefined ? null : Number(v); };
+    const byNumber = (a, b) => (a.student.number ?? 0) - (b.student.number ?? 0);
+    const nullsLast = (a, b, dir) => {
+      if (a === null && b === null) return 0;
+      if (a === null) return 1;
+      if (b === null) return -1;
+      return dir * (a - b);
+    };
+    const LETTERS = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'];
+
+    const sorters = {
+      roster: byNumber,
+      name: (a, b) => String(a.student.full_name || '').localeCompare(String(b.student.full_name || '')),
+      id: (a, b) => String(a.student.student_id || '').localeCompare(
+        String(b.student.student_id || ''), undefined, { numeric: true }),
+      'raw-desc': (a, b) => nullsLast(rawOf(a), rawOf(b), -1),
+      'raw-asc': (a, b) => nullsLast(rawOf(a), rawOf(b), 1),
+      'grade-desc': (a, b) => nullsLast(a.finalGrade, b.finalGrade, -1),
+      'grade-asc': (a, b) => nullsLast(a.finalGrade, b.finalGrade, 1),
+      letter: (a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter) || byNumber(a, b),
+      blank: (a, b) => (rawOf(a) === null ? 0 : 1) - (rawOf(b) === null ? 0 : 1) || byNumber(a, b),
+    };
+    visible = [...visible].sort(sorters[state.gradeFilter.sort] || byNumber);
+
+    const isAtt = selected.kind === 'attendance';
+    const rows = visible.map((row, index) => {
+      const term = row[selected.termKind];
+      const cell = cellOf(row);
+
+      const input = el('input', {
+        type: 'text',
+        inputmode: 'decimal',
+        value: showRaw(cell.raw),
+        // `committed` is the baseline an edit is compared against. Seeding it
+        // with the displayed value means simply tabbing through a cell is not
+        // mistaken for a change.
+        dataset: {
+          index: String(index),
+          studentId: String(row.student.id),
+          committed: showRaw(cell.raw),
+        },
+        readonly: isAtt,
+        title: isAtt ? 'Computed from attendance sessions' : '',
+        'aria-label': `${selected.name} for ${row.student.full_name}`,
+      });
+      if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
+
+      if (!isAtt) {
+        input.addEventListener('keydown', (e) => onEntryKey(e, index, visible.length));
+        input.addEventListener('focus', () => input.select());
+        input.addEventListener('change', () => commitScore(input, row.student.id, selected));
+        input.addEventListener('blur', () => commitScore(input, row.student.id, selected));
+      }
+
+      return el('tr', {},
+        el('td', { class: 'idx', text: row.student.number ?? index + 1 }),
+        el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
+        el('td', { class: 'name cellpad', title: row.student.full_name || '', text: row.student.full_name || '' }),
+        el('td', { class: 'entry' }, input),
+        el('td', { class: 'read', text: show(cell.transmuted, 0) }),
+        el('td', { class: 'read col-secondary', text: show(term.classStanding) }),
+        el('td', { class: 'total col-secondary', text: show(term.total) }),
+        el('td', { class: 'final', text: showGrade(row) }),
+        el('td', { class: 'letter' }, el('span', { class: `lg ${row.letter}`, text: row.letter }))
+      );
+    });
+
+    if (!rows.length) {
+      setChildren(tbody, el('tr', {}, el('td', {
+        class: 'cellpad emptyrow', colspan: '9',
+        text: `No student matches “${state.gradeFilter.query}”.`,
+      })));
+    } else {
+      setChildren(tbody, ...rows);
     }
 
-    tbody.append(el('tr', {},
-      el('td', { class: 'idx', text: row.student.number ?? index + 1 }),
-      el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
-      el('td', { class: 'name cellpad', text: row.student.full_name || '' }),
-      el('td', { class: 'entry' }, input),
-      el('td', { class: 'read', text: show(cell.transmuted, 0) }),
-      el('td', { class: 'read col-secondary', text: show(term.classStanding) }),
-      el('td', { class: 'total col-secondary', text: show(term.total) }),
-      el('td', { class: 'final', text: showGrade(row) }),
-      el('td', { class: 'letter' }, el('span', { class: `lg ${row.letter}`, text: row.letter }))
-    ));
-  });
+    countLabel.textContent =
+      visible.length === students.length
+        ? `${students.length} student${students.length === 1 ? '' : 's'}`
+        : `${visible.length} of ${students.length}`;
+  }
+
+  renderGradeRows();
+  state.rerenderGradeRows = renderGradeRows;
 
   setChildren(content,
     bar,
@@ -1405,6 +1617,291 @@ async function exportSummaryFile() {
   if (file) toast('Summary exported');
 }
 
+
+// ---------------------------------------------------------------- guide
+
+/**
+ * The guide: a contents list on the left, the chosen section on the right.
+ * Content lives in guide.js so it can be edited without touching rendering.
+ */
+function openGuide(startId = 'start') {
+  const sections = window.GradeDeskGuide.GUIDE_SECTIONS;
+  let currentId = startId;
+
+  const nav = el('div', { class: 'guidenav' });
+  const pane = el('div', { class: 'guidepane' });
+
+  const renderSection = () => {
+    const s = sections.find((x) => x.id === currentId) || sections[0];
+    setChildren(nav,
+      ...sections.map((x) =>
+        el('button', {
+          type: 'button',
+          class: `guidelink${x.id === s.id ? ' active' : ''}`,
+          onclick: () => { currentId = x.id; renderSection(); },
+        }, x.title))
+    );
+    setChildren(pane,
+      el('h4', { class: 'guidetitle', text: s.title }),
+      ...s.body.map((p) => el('p', { class: 'guidep', text: p })),
+      s.steps
+        ? el('div', { class: 'guidesteps' },
+            ...s.steps.map(([k, v]) =>
+              el('div', { class: 'guidestep' }, el('b', { text: k }), el('span', { text: v }))))
+        : null,
+      s.formula
+        ? el('div', { class: 'guideformula' },
+            ...s.formula.map(([k, v]) =>
+              el('div', { class: 'formularow' },
+                el('span', { class: 'fname', text: k }),
+                el('span', { class: 'fbody', text: v }))))
+        : null,
+      s.note ? el('div', { class: 'note', text: s.note }) : null
+    );
+    pane.scrollTop = 0;
+  };
+  renderSection();
+
+  return modal({
+    title: 'GradeDesk guide',
+    subtitle: 'How to run a course, from setup to submitted grade sheet.',
+    body: el('div', { class: 'guidewrap' }, nav, pane),
+    confirmLabel: 'Close',
+    cancelLabel: null,
+    wide: true,
+    onConfirm: () => true,
+  });
+}
+
+// ------------------------------------------------------- first-run wizard
+
+/** Remember that setup has been offered, so it is not shown on every launch. */
+function markSetupSeen() {
+  try {
+    localStorage.setItem('gradedesk.setupSeen', '1');
+  } catch {
+    // Blocked storage is not worth interrupting anything over; at worst the
+    // wizard is offered once more.
+  }
+}
+
+function setupAlreadySeen() {
+  try {
+    return localStorage.getItem('gradedesk.setupSeen') === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * First-run setup.
+ *
+ * Shown once, when the app opens with no course at all. It walks the four
+ * things that must exist before grade entry makes sense, doing each one for
+ * real rather than describing it. Skippable at any point, and always reachable
+ * again from the Guide button.
+ */
+async function runSetupWizard() {
+  const intro = await modal({
+    title: 'Welcome to GradeDesk',
+    subtitle: 'Four short steps and you can start entering scores.',
+    body: el('div', {},
+      el('div', { class: 'wizhero' },
+        el('div', { class: 'wizmark', text: '✓' }),
+        el('div', {},
+          el('p', { class: 'guidep' },
+            'GradeDesk turns raw scores into your WVSTU grade record. You type marks ' +
+            'across the class list; it handles the transmutation, the averaging and the ' +
+            'letter grades, then exports the sheet you submit.'),
+          el('p', { class: 'guidep' },
+            'Everything stays on this computer and is saved as you type. No internet ' +
+            'connection is needed at any point.'))),
+      el('div', { class: 'guidesteps' },
+        el('div', { class: 'guidestep' }, el('b', { text: '1. Semester' }),
+          el('span', { text: 'Name the term you are teaching.' })),
+        el('div', { class: 'guidestep' }, el('b', { text: '2. Course' }),
+          el('span', { text: 'Code, section and grading policy.' })),
+        el('div', { class: 'guidestep' }, el('b', { text: '3. Assessments' }),
+          el('span', { text: 'Quizzes, assignments, attendance.' })),
+        el('div', { class: 'guidestep' }, el('b', { text: '4. Class list' }),
+          el('span', { text: 'Type or paste your students.' })))),
+    confirmLabel: 'Get started',
+    cancelLabel: 'Skip for now',
+    onConfirm: () => true,
+  });
+  if (!intro) {
+    markSetupSeen();
+    return;
+  }
+
+  // ---- step 1: semester ----
+  let semester = state.activeSemester;
+  if (!semester) {
+    const created = await newSemester();
+    if (!created) { markSetupSeen(); return; }
+    semester = state.activeSemester;
+  } else {
+    const rename = el('input', { type: 'text', value: semester.name });
+    const ok = await modal({
+      title: 'Step 1 of 4 · Semester',
+      subtitle: 'Which term are you teaching? You can rename it later.',
+      body: el('div', { class: 'field' }, el('label', { text: 'Semester name' }), rename),
+      confirmLabel: 'Next',
+      cancelLabel: 'Skip setup',
+      onConfirm: () => rename.value.trim() || false,
+    });
+    if (!ok) { markSetupSeen(); return; }
+    if (ok !== semester.name) {
+      await guard(() => api.semesters.rename(semester.id, ok), 'Renaming semester');
+      state.semesters = await api.semesters.list();
+      state.activeSemester = state.semesters.find((s) => s.id === semester.id) || semester;
+      semester = state.activeSemester;
+    }
+  }
+
+  // ---- step 2: course ----
+  const code = el('input', { type: 'text', required: true, placeholder: 'CSE 102' });
+  const cname = el('input', { type: 'text', placeholder: 'Computer Literacy' });
+  const section = el('input', { type: 'text', placeholder: '2' });
+  const instructor = el('input', { type: 'text', placeholder: 'Your name' });
+  const selectable = state.policies.filter((p) => p.selectable);
+  const policy = el('select', {},
+    ...selectable.map((p) =>
+      el('option', { value: p.policy, selected: p.isDefault }, `${p.label} transmutation`)));
+
+  const courseFields = await modal({
+    title: 'Step 2 of 4 · Course',
+    subtitle: `Added to ${semester.name}.`,
+    body: el('div', {},
+      el('div', { class: 'fieldrow' },
+        el('div', { class: 'field' }, el('label', { text: 'Course code' }), code),
+        el('div', { class: 'field' }, el('label', { text: 'Section' }), section)),
+      el('div', { class: 'field' }, el('label', { text: 'Course name' }), cname),
+      el('div', { class: 'field' }, el('label', { text: 'Instructor' }), instructor),
+      el('div', { class: 'field' }, el('label', { text: 'Transmutation policy' }), policy),
+      el('div', { class: 'hint' },
+        'Most WVSTU courses use the 70% table. The policy applies to the whole course.')),
+    confirmLabel: 'Next',
+    cancelLabel: 'Skip setup',
+    onConfirm: () => (code.value.trim()
+      ? {
+          code: code.value.trim(),
+          name: cname.value.trim(),
+          section: section.value.trim(),
+          instructor: instructor.value.trim(),
+          policy: policy.value,
+        }
+      : false),
+  });
+  if (!courseFields) { markSetupSeen(); return; }
+
+  const course = await guard(
+    () => api.courses.create({ semesterId: semester.id, ...courseFields }), 'Creating course');
+  if (!course) { markSetupSeen(); return; }
+  await loadCourses();
+  state.courseId = course.id;
+  await loadCourseDetail();
+
+  // ---- step 3: assessments ----
+  const preset = el('select', {},
+    el('option', { value: 'typical', selected: true },
+      'Typical: attendance, assignment, two quizzes, class work'),
+    el('option', { value: 'minimal' }, 'Minimal: attendance and one assignment'),
+    el('option', { value: 'none' }, 'None, I will add my own'));
+
+  const chosen = await modal({
+    title: 'Step 3 of 4 · Assessments',
+    subtitle: 'A starting set for both terms. Add, rename or remove any of them afterwards.',
+    body: el('div', {},
+      el('div', { class: 'field' }, el('label', { text: 'Start with' }), preset),
+      el('div', { class: 'note' },
+        'Each term already has its exam, fixed at 40 points. Everything else is averaged ',
+        'together with equal weight, so adding or removing one never needs reweighting.')),
+    confirmLabel: 'Next',
+    cancelLabel: 'Skip setup',
+    onConfirm: () => preset.value,
+  });
+  if (!chosen) { markSetupSeen(); return; }
+
+  if (chosen !== 'none') {
+    const terms = await api.courses.terms(course.id);
+    const sets = {
+      typical: [
+        { name: 'Attendance', maxPoints: 10, kind: 'attendance' },
+        { name: 'Assign 1', maxPoints: 10 },
+        { name: 'Quiz 1', maxPoints: 15 },
+        { name: 'Quiz 2', maxPoints: 15 },
+        { name: 'ClassWork', maxPoints: 10 },
+      ],
+      minimal: [
+        { name: 'Attendance', maxPoints: 10, kind: 'attendance' },
+        { name: 'Assign 1', maxPoints: 10 },
+      ],
+    };
+    for (const kind of ['midterm', 'final']) {
+      for (const a of sets[chosen]) {
+        await guard(() => api.assessments.add(terms.byKind[kind].id, a), 'Adding assessment');
+      }
+    }
+    await loadCourseDetail();
+  }
+
+  // ---- step 4: roster ----
+  const paste = el('textarea', {
+    rows: '8',
+    class: 'paste-area',
+    placeholder: '44305\tAllison, Elizabeth Y.\n38901\tAllison, Emmanuel M.',
+  });
+  const rosterText = await modal({
+    title: 'Step 4 of 4 · Class list',
+    subtitle: 'Paste your students now, or leave this empty and type them in the Roster screen.',
+    body: el('div', {},
+      paste,
+      el('div', { class: 'hint' },
+        'One student per line, with the ID and the name separated by a tab. ' +
+        'Names keep their commas.')),
+    confirmLabel: 'Finish',
+    cancelLabel: 'Skip this step',
+    wide: true,
+    onConfirm: () => paste.value,
+  });
+
+  if (rosterText && rosterText.trim()) {
+    const rows = await guard(() => api.students.parsePaste(rosterText), 'Reading list');
+    if (rows && rows.length) {
+      await guard(() => api.students.addMany(course.id, rows), 'Adding students');
+    }
+  }
+
+  markSetupSeen();
+  await loadCourses();
+  state.courseId = course.id;
+  state.screen = 'grades';
+  await loadCourseDetail();
+  renderRail();
+  await renderScreen();
+
+  await modal({
+    title: 'You are set up',
+    subtitle: `${course.code} is ready.`,
+    body: el('div', {},
+      el('p', { class: 'guidep' },
+        'Pick an assessment from the dropdown and type scores straight down the column. ' +
+        'Press Enter to drop to the next student.'),
+      el('p', { class: 'guidep' },
+        'The full guide is always available from the Guide button at the bottom of the ' +
+        'left rail.')),
+    confirmLabel: 'Start entering scores',
+    cancelLabel: null,
+    onConfirm: () => true,
+  });
+}
+
 // -------------------------------------------------------------------- start
 
-loadAll();
+loadAll().then(async () => {
+  // Offer setup only on a genuinely empty install, and only once.
+  if (!setupAlreadySeen() && state.courses.length === 0) {
+    await runSetupWizard();
+  }
+});

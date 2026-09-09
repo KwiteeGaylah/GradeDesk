@@ -255,7 +255,8 @@ test('attendance marks resolve into a raw score through the engine', () => {
     row.midterm.assessments.find((x) => x.assessment.id === a.midAttendance.id);
 
   assert.equal(attendanceOf(result.students[0]).raw, 10, 'all present over 3 sessions');
-  assert.equal(attendanceOf(result.students[1]).raw, 7.5, '1 P + 1 E over 2 marked sessions');
+  // 1 P + 1 E over 2 marked sessions is 7.5, recorded as a whole 8.
+  assert.equal(attendanceOf(result.students[1]).raw, 8, '1 P + 1 E over 2 marked sessions');
   store.close();
 });
 
