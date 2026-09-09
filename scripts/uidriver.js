@@ -66,16 +66,18 @@ async function drive(win, app) {
     const rail = await run(win, `({
       courses: document.querySelectorAll('#courseNav a').length,
       title: document.getElementById('screenTitle').textContent,
-      tabs: [...document.querySelectorAll('.atab')].map(t => t.textContent)
+      tabs: [...document.querySelectorAll('.apicker option')].map(t => t.textContent),
+      groups: [...document.querySelectorAll('.apicker optgroup')].map(g => g.label)
     })`);
     check('course appears in the left rail', rail.courses >= 2, JSON.stringify(rail.courses));
     check('grade entry screen is showing', rail.title === 'Grade entry', rail.title);
     check(
-      'assessment tabs list both terms including the fixed exams',
+      'the assessment picker lists both terms including the fixed exams',
       rail.tabs.some((t) => t.includes('Quiz 1')) &&
-        rail.tabs.some((t) => t.includes('Midterm Exam/40')) &&
-        rail.tabs.some((t) => t.includes('Final Exam/40')),
-      JSON.stringify(rail.tabs)
+        rail.tabs.some((t) => t.includes('Midterm Exam') && t.includes('40')) &&
+        rail.tabs.some((t) => t.includes('Final Exam') && t.includes('40')) &&
+        rail.groups.length === 2,
+      JSON.stringify(rail)
     );
 
     // A null child rendered as the literal word "null" once; guard against it.
@@ -88,9 +90,12 @@ async function drive(win, app) {
     // ---- type a score into the column, exactly as an instructor would ----
     const typed = await run(win, `(async () => {
       // Select Quiz 1.
-      const tab = [...document.querySelectorAll('.atab')].find(t => t.textContent.includes('Quiz 1'));
-      tab.click();
-      await new Promise(r => setTimeout(r, 400));
+      // Choose Quiz 1 from the picker, as a user would.
+      const picker = document.querySelector('.apicker');
+      const opt = [...picker.options].find(o => o.textContent.includes('Quiz 1'));
+      picker.value = opt.value;
+      picker.dispatchEvent(new Event('change', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 600));
       const input = document.querySelector('#content input[data-index="0"]');
       input.focus();
       input.value = '11';
@@ -218,11 +223,24 @@ async function drive(win, app) {
     };
 
     await setSize(960, 600);
-    await run(win, `(async () => { state.screen = 'grades'; renderRail(); await renderScreen(); })()`);
-    await new Promise((r) => setTimeout(r, 500));
+    // Land on a real class-standing assessment: earlier steps may have left the
+    // selection somewhere that renders an empty state rather than the grid.
+    await run(win, `(async () => {
+      state.screen = 'grades';
+      const all = [...state.assessments.midterm, ...state.assessments.final];
+      const pick = all.find(a => a.name === 'Quiz 1') || all[0];
+      if (pick) {
+        state.selectedAssessmentId = pick.id;
+        state.selectedTermKind = state.assessments.midterm.some(a => a.id === pick.id) ? 'midterm' : 'final';
+      }
+      renderRail();
+      await renderScreen();
+    })()`);
+    await new Promise((r) => setTimeout(r, 600));
 
     const narrow = await run(win, `(() => {
       const card = document.querySelector('#content .gridcard');
+      if (!card) return { missing: true, content: document.getElementById('content').innerText.slice(0, 120) };
       const cr = card.getBoundingClientRect();
       const inside = (sel) => { const n = document.querySelector(sel); if (!n) return false;
         const b = n.getBoundingClientRect();
@@ -232,7 +250,7 @@ async function drive(win, app) {
         finalVisible: inside('#content tbody tr:first-child td.final'),
         letterVisible: inside('#content tbody tr:first-child td.letter'),
         topbarHeight: Math.round(document.querySelector('.topbar').getBoundingClientRect().height),
-        tabHeight: Math.round(document.querySelector('.assessbar').getBoundingClientRect().height),
+        tabHeight: Math.round(document.querySelector('.entrybar').getBoundingClientRect().height),
         bodyOverflows: document.body.scrollWidth > document.body.clientWidth + 1,
         clippedCells: [...document.querySelectorAll('#content td, #content th')]
           .filter(c => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).display !== 'none').length
@@ -242,7 +260,7 @@ async function drive(win, app) {
     check('narrow window: the final grade stays visible', narrow.finalVisible, JSON.stringify(narrow));
     check('narrow window: the letter stays visible', narrow.letterVisible, JSON.stringify(narrow));
     check('narrow window: the top bar stays one row', narrow.topbarHeight <= 70, `${narrow.topbarHeight}px`);
-    check('narrow window: assessment tabs stay one row', narrow.tabHeight <= 60, `${narrow.tabHeight}px`);
+    check('narrow window: the entry toolbar stays one row', narrow.tabHeight <= 90, `${narrow.tabHeight}px`);
     check('narrow window: the page itself never scrolls sideways', !narrow.bodyOverflows, JSON.stringify(narrow));
     check('narrow window: no cell has clipped content', narrow.clippedCells === 0, `${narrow.clippedCells} clipped`);
 

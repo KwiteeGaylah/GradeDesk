@@ -472,3 +472,21 @@ td.entry input.id-input { text-align: left; padding-left: 12px; }
 .mansub { font-size: 11.5px; color: var(--ink-soft); }
 .manactions { display: flex; gap: 8px; margin: 10px 0 18px; flex-wrap: wrap; }
 .manrow .badge { font-size: 11px; background: var(--brand); color: #fff; border-radius: 5px; padding: 3px 8px; }
+
+
+/* ---------------- roster ---------------- */
+/* An unfilled row is tinted rather than left looking identical to a real
+   student, so gaps in the class list are obvious before export. */
+tbody tr.rowblank td { background: #fbfbfc; }
+tbody tr.rowblank td.idx { color: #c3cad4; }
+tbody tr.rowpartial td.entry { background: #fffdf6; }
+.kpi.warn { border-color: #e6cfa8; background: var(--amber-tint); }
+.kpi.warn .v { color: var(--amber); }
+.kpi.warn .l { color: var(--amber); }
+td.entry input::placeholder { color: #c3cad4; }
+/* The roster is three narrow columns, not a wide grid: keeping the name beside
+   the ID reads as a list rather than two columns separated by empty space. */
+.rostercard { max-width: 760px; }
+.rostertable { width: 100%; }
+.rostertable td.entry.w-auto, .rostertable th.namecol { width: auto; }
+.rostertable td.entry.w-id, .rostertable th.w-id { width: 150px; }

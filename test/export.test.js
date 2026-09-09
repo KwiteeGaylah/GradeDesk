@@ -115,9 +115,13 @@ test('the grade record carries the university title and course details', async (
 
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
+  // Row 1 is the banner; rows 2 and 3 hold label/value pairs, value in col 2.
   assert.match(String(ws.getCell(1, 1).value), /William V\.S\. Tubman University/);
-  assert.match(String(ws.getCell(2, 3).value), /CSE 102/);
-  assert.equal(ws.getCell(3, 3).value, 'Computer Literacy');
+  assert.equal(ws.getCell(2, 1).value, 'Course Code:');
+  assert.match(String(ws.getCell(2, 2).value), /CSE 102/);
+  assert.equal(ws.getCell(3, 2).value, 'Computer Literacy');
+  assert.equal(ws.getCell(2, 5).value, 'Instructor:');
+  assert.equal(ws.getCell(3, 6).value, '70% transmutation');
   store.close();
 });
 
@@ -254,7 +258,7 @@ test('the section is not repeated when the code already names it', async () => {
 
   const wb = await readBack(file);
   assert.equal(wb.worksheets[0].name, 'CSE 102 Sec. 2', 'sheet name should not repeat the section');
-  assert.equal(wb.worksheets[0].getCell(2, 3).value, 'CSE 102 Sec. 2');
+  assert.equal(wb.worksheets[0].getCell(2, 2).value, 'CSE 102 Sec. 2');
   store.close();
 });
 
@@ -266,7 +270,7 @@ test('the section is appended when the code omits it', async () => {
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
 
   const wb = await readBack(file);
-  assert.equal(wb.worksheets[0].getCell(2, 3).value, 'CSE 102 Sec. 11');
+  assert.equal(wb.worksheets[0].getCell(2, 2).value, 'CSE 102 Sec. 11');
   store.close();
 });
 

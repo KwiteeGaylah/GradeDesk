@@ -1167,27 +1167,150 @@ async function renderRoster(content, course) {
 
   $('topActions').prepend(
     el('button', { class: 'btn', onclick: () => pasteRoster(course) }, 'Paste list'),
-    el('button', { class: 'btn', onclick: () => addRosterRows(course, 5) }, '＋ Add 5 rows')
+    el('button', { class: 'btn primary', onclick: () => addRosterRows(course, 5) }, '＋ Add rows')
+  );
+
+  if (!students.length) {
+    setChildren(content, emptyState({
+      icon: '☰',
+      title: 'The class list is empty',
+      text: 'Add rows and type each student’s ID and full name, or paste a list you already have.',
+      actionLabel: '＋ Add rows',
+      onAction: () => addRosterRows(course, 10),
+    }));
+    return;
+  }
+
+  // ---- summary ----
+  const blanks = students.filter(
+    (s) => !String(s.full_name || '').trim() && !String(s.student_id || '').trim()
+  ).length;
+  const missingId = students.filter(
+    (s) => String(s.full_name || '').trim() && !String(s.student_id || '').trim()
+  ).length;
+  const complete = students.length - blanks - missingId;
+
+  const summary = el('div', { class: 'kpis' },
+    el('div', { class: 'kpi' },
+      el('div', { class: 'v', text: String(students.length) }),
+      el('div', { class: 'l', text: students.length === 1 ? 'Student' : 'Students' })),
+    el('div', { class: 'kpi' },
+      el('div', { class: 'v', text: String(complete) }),
+      el('div', { class: 'l', text: 'With ID and name' })),
+    missingId
+      ? el('div', { class: 'kpi warn' },
+          el('div', { class: 'v', text: String(missingId) }),
+          el('div', { class: 'l', text: 'Missing an ID' }))
+      : null,
+    blanks
+      ? el('div', { class: 'kpi warn' },
+          el('div', { class: 'v', text: String(blanks) }),
+          el('div', { class: 'l', text: blanks === 1 ? 'Empty row' : 'Empty rows' }))
+      : null
+  );
+
+  // ---- toolbar ----
+  const search = el('input', {
+    type: 'search',
+    class: 'searchbox',
+    placeholder: 'Search name or ID',
+    value: state.rosterFilter.query,
+    'aria-label': 'Filter the class list',
+    oninput: (e) => {
+      state.rosterFilter.query = e.target.value;
+      renderRosterRows();
+    },
+  });
+
+  const sort = el('select', {
+    class: 'sortbox',
+    'aria-label': 'Sort the class list',
+    onchange: (e) => {
+      state.rosterFilter.sort = e.target.value;
+      renderRosterRows();
+    },
+  },
+    ...[
+      ['roster', 'Roster order'],
+      ['name', 'Name (A–Z)'],
+      ['name-desc', 'Name (Z–A)'],
+      ['id', 'Student ID'],
+      ['incomplete', 'Incomplete rows first'],
+    ].map(([v, label]) => el('option', { value: v, selected: state.rosterFilter.sort === v }, label))
+  );
+
+  const countLabel = el('span', { class: 'rowcount' });
+
+  const bar = el('div', { class: 'entrybar' },
+    el('div', { class: 'pickgroup' },
+      el('button', {
+        class: 'btn small',
+        title: 'Renumber students 1..n in the order shown',
+        onclick: () => renumberRoster(course),
+      }, 'Renumber')),
+    el('div', { class: 'spacer' }),
+    el('div', { class: 'filtergroup' }, search, sort, countLabel)
   );
 
   const note = el('div', { class: 'note' },
-    'Type the class list like a spreadsheet. Enter or Tab moves to the next cell, and a new row is added ',
-    'automatically when you fill the last one. Changes save as you type.'
+    'Type the class list like a spreadsheet. Enter or Tab moves to the next cell, and a new ',
+    'row appears when you fill the last one. Changes save as you type.'
   );
 
   const thead = el('thead', {}, el('tr', {},
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Student ID', class: 'w-id' }),
-    el('th', { text: 'Full name' }),
+    el('th', { text: 'Full name', class: 'namecol' }),
     el('th', { text: '', class: 'w-action' })
   ));
 
   const tbody = el('tbody');
-  const makeRow = (student, index) => {
+
+  /** Rebuild only the rows, so the search caret is never disturbed. */
+  function renderRosterRows() {
+    const q = state.rosterFilter.query.trim().toLowerCase();
+    const matches = (s) =>
+      !q ||
+      String(s.full_name || '').toLowerCase().includes(q) ||
+      String(s.student_id || '').toLowerCase().includes(q);
+
+    const incomplete = (s) =>
+      !String(s.full_name || '').trim() || !String(s.student_id || '').trim();
+    const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
+    const sorters = {
+      roster: byOrder,
+      name: (a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')),
+      'name-desc': (a, b) => String(b.full_name || '').localeCompare(String(a.full_name || '')),
+      id: (a, b) => String(a.student_id || '').localeCompare(
+        String(b.student_id || ''), undefined, { numeric: true }),
+      incomplete: (a, b) => (incomplete(a) ? 0 : 1) - (incomplete(b) ? 0 : 1) || byOrder(a, b),
+    };
+
+    const visible = students.filter(matches)
+      .sort(sorters[state.rosterFilter.sort] || byOrder);
+
+    const rows = visible.map((student, index) => makeRow(student, index, visible.length));
+    if (!rows.length) {
+      setChildren(tbody, el('tr', {}, el('td', {
+        class: 'cellpad emptyrow', colspan: '4',
+        text: `No student matches “${state.rosterFilter.query}”.`,
+      })));
+    } else {
+      setChildren(tbody, ...rows);
+    }
+
+    countLabel.textContent =
+      visible.length === students.length
+        ? `${students.length} student${students.length === 1 ? '' : 's'}`
+        : `${visible.length} of ${students.length}`;
+  }
+
+  const makeRow = (student, index, total) => {
     const idInput = el('input', {
       type: 'text',
       value: student.student_id || '',
       class: 'id-input',
+      placeholder: 'ID',
       dataset: { row: String(index), col: '0' },
       'aria-label': `Student ID, row ${index + 1}`,
     });
@@ -1195,17 +1318,20 @@ async function renderRoster(content, course) {
       type: 'text',
       value: student.full_name || '',
       class: 'name-input',
+      placeholder: 'Surname, Given name',
       dataset: { row: String(index), col: '1' },
       'aria-label': `Full name, row ${index + 1}`,
     });
 
     const save = async (field, input) => {
       const value = input.value.trim();
-      if ((student[field === 'studentId' ? 'student_id' : 'full_name'] || '') === value) return;
+      const key = field === 'studentId' ? 'student_id' : 'full_name';
+      if ((student[key] || '') === value) return;
       await guard(() => api.students.update(student.id, { [field]: value }), 'Saving');
-      student[field === 'studentId' ? 'student_id' : 'full_name'] = value;
+      student[key] = value;
       saved();
       await refreshComputed();
+      markRowState(tr, student);
     };
     idInput.addEventListener('change', () => save('studentId', idInput));
     idInput.addEventListener('blur', () => save('studentId', idInput));
@@ -1213,40 +1339,59 @@ async function renderRoster(content, course) {
     nameInput.addEventListener('blur', () => save('fullName', nameInput));
 
     for (const input of [idInput, nameInput]) {
-      input.addEventListener('keydown', (e) => onRosterKey(e, course, students.length));
+      input.addEventListener('keydown', (e) => onRosterKey(e, course, total));
     }
 
-    return el('tr', {},
+    const tr = el('tr', {},
       el('td', { class: 'idx', text: student.number ?? index + 1 }),
       el('td', { class: 'entry w-id' }, idInput),
       el('td', { class: 'entry w-auto' }, nameInput),
       el('td', { class: 'ta-center' },
         el('button', {
           class: 'btn rowdel',
-          title: 'Remove this student',
+          title: `Remove ${student.full_name || 'this row'}`,
+          'aria-label': `Remove ${student.full_name || 'this row'}`,
           onclick: () => removeStudent(student),
         }, '✕'))
     );
+    markRowState(tr, student);
+    return tr;
   };
 
-  students.forEach((s, i) => tbody.append(makeRow(s, i)));
-
-  if (!students.length) {
-    setChildren(content, note, emptyState({
-      icon: '☰',
-      title: 'The class list is empty',
-      text: 'Add rows and type each student’s ID and full name. You can also paste a list copied from anywhere.',
-      actionLabel: '＋ Add rows',
-      onAction: () => addRosterRows(course, 10),
-    }));
-    return;
+  /** Tint a row that is not yet filled in, so gaps are visible at a glance. */
+  function markRowState(tr, student) {
+    const hasName = !!String(student.full_name || '').trim();
+    const hasId = !!String(student.student_id || '').trim();
+    tr.classList.toggle('rowblank', !hasName && !hasId);
+    tr.classList.toggle('rowpartial', hasName !== hasId);
   }
 
-  setChildren(content,
-    note,
-    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
-    el('div', { class: 'hint' }, `${students.length} student${students.length === 1 ? '' : 's'} in this course.`)
-  );
+  renderRosterRows();
+
+  setChildren(content, summary, bar, note,
+    el('div', { class: 'gridcard rostercard' }, el('table', { class: 'rostertable' }, thead, tbody)));
+}
+
+/** Renumber students 1..n in their current stored order. */
+async function renumberRoster(course) {
+  const students = await api.students.list(course.id);
+  const ok = await confirmDialog({
+    title: 'Renumber the class list?',
+    subtitle: `Students will be numbered 1 to ${students.length} in roster order.`,
+    body: el('div', { class: 'hint' },
+      'The number is only a label on the grade sheet. Scores and grades are unaffected.'),
+    confirmLabel: 'Renumber',
+    danger: false,
+  });
+  if (!ok) return;
+  for (let i = 0; i < students.length; i++) {
+    if (students[i].number !== i + 1) {
+      await guard(() => api.students.update(students[i].id, { number: i + 1 }), 'Renumbering');
+    }
+  }
+  await refreshComputed();
+  await renderScreen();
+  saved('Renumbered');
 }
 
 function onRosterKey(event, course, rowCount) {

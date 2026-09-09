@@ -23,13 +23,36 @@ const { formatGrade } = require('../engine');
 const UNIVERSITY = 'William V.S. Tubman University';
 
 const THIN = { style: 'thin', color: { argb: 'FFB7BFCC' } };
+const HAIR = { style: 'hair', color: { argb: 'FFD8DEE7' } };
+const MEDIUM = { style: 'medium', color: { argb: 'FF8C97A7' } };
 const BORDER = { top: THIN, left: THIN, bottom: THIN, right: THIN };
+const BORDER_LIGHT = { top: HAIR, left: HAIR, bottom: HAIR, right: HAIR };
 
-const FILL_HEADER = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F3F8' } };
-const FILL_TRANSMUTED = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F9FC' } };
-const FILL_TOTAL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEDF1F7' } };
-const FILL_MIDTERM = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE7F1EB' } };
-const FILL_FINALTERM = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFBF1E2' } };
+const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+
+const FILL_HEADER = fill('FF20293A');       // dark header band, white text
+const FILL_TRANSMUTED = fill('FFF7F9FC');
+const FILL_TOTAL = fill('FFEDF1F7');
+const FILL_MIDTERM = fill('FFE7F1EB');
+const FILL_FINALTERM = fill('FFFBF1E2');
+const FILL_BAND = fill('FFFAFBFD');         // every other student row
+const FILL_FINALCOL = fill('FFEFF4F0');     // the final grade column
+const FILL_TITLE = fill('FF2F6D4F');        // brand green title bar
+
+/** Letter grades are tinted the same way they are on screen. */
+const LETTER_FILL = {
+  A: fill('FFE2F0E8'),
+  B: fill('FFE6EEF7'),
+  C: fill('FFFCF3E0'),
+  D: fill('FFF8EBE2'),
+  F: fill('FFF7E3E0'),
+  I: fill('FFECEFF3'),
+  NG: fill('FFECEFF3'),
+};
+const LETTER_COLOR = {
+  A: 'FF1F6B45', B: 'FF2B5B93', C: 'FF8A5A10',
+  D: 'FF9A5322', F: 'FF993229', I: 'FF5B6472', NG: 'FF5B6472',
+};
 
 /** A number written for display: blank stays blank rather than becoming 0. */
 function num(v) {
@@ -50,10 +73,17 @@ function courseLabel(course, separator = ' Sec. ') {
 }
 
 function styleHeaderCell(cell) {
-  cell.font = { bold: true, size: 10 };
+  cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   cell.fill = FILL_HEADER;
-  cell.border = BORDER;
+  cell.border = { top: THIN, left: THIN, bottom: MEDIUM, right: THIN };
+}
+
+/** Style a letter-grade cell to match the on-screen badge. */
+function styleLetterCell(cell, letter) {
+  cell.fill = LETTER_FILL[letter] || LETTER_FILL.NG;
+  cell.font = { size: 10, bold: true, color: { argb: LETTER_COLOR[letter] || 'FF5B6472' } };
+  cell.alignment = { horizontal: 'center' };
 }
 
 /**
@@ -110,26 +140,34 @@ function buildGradeRecord(workbook, result) {
   ws.columns = columns.map((c) => ({ key: c.key, width: c.width }));
 
   // --- title block ---
+  // A green banner across the sheet, then two rows of course detail as
+  // label/value pairs, so the printed page identifies itself at a glance.
   ws.mergeCells(1, 1, 1, lastCol);
   const title = ws.getCell(1, 1);
-  title.value = UNIVERSITY;
-  title.font = { bold: true, size: 14 };
-  title.alignment = { horizontal: 'center' };
+  title.value = `${UNIVERSITY}  ·  Students Grade Record`;
+  title.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+  title.alignment = { horizontal: 'center', vertical: 'middle' };
+  title.fill = FILL_TITLE;
+  ws.getRow(1).height = 30;
 
-  ws.getCell(2, 1).value = 'Course Code:';
-  ws.getCell(2, 1).font = { bold: true };
-  ws.getCell(2, 3).value = courseLabel(course);
-  ws.getCell(3, 1).value = 'Course:';
-  ws.getCell(3, 1).font = { bold: true };
-  ws.getCell(3, 3).value = course.name || '';
-  if (course.instructor) {
-    ws.getCell(2, 6).value = 'Instructor:';
-    ws.getCell(2, 6).font = { bold: true };
-    ws.getCell(2, 8).value = course.instructor;
-  }
-  ws.getCell(3, 6).value = 'Policy:';
-  ws.getCell(3, 6).font = { bold: true };
-  ws.getCell(3, 8).value = `${result.policy}% transmutation`;
+  const detail = (row, col, label, value) => {
+    const l = ws.getCell(row, col);
+    l.value = label;
+    l.font = { bold: true, size: 10, color: { argb: 'FF5B6472' } };
+    l.alignment = { horizontal: 'right' };
+    const v = ws.getCell(row, col + 1);
+    v.value = value;
+    v.font = { size: 11, bold: true };
+    return v;
+  };
+  detail(2, 1, 'Course Code:', courseLabel(course));
+  detail(3, 1, 'Course:', course.name || '');
+  detail(2, 5, 'Instructor:', course.instructor || '');
+  detail(3, 5, 'Policy:', `${result.policy}% transmutation`);
+  detail(2, 9, 'Students:', students.length);
+  detail(3, 9, 'Generated:', new Date().toISOString().slice(0, 10));
+  ws.getRow(2).height = 18;
+  ws.getRow(3).height = 18;
 
   // --- term banner ---
   const bannerRow = 4;
@@ -198,21 +236,29 @@ function buildGradeRecord(workbook, result) {
     values.letter = row.letter;
 
     const excelRow = ws.addRow(values);
+    const banded = (r - headerRow) % 2 === 0;
+    excelRow.height = 17;
     excelRow.eachCell({ includeEmpty: true }, (cell, col) => {
-      cell.border = BORDER;
+      cell.border = BORDER_LIGHT;
       if (col > 3) cell.alignment = { horizontal: 'center' };
       cell.font = { size: 10 };
+      if (banded) cell.fill = FILL_BAND;
     });
+    // The name reads left, like a list, and the ID keeps its digits aligned.
+    ws.getCell(excelRow.number, 2).alignment = { horizontal: 'left' };
+    ws.getCell(excelRow.number, 3).alignment = { horizontal: 'left' };
 
     // Shade the computed columns so the typed ones stand out, as in the original.
     columns.forEach((c, i) => {
       const cell = ws.getCell(excelRow.number, i + 1);
       if (/_t_|_exam_t$/.test(c.key)) cell.fill = FILL_TRANSMUTED;
       if (/^(m|f)_(cs|total)$/.test(c.key)) cell.fill = FILL_TOTAL;
-      if (c.key === 'final_grade' || c.key === 'letter') {
-        cell.fill = FILL_TOTAL;
-        cell.font = { size: 10, bold: true };
+      if (c.key === 'final_grade') {
+        cell.fill = FILL_FINALCOL;
+        cell.font = { size: 11, bold: true };
+        cell.border = { ...BORDER_LIGHT, left: THIN };
       }
+      if (c.key === 'letter') styleLetterCell(cell, row.letter);
       if (/^(m_cs|m_total|f_cs|f_total)$/.test(c.key) && typeof cell.value === 'number') {
         cell.numFmt = '0.00';
       }
@@ -224,6 +270,36 @@ function buildGradeRecord(workbook, result) {
     from: { row: headerRow, column: 1 },
     to: { row: headerRow, column: 3 },
   };
+
+  // --- footer: what the columns mean, and how the class did ---
+  const footRow = headerRow + students.length + 2;
+  ws.mergeCells(footRow, 1, footRow, Math.min(6, lastCol));
+  const legend = ws.getCell(footRow, 1);
+  legend.value =
+    `Transmuted values come from the ${result.policy}% university table. ` +
+    'A blank assessment counts as 50; a blank exam gives the letter I.';
+  legend.font = { size: 9, italic: true, color: { argb: 'FF5B6472' } };
+  legend.alignment = { horizontal: 'left' };
+
+  const counts = students.reduce((acc, s) => {
+    acc[s.letter] = (acc[s.letter] || 0) + 1;
+    return acc;
+  }, {});
+  const order = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'].filter((l) => counts[l]);
+  if (order.length) {
+    const distRow = footRow + 1;
+    const label = ws.getCell(distRow, 1);
+    label.value = 'Grade distribution:';
+    label.font = { size: 9, bold: true, color: { argb: 'FF5B6472' } };
+    order.forEach((letter, i) => {
+      const c = ws.getCell(distRow, 3 + i);
+      c.value = `${letter}: ${counts[letter]}`;
+      styleLetterCell(c, letter);
+      c.font = { ...c.font, size: 9 };
+      c.border = BORDER_LIGHT;
+    });
+  }
+
   return ws;
 }
 
@@ -244,16 +320,25 @@ function buildSummary(workbook, result) {
 
   ws.mergeCells(1, 1, 1, 5);
   const title = ws.getCell(1, 1);
-  title.value = UNIVERSITY;
-  title.font = { bold: true, size: 14 };
-  title.alignment = { horizontal: 'center' };
+  title.value = `${UNIVERSITY}  ·  Grade Summary`;
+  title.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+  title.alignment = { horizontal: 'center', vertical: 'middle' };
+  title.fill = FILL_TITLE;
+  ws.getRow(1).height = 30;
 
-  ws.getCell(2, 1).value = 'Course Code:';
-  ws.getCell(2, 1).font = { bold: true };
-  ws.getCell(2, 2).value = courseLabel(course);
-  ws.getCell(3, 1).value = 'Course:';
-  ws.getCell(3, 1).font = { bold: true };
-  ws.getCell(3, 2).value = course.name || '';
+  const sdetail = (row, col, label, value) => {
+    const l = ws.getCell(row, col);
+    l.value = label;
+    l.font = { bold: true, size: 10, color: { argb: 'FF5B6472' } };
+    l.alignment = { horizontal: 'right' };
+    const v = ws.getCell(row, col + 1);
+    v.value = value;
+    v.font = { size: 11, bold: true };
+  };
+  sdetail(2, 1, 'Course Code:', courseLabel(course));
+  sdetail(3, 1, 'Course:', course.name || '');
+  sdetail(2, 4, 'Students:', students.length);
+  sdetail(3, 4, 'Generated:', new Date().toISOString().slice(0, 10));
 
   const headerRow = 5;
   ['No.', 'ID', 'FullName', 'Final Grade', 'Letter Grade'].forEach((h, i) => {
@@ -270,16 +355,46 @@ function buildSummary(workbook, result) {
       grade: row.finalGradeDisplay || '',
       letter: row.letter,
     });
+    const banded = i % 2 === 1;
+    excelRow.height = 17;
     excelRow.eachCell({ includeEmpty: true }, (cell, col) => {
-      cell.border = BORDER;
+      cell.border = BORDER_LIGHT;
       cell.font = { size: 10 };
-      if (col >= 4) {
+      if (banded) cell.fill = FILL_BAND;
+      if (col === 4) {
         cell.alignment = { horizontal: 'center' };
-        cell.font = { size: 10, bold: true };
+        cell.font = { size: 11, bold: true };
+        cell.fill = FILL_FINALCOL;
       }
     });
+    styleLetterCell(ws.getCell(excelRow.number, 5), row.letter);
   });
 
+  // A short tally under the list, which is what a department asks for first.
+  const counts = students.reduce((acc, s) => {
+    acc[s.letter] = (acc[s.letter] || 0) + 1;
+    return acc;
+  }, {});
+  const order = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'].filter((l) => counts[l]);
+  if (order.length) {
+    const distRow = headerRow + students.length + 2;
+    const label = ws.getCell(distRow, 1);
+    label.value = 'Distribution';
+    label.font = { size: 10, bold: true, color: { argb: 'FF5B6472' } };
+    order.forEach((letter, i) => {
+      const c = ws.getCell(distRow + 1 + i, 1);
+      c.value = letter;
+      styleLetterCell(c, letter);
+      c.border = BORDER_LIGHT;
+      const n = ws.getCell(distRow + 1 + i, 2);
+      n.value = counts[letter];
+      n.font = { size: 10 };
+      n.alignment = { horizontal: 'center' };
+      n.border = BORDER_LIGHT;
+    });
+  }
+
+  ws.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: headerRow, column: 5 } };
   return ws;
 }
 
