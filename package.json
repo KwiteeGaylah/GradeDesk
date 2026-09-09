@@ -10,12 +10,16 @@
     "test": "node --test \"test/**/*.test.js\"",
     "verify": "node --test test/verification.test.js",
     "start": "electron .",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "smoke": "node scripts/smoketest.js",
+    "uitest": "node scripts/uitest.js",
+    "screenshot": "node scripts/screenshot.js"
   },
   "devDependencies": {
-    "exceljs": "^4.4.0"
+    "electron": "^44.3.0"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3"
+    "better-sqlite3": "^13.0.3",
+    "exceljs": "^4.4.0"
   }
 }

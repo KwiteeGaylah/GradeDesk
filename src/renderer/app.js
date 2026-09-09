@@ -1,0 +1,1317 @@
+'use strict';
+/**
+ * GradeDesk renderer.
+ *
+ * Structure follows docs/GradeDesk_Mockup.html: a left rail (semester, courses,
+ * per-course screens) and one screen at a time in the main area.
+ *
+ * The central interaction is grade entry: one assessment, the whole class list,
+ * one editable column typed straight down like Excel. Everything else exists to
+ * serve that. Computed columns are read-only and refresh from the engine.
+ */
+
+const api = window.gradedesk;
+
+const state = {
+  semesters: [],
+  activeSemester: null,
+  courses: [],
+  courseId: null,
+  screen: 'grades',
+  terms: null,
+  assessments: { midterm: [], final: [] },
+  selectedAssessmentId: null,
+  selectedTermKind: 'midterm',
+  computed: null,
+  policies: [],
+};
+
+const $ = (id) => document.getElementById(id);
+
+// --------------------------------------------------------------- utilities
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+    else if (k === 'dataset') Object.assign(node.dataset, v);
+    else node.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children.flat()) {
+    if (c === null || c === undefined || c === false) continue;
+    node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return node;
+}
+
+/**
+ * Replace a container's children, dropping absent ones.
+ *
+ * Native replaceChildren turns a null into the literal text "null", so an
+ * optional element written as `condition ? el(...) : null` would print the word
+ * on screen. Always use this instead.
+ */
+function setChildren(container, ...children) {
+  container.replaceChildren(
+    ...children.flat().filter((c) => c !== null && c !== undefined && c !== false)
+  );
+}
+
+let toastTimer = null;
+function toast(message, kind = '') {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const node = el('div', { class: `toast ${kind}`.trim(), text: message });
+  document.body.append(node);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => node.remove(), kind === 'error' ? 6000 : 2600);
+}
+
+function saved(message = 'Saved') {
+  $('saveStatus').textContent = `${message} · ${new Date().toLocaleTimeString()}`;
+}
+
+async function guard(fn, context) {
+  try {
+    return await fn();
+  } catch (err) {
+    toast(context ? `${context}: ${err.message}` : err.message, 'error');
+    return undefined;
+  }
+}
+
+/** A number for display, or an em dash when there is nothing to show. */
+function show(value, decimals = 2) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '—';
+  return Number(value).toFixed(decimals);
+}
+
+/** Truncate to two decimals without rounding, mirroring the engine exactly. */
+function showGrade(row) {
+  return row.finalGradeDisplay || '—';
+}
+
+// ------------------------------------------------------------------- modal
+
+function modal({ title, subtitle, body, confirmLabel = 'Save', onConfirm, danger = false, wide = false }) {
+  return new Promise((resolve) => {
+    const root = $('modalRoot');
+    const close = (value) => {
+      setChildren(root);
+      document.removeEventListener('keydown', onKey);
+      resolve(value);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') close(null);
+    };
+    document.addEventListener('keydown', onKey);
+
+    const form = el('form', {
+      onsubmit: async (e) => {
+        e.preventDefault();
+        const value = onConfirm ? await onConfirm() : true;
+        if (value !== false) close(value ?? true);
+      },
+    },
+      el('h3', { text: title }),
+      subtitle ? el('div', { class: 'sub', text: subtitle }) : null,
+      body,
+      el('div', { class: 'actions' },
+        el('button', { type: 'button', class: 'btn', onclick: () => close(null) }, 'Cancel'),
+        el('button', { type: 'submit', class: `btn primary${danger ? ' danger' : ''}` }, confirmLabel)
+      )
+    );
+
+    const bg = el('div', {
+      class: 'modalbg',
+      onclick: (e) => { if (e.target === bg) close(null); },
+    }, el('div', { class: `modal${wide ? ' wide' : ''}` }, form));
+
+    setChildren(root, bg);
+    const first = form.querySelector('input, select, textarea, button');
+    if (first) first.focus();
+  });
+}
+
+function confirmDialog({ title, subtitle, body, confirmLabel = 'Continue', danger = true }) {
+  return modal({ title, subtitle, body: body || el('div'), confirmLabel, danger, onConfirm: () => true });
+}
+
+// ------------------------------------------------------------------ loading
+
+async function loadAll() {
+  state.policies = (await guard(() => api.policies.list(), 'Loading policies')) || [];
+  state.semesters = (await guard(() => api.semesters.list(), 'Loading semesters')) || [];
+  state.activeSemester = state.semesters.find((s) => s.is_active) || state.semesters[0] || null;
+  await loadCourses();
+  renderRail();
+  await renderScreen();
+}
+
+async function loadCourses() {
+  if (!state.activeSemester) {
+    state.courses = [];
+    state.courseId = null;
+    return;
+  }
+  state.courses = (await guard(() => api.courses.list(state.activeSemester.id))) || [];
+  if (!state.courses.some((c) => c.id === state.courseId)) {
+    state.courseId = state.courses.length ? state.courses[0].id : null;
+  }
+  await loadCourseDetail();
+}
+
+async function loadCourseDetail() {
+  if (!state.courseId) {
+    state.terms = null;
+    state.assessments = { midterm: [], final: [] };
+    state.computed = null;
+    return;
+  }
+  const terms = await guard(() => api.courses.terms(state.courseId));
+  state.terms = terms ? terms.byKind : null;
+  if (state.terms) {
+    state.assessments = {
+      midterm: (await api.assessments.list(state.terms.midterm.id)) || [],
+      final: (await api.assessments.list(state.terms.final.id)) || [],
+    };
+  }
+  await refreshComputed();
+  ensureSelectedAssessment();
+}
+
+async function refreshComputed() {
+  if (!state.courseId) {
+    state.computed = null;
+    return;
+  }
+  state.computed = await guard(() => api.gradebook.compute(state.courseId), 'Computing grades');
+}
+
+function ensureSelectedAssessment() {
+  const all = [...state.assessments.midterm, ...state.assessments.final];
+  if (!all.some((a) => a.id === state.selectedAssessmentId)) {
+    const first = state.assessments.midterm[0] || state.assessments.final[0] || null;
+    state.selectedAssessmentId = first ? first.id : null;
+    state.selectedTermKind = state.assessments.midterm.some((a) => a.id === state.selectedAssessmentId)
+      ? 'midterm'
+      : 'final';
+  }
+}
+
+function currentCourse() {
+  return state.courses.find((c) => c.id === state.courseId) || null;
+}
+
+// --------------------------------------------------------------- left rail
+
+function renderRail() {
+  const select = $('semesterSelect');
+  setChildren(select,
+    ...state.semesters.map((s) =>
+      el('option', { value: s.id, selected: state.activeSemester && s.id === state.activeSemester.id },
+        `${s.name}${s.is_active ? '  (active)' : '  (archived)'}`)
+    )
+  );
+
+  const courseNav = $('courseNav');
+  setChildren(courseNav,
+    ...state.courses.map((c) =>
+      el('a', {
+        class: c.id === state.courseId ? 'active' : '',
+        onclick: async () => {
+          state.courseId = c.id;
+          await loadCourseDetail();
+          renderRail();
+          await renderScreen();
+        },
+      },
+        el('span', { class: 'ico', text: '▤' }),
+        el('span', {}, `${c.code}${c.section ? ` · ${c.section}` : ''}`),
+        el('span', { class: 'sub', text: `${c.policy}%` })
+      )
+    ),
+    el('a', { onclick: newCourse }, el('span', { class: 'ico', text: '＋' }), 'New course…')
+  );
+
+  const screens = [
+    ['grades', '✎', 'Grade entry'],
+    ['attendance', '◷', 'Attendance'],
+    ['roster', '☰', 'Roster'],
+    ['config', '⚙', 'Assessments & policy'],
+  ];
+  setChildren($('screenNav'),
+    ...screens.map(([key, icon, label]) =>
+      el('a', {
+        class: state.screen === key ? 'active' : '',
+        onclick: async () => {
+          state.screen = key;
+          renderRail();
+          await renderScreen();
+        },
+      }, el('span', { class: 'ico', text: icon }), label)
+    )
+  );
+}
+
+$('semesterSelect').addEventListener('change', async (e) => {
+  const id = Number(e.target.value);
+  const target = state.semesters.find((s) => s.id === id);
+  if (!target) return;
+  if (!target.is_active) {
+    const ok = await confirmDialog({
+      title: `Switch to ${target.name}?`,
+      subtitle: 'This makes it the active semester and archives the current one.',
+      body: el('div', { class: 'note' },
+        'Archived semesters stay fully readable and exportable. You can switch back at any time.'),
+      confirmLabel: 'Switch semester',
+      danger: false,
+    });
+    if (!ok) {
+      renderRail();
+      return;
+    }
+    await guard(() => api.semesters.activate(id), 'Switching semester');
+  }
+  state.semesters = await api.semesters.list();
+  state.activeSemester = state.semesters.find((s) => s.id === id) || null;
+  await loadCourses();
+  renderRail();
+  await renderScreen();
+});
+
+$('newSemesterBtn').addEventListener('click', async () => {
+  const input = el('input', { type: 'text', required: true, placeholder: 'e.g. 2027–2028 Semester 1' });
+  const result = await modal({
+    title: 'New semester',
+    subtitle: 'The current semester will be archived. Nothing is deleted.',
+    body: el('div', { class: 'field' }, el('label', { text: 'Semester name' }), input),
+    confirmLabel: 'Create and activate',
+    onConfirm: () => input.value.trim() || false,
+  });
+  if (!result) return;
+  await guard(() => api.semesters.create(result), 'Creating semester');
+  state.semesters = await api.semesters.list();
+  state.activeSemester = state.semesters.find((s) => s.is_active) || null;
+  await loadCourses();
+  renderRail();
+  await renderScreen();
+  toast('Semester created');
+});
+
+$('backupBtn').addEventListener('click', async () => {
+  const file = await guard(() => api.backup.save(), 'Backup');
+  if (file) toast('Backup saved');
+});
+
+$('restoreBtn').addEventListener('click', async () => {
+  const result = await guard(() => api.backup.restore(), 'Restore');
+  if (!result) return;
+  toast(`Restored ${result.restored} records`);
+  await loadAll();
+});
+
+// ----------------------------------------------------------------- courses
+
+async function newCourse() {
+  if (!state.activeSemester) {
+    toast('Create a semester first', 'error');
+    return;
+  }
+  const code = el('input', { type: 'text', required: true, placeholder: 'CSE 102' });
+  const name = el('input', { type: 'text', placeholder: 'Computer Literacy' });
+  const section = el('input', { type: 'text', placeholder: '2' });
+  const instructor = el('input', { type: 'text', placeholder: 'Your name' });
+  const selectable = state.policies.filter((p) => p.selectable);
+  const policy = el('select', {},
+    ...selectable.map((p) =>
+      el('option', { value: p.policy, selected: p.isDefault }, `${p.label} transmutation`)
+    )
+  );
+  const policyNote = el('div', { class: 'hint' });
+  const updateNote = () => {
+    const chosen = selectable.find((p) => p.policy === policy.value);
+    policyNote.textContent = chosen ? chosen.note : '';
+  };
+  policy.addEventListener('change', updateNote);
+  updateNote();
+
+  const result = await modal({
+    title: 'New course',
+    subtitle: `Added to ${state.activeSemester.name}.`,
+    body: el('div', {},
+      el('div', { class: 'fieldrow' },
+        el('div', { class: 'field' }, el('label', { text: 'Course code' }), code),
+        el('div', { class: 'field' }, el('label', { text: 'Section' }), section)),
+      el('div', { class: 'field' }, el('label', { text: 'Course name' }), name),
+      el('div', { class: 'field' }, el('label', { text: 'Instructor' }), instructor),
+      el('div', { class: 'field' }, el('label', { text: 'Transmutation policy' }), policy, policyNote)
+    ),
+    confirmLabel: 'Create course',
+    onConfirm: () => {
+      if (!code.value.trim()) return false;
+      return {
+        code: code.value.trim(),
+        name: name.value.trim(),
+        section: section.value.trim(),
+        instructor: instructor.value.trim(),
+        policy: policy.value,
+      };
+    },
+  });
+  if (!result) return;
+
+  const course = await guard(
+    () => api.courses.create({ semesterId: state.activeSemester.id, ...result }),
+    'Creating course'
+  );
+  if (!course) return;
+  await loadCourses();
+  state.courseId = course.id;
+  state.screen = 'config';
+  await loadCourseDetail();
+  renderRail();
+  await renderScreen();
+  toast('Course created. Add your assessments next.');
+}
+
+// ------------------------------------------------------------- screen shell
+
+async function renderScreen() {
+  const course = currentCourse();
+  const content = $('content');
+  const actions = $('topActions');
+  setChildren(actions);
+
+  if (!state.activeSemester) {
+    $('crumbs').textContent = '';
+    $('screenTitle').textContent = 'Welcome';
+    setChildren(content, emptyState({
+      icon: '◷',
+      title: 'No semester yet',
+      text: 'Create a semester to begin. Everything you enter is saved on this computer.',
+      actionLabel: 'New semester',
+      onAction: () => $('newSemesterBtn').click(),
+    }));
+    return;
+  }
+
+  if (!course) {
+    $('crumbs').textContent = state.activeSemester.name;
+    $('screenTitle').textContent = 'No course selected';
+    setChildren(content, emptyState({
+      icon: '▤',
+      title: 'No courses in this semester',
+      text: 'Create your first course, then add its assessments and type in the class list.',
+      actionLabel: 'New course',
+      onAction: newCourse,
+    }));
+    return;
+  }
+
+  const policyInfo = state.policies.find((p) => p.policy === String(course.policy));
+  setChildren($('crumbs'),
+    document.createTextNode(`${state.activeSemester.name} · ${course.code}`),
+    course.section ? document.createTextNode(` · Section ${course.section}`) : document.createTextNode(''),
+    document.createTextNode(' · '),
+    el('b', { text: `${course.policy}% policy` }),
+    !state.activeSemester.is_active ? document.createTextNode('  (archived)') : document.createTextNode('')
+  );
+
+  const titles = {
+    grades: 'Grade entry',
+    attendance: 'Attendance',
+    roster: 'Roster',
+    config: 'Assessments & policy',
+  };
+  $('screenTitle').textContent = titles[state.screen];
+
+  if (state.screen !== 'config') {
+    const issues = (state.computed && (await api.gradebook.issues(state.courseId))) || [];
+    const errorCount = issues.filter((i) => i.severity !== 'info').length;
+    actions.append(
+      el('button', {
+        class: 'btn',
+        onclick: () => showIssues(issues),
+      }, `Review issues${errorCount ? ` (${errorCount})` : ''}`),
+      el('button', { class: 'btn', onclick: exportSummaryFile }, 'Export summary'),
+      el('button', { class: 'btn primary', onclick: exportRecordFile }, 'Export grade sheet')
+    );
+  }
+
+  const renderers = {
+    grades: renderGradeEntry,
+    attendance: renderAttendance,
+    roster: renderRoster,
+    config: renderConfig,
+  };
+  await renderers[state.screen](content, course, policyInfo);
+}
+
+function emptyState({ icon, title, text, actionLabel, onAction }) {
+  return el('div', { class: 'empty' },
+    el('div', { class: 'big', text: icon }),
+    el('h3', { text: title }),
+    el('p', { text }),
+    actionLabel ? el('button', { class: 'btn primary', onclick: onAction }, actionLabel) : null
+  );
+}
+
+// ------------------------------------------------------------ grade entry
+
+async function renderGradeEntry(content, course, policyInfo) {
+  const all = [
+    ...state.assessments.midterm.map((a) => ({ ...a, termKind: 'midterm' })),
+    ...state.assessments.final.map((a) => ({ ...a, termKind: 'final' })),
+  ];
+
+  if (!all.length) {
+    setChildren(content, emptyState({
+      icon: '⚙',
+      title: 'No assessments yet',
+      text: 'Add the quizzes, assignments and attendance this course uses. Each term also has a fixed 40-point exam.',
+      actionLabel: 'Set up assessments',
+      onAction: async () => { state.screen = 'config'; renderRail(); await renderScreen(); },
+    }));
+    return;
+  }
+
+  const students = (state.computed && state.computed.students) || [];
+  if (!students.length) {
+    setChildren(content, emptyState({
+      icon: '☰',
+      title: 'No students yet',
+      text: 'Type the class list into the roster, then come back here to enter scores down the column.',
+      actionLabel: 'Go to roster',
+      onAction: async () => { state.screen = 'roster'; renderRail(); await renderScreen(); },
+    }));
+    return;
+  }
+
+  const selected = all.find((a) => a.id === state.selectedAssessmentId) || all[0];
+  state.selectedAssessmentId = selected.id;
+  state.selectedTermKind = selected.termKind;
+
+  // ---- assessment tabs, grouped by term ----
+  const bar = el('div', { class: 'assessbar' });
+  for (const kind of ['midterm', 'final']) {
+    const list = all.filter((a) => a.termKind === kind);
+    if (!list.length) continue;
+    bar.append(el('span', { class: 'term-pill', text: kind === 'midterm' ? 'MIDTERM TERM' : 'FINAL TERM' }));
+    for (const a of list) {
+      bar.append(el('button', {
+        class: `atab${a.id === selected.id ? ' active' : ''}${a.kind === 'exam' ? ' exam' : ''}`,
+        onclick: async () => {
+          state.selectedAssessmentId = a.id;
+          state.selectedTermKind = a.termKind;
+          await renderScreen();
+          focusFirstEntry();
+        },
+      }, a.name, el('span', { class: 'max', text: `/${a.max_points}` })));
+    }
+  }
+
+  const isAttendance = selected.kind === 'attendance';
+  const note = isAttendance
+    ? el('div', { class: 'note' },
+        el('b', {}, selected.name), ' is scored automatically from session marks. ',
+        'Open the Attendance screen to mark sessions; the raw score here is read-only.')
+    : el('div', { class: 'note' },
+        'Entering ', el('b', {}, selected.name), ` (out of ${selected.max_points}). `,
+        'Type a score on each row and press Enter to drop down, exactly like an Excel column. ',
+        'Leave a cell blank to count it as 50. The grey columns are computed automatically.');
+
+  const policyWarn = policyInfo && policyInfo.confidence !== 'grade-verified'
+    ? el('div', { class: 'note warn' },
+        el('b', {}, `${policyInfo.label} policy: `),
+        'transcribed from the university source and structurally checked, but not cross-checked ',
+        'against a completed grade sheet. Spot-check a few results before submitting.')
+    : null;
+
+  // ---- table ----
+  const termLabel = selected.termKind === 'midterm' ? 'Midterm' : 'Final';
+  const thead = el('thead', {},
+    el('tr', {},
+      el('th', { text: '#', class: 'ta-right' }),
+      el('th', { text: 'ID' }),
+      el('th', { text: 'Full name' }),
+      el('th', { class: 'th-entry', text: `${selected.name} (raw)` }),
+      el('th', { class: 'ta-center', text: 'Transmuted' }),
+      el('th', { class: 'ta-center', text: 'Class standing' }),
+      el('th', { class: 'ta-center', text: `${termLabel} total` }),
+      el('th', { class: 'ta-center', text: 'Final grade' }),
+      el('th', { class: 'ta-center', text: 'Letter' })
+    )
+  );
+
+  const tbody = el('tbody');
+  students.forEach((row, index) => {
+    const term = row[selected.termKind];
+    const isExam = selected.kind === 'exam';
+    const cell = isExam
+      ? { raw: term.examRaw, transmuted: term.examTransmuted }
+      : term.assessments.find((a) => a.assessment.id === selected.id) || { raw: null, transmuted: 50 };
+
+    const input = el('input', {
+      type: 'text',
+      inputmode: 'decimal',
+      value: cell.raw === null || cell.raw === undefined ? '' : String(cell.raw),
+      dataset: { index: String(index), studentId: String(row.student.id) },
+      readonly: isAttendance,
+      title: isAttendance ? 'Computed from attendance sessions' : '',
+      'aria-label': `${selected.name} for ${row.student.full_name}`,
+    });
+    if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
+
+    if (!isAttendance) {
+      input.addEventListener('keydown', (e) => onEntryKey(e, index, students.length));
+      input.addEventListener('focus', () => input.select());
+      input.addEventListener('change', () => commitScore(input, row.student.id, selected));
+      input.addEventListener('blur', () => commitScore(input, row.student.id, selected));
+    }
+
+    tbody.append(el('tr', {},
+      el('td', { class: 'idx', text: row.student.number ?? index + 1 }),
+      el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
+      el('td', { class: 'name cellpad', text: row.student.full_name || '' }),
+      el('td', { class: 'entry' }, input),
+      el('td', { class: 'read', text: show(cell.transmuted, 0) }),
+      el('td', { class: 'read', text: show(term.classStanding) }),
+      el('td', { class: 'total', text: show(term.total) }),
+      el('td', { class: 'final', text: showGrade(row) }),
+      el('td', { class: 'letter' }, el('span', { class: `lg ${row.letter}`, text: row.letter }))
+    ));
+  });
+
+  setChildren(content,
+    bar,
+    policyWarn,
+    note,
+    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
+    el('div', { class: 'legend' },
+      el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
+      el('span', {}, el('span', { class: 'k k-read' }), `Transmuted (${course.policy}% table)`),
+      el('span', {}, el('span', { class: 'k k-total' }), 'Running totals'),
+      el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, no rounding')
+    )
+  );
+}
+
+/** Enter/Tab move down the column, arrows navigate, like a spreadsheet. */
+function onEntryKey(event, index, total) {
+  const move = (delta) => {
+    const next = document.querySelector(`#content input[data-index="${index + delta}"]`);
+    if (next) {
+      next.focus();
+      next.select();
+    }
+    event.preventDefault();
+  };
+  if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)) {
+    if (index < total - 1) move(1);
+    else if (event.key === 'Enter') event.preventDefault();
+    return;
+  }
+  if (event.key === 'Tab' && event.shiftKey) {
+    if (index > 0) move(-1);
+    return;
+  }
+  if (event.key === 'ArrowDown') move(1);
+  if (event.key === 'ArrowUp') move(-1);
+  if (event.key === 'Escape') event.target.blur();
+}
+
+function focusFirstEntry() {
+  const first = document.querySelector('#content input[data-index="0"]:not([readonly])');
+  if (first) {
+    first.focus();
+    first.select();
+  }
+}
+
+/**
+ * Persist one typed score, then refresh the computed columns in place.
+ * The whole class is recomputed because one score moves that student's class
+ * standing, term total, final grade and letter together.
+ */
+async function commitScore(input, studentId, assessment) {
+  const text = input.value.trim();
+  const previous = input.dataset.committed ?? '';
+  if (text === previous) return;
+
+  let value = null;
+  if (text !== '') {
+    const n = Number(text);
+    if (!Number.isFinite(n)) {
+      toast(`"${text}" is not a number`, 'error');
+      input.value = previous;
+      return;
+    }
+    if (n < 0) {
+      toast('A score cannot be negative', 'error');
+      input.value = previous;
+      return;
+    }
+    value = n;
+  }
+
+  input.dataset.committed = text;
+  input.classList.toggle('over', value !== null && value > assessment.max_points);
+  if (value !== null && value > assessment.max_points) {
+    toast(`${value} is above the maximum of ${assessment.max_points} for ${assessment.name}`, 'error');
+  }
+
+  await guard(() => api.scores.set(studentId, assessment.id, value), 'Saving score');
+  saved();
+  await refreshComputed();
+  updateComputedColumns(assessment);
+}
+
+/** Refresh only the read-only cells, so the focused input is never disturbed. */
+function updateComputedColumns(assessment) {
+  if (!state.computed) return;
+  const rows = document.querySelectorAll('#content tbody tr');
+  state.computed.students.forEach((row, i) => {
+    const tr = rows[i];
+    if (!tr) return;
+    const term = row[state.selectedTermKind];
+    const isExam = assessment.kind === 'exam';
+    const cell = isExam
+      ? { transmuted: term.examTransmuted }
+      : term.assessments.find((a) => a.assessment.id === assessment.id) || { transmuted: 50 };
+
+    const cells = tr.querySelectorAll('td');
+    cells[4].textContent = show(cell.transmuted, 0);
+    cells[5].textContent = show(term.classStanding);
+    cells[6].textContent = show(term.total);
+    cells[7].textContent = showGrade(row);
+    setChildren(cells[8], el('span', { class: `lg ${row.letter}`, text: row.letter }));
+  });
+}
+
+// -------------------------------------------------------------- attendance
+
+async function renderAttendance(content, course) {
+  const termKind = state.selectedTermKind === 'final' ? 'final' : 'midterm';
+  const term = state.terms ? state.terms[termKind] : null;
+  if (!term) {
+    setChildren(content, emptyState({ icon: '◷', title: 'No terms', text: 'This course has no terms.' }));
+    return;
+  }
+
+  const attendanceAssessment = state.assessments[termKind].find((a) => a.kind === 'attendance');
+  const { sessions, marks } = await api.attendance.forTerm(term.id);
+  const marksByStudent = new Map(marks);
+  const students = (state.computed && state.computed.students) || [];
+
+  const termSwitch = el('div', { class: 'assessbar' },
+    el('span', { class: 'term-pill', text: 'TERM' }),
+    ...['midterm', 'final'].map((kind) =>
+      el('button', {
+        class: `atab${kind === termKind ? ' active' : ''}`,
+        onclick: async () => {
+          state.selectedTermKind = kind;
+          await renderScreen();
+        },
+      }, kind === 'midterm' ? 'Midterm term' : 'Final term')
+    )
+  );
+
+  $('topActions').prepend(
+    el('button', { class: 'btn', onclick: () => addSession(course, term) }, '＋ Add session')
+  );
+
+  if (!attendanceAssessment) {
+    setChildren(content, termSwitch, emptyState({
+      icon: '◷',
+      title: 'No attendance assessment in this term',
+      text: 'Add an assessment of kind "attendance" so session marks have somewhere to land.',
+      actionLabel: 'Set up assessments',
+      onAction: async () => { state.screen = 'config'; renderRail(); await renderScreen(); },
+    }));
+    return;
+  }
+
+  if (!students.length) {
+    setChildren(content, termSwitch, emptyState({
+      icon: '☰',
+      title: 'No students yet',
+      text: 'Type the class list into the roster first.',
+      actionLabel: 'Go to roster',
+      onAction: async () => { state.screen = 'roster'; renderRail(); await renderScreen(); },
+    }));
+    return;
+  }
+
+  if (!sessions.length) {
+    setChildren(content, termSwitch, emptyState({
+      icon: '◷',
+      title: 'No sessions yet',
+      text: 'Add a session for each class meeting, then mark the whole class across it.',
+      actionLabel: '＋ Add session',
+      onAction: () => addSession(course, term),
+    }));
+    return;
+  }
+
+  const note = el('div', { class: 'note' },
+    'Click a cell to cycle ', el('b', {}, 'P'), ' (present, full) → ', el('b', {}, 'E'),
+    ' (excused, half) → ', el('b', {}, 'A'), ' (absent, zero) → blank. ',
+    `The score is points × (P + 0.5·E) ÷ sessions marked, out of ${attendanceAssessment.max_points}, `,
+    'then transmuted like any other assessment.'
+  );
+
+  const thead = el('thead', {}, el('tr', {},
+    el('th', { text: '#', class: 'ta-right' }),
+    el('th', { text: 'Full name' }),
+    ...sessions.map((s) =>
+      el('th', { class: 'session' },
+        s.date,
+        el('span', {
+          class: 'del',
+          title: 'Remove this session',
+          onclick: () => removeSession(s),
+        }, '✕')
+      )
+    ),
+    el('th', { class: 'th-computed', text: `Raw /${attendanceAssessment.max_points}` }),
+    el('th', { class: 'ta-center', text: 'Transmuted' })
+  ));
+
+  const tbody = el('tbody');
+  students.forEach((row, i) => {
+    const studentMarks = marksByStudent.get(row.student.id) || sessions.map(() => null);
+    const computedCell = row[termKind].assessments.find(
+      (a) => a.assessment.id === attendanceAssessment.id
+    ) || { raw: null, transmuted: 50 };
+
+    const rawCell = el('td', { class: 'total', text: show(computedCell.raw) });
+    const transCell = el('td', { class: 'read', text: show(computedCell.transmuted, 0) });
+
+    const cells = sessions.map((session, si) => {
+      const code = studentMarks[si];
+      const td = el('td', {
+        class: `att ${code || 'blank'}`,
+        text: code || '·',
+        tabindex: '0',
+        role: 'button',
+        'aria-label': `${row.student.full_name}, ${session.date}`,
+        onclick: () => cycleMark(td, row.student.id, session.id, rawCell, transCell, attendanceAssessment, termKind),
+        onkeydown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            td.click();
+          }
+        },
+      });
+      return td;
+    });
+
+    tbody.append(el('tr', {},
+      el('td', { class: 'idx', text: row.student.number ?? i + 1 }),
+      el('td', { class: 'name cellpad', text: row.student.full_name }),
+      ...cells,
+      rawCell,
+      transCell
+    ));
+  });
+
+  setChildren(content,
+    termSwitch,
+    note,
+    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
+    el('div', { class: 'hint' },
+      'The denominator counts sessions actually marked, not the whole semester, so attendance is fair at any point in the term.')
+  );
+}
+
+const MARK_CYCLE = ['P', 'E', 'A', null];
+
+async function cycleMark(td, studentId, sessionId, rawCell, transCell, assessment, termKind) {
+  const current = td.textContent.trim() === '·' ? null : td.textContent.trim();
+  const next = MARK_CYCLE[(MARK_CYCLE.indexOf(current) + 1) % MARK_CYCLE.length];
+
+  td.className = `att ${next || 'blank'}`;
+  td.textContent = next || '·';
+
+  await guard(() => api.attendance.setMark(studentId, sessionId, next), 'Saving mark');
+  saved();
+  await refreshComputed();
+
+  const row = state.computed.students.find((r) => r.student.id === studentId);
+  if (row) {
+    const cell = row[termKind].assessments.find((a) => a.assessment.id === assessment.id);
+    if (cell) {
+      rawCell.textContent = show(cell.raw);
+      transCell.textContent = show(cell.transmuted, 0);
+    }
+  }
+}
+
+async function addSession(course, term) {
+  const date = el('input', { type: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
+  const result = await modal({
+    title: 'Add attendance session',
+    subtitle: 'One session per class meeting.',
+    body: el('div', { class: 'field' }, el('label', { text: 'Date' }), date),
+    confirmLabel: 'Add session',
+    onConfirm: () => date.value || false,
+  });
+  if (!result) return;
+  await guard(() => api.attendance.addSession(course.id, term.id, result), 'Adding session');
+  await refreshComputed();
+  await renderScreen();
+  saved();
+}
+
+async function removeSession(session) {
+  const count = await api.attendance.countMarks(session.id);
+  const ok = await confirmDialog({
+    title: `Remove the session on ${session.date}?`,
+    subtitle: count
+      ? `${count} mark${count === 1 ? '' : 's'} will be deleted, which changes attendance scores.`
+      : 'This session has no marks yet.',
+    body: el('div', { class: 'note warn' },
+      'Attendance is divided by the number of sessions marked, so removing a session changes every student’s attendance score.'),
+    confirmLabel: 'Remove session',
+  });
+  if (!ok) return;
+  await guard(() => api.attendance.removeSession(session.id), 'Removing session');
+  await refreshComputed();
+  await renderScreen();
+  saved('Session removed');
+}
+
+// ------------------------------------------------------------------ roster
+
+async function renderRoster(content, course) {
+  const students = await api.students.list(course.id);
+
+  $('topActions').prepend(
+    el('button', { class: 'btn', onclick: () => pasteRoster(course) }, 'Paste list'),
+    el('button', { class: 'btn', onclick: () => addRosterRows(course, 5) }, '＋ Add 5 rows')
+  );
+
+  const note = el('div', { class: 'note' },
+    'Type the class list like a spreadsheet. Enter or Tab moves to the next cell, and a new row is added ',
+    'automatically when you fill the last one. Changes save as you type.'
+  );
+
+  const thead = el('thead', {}, el('tr', {},
+    el('th', { text: '#', class: 'ta-right' }),
+    el('th', { text: 'Student ID', class: 'w-id' }),
+    el('th', { text: 'Full name' }),
+    el('th', { text: '', class: 'w-action' })
+  ));
+
+  const tbody = el('tbody');
+  const makeRow = (student, index) => {
+    const idInput = el('input', {
+      type: 'text',
+      value: student.student_id || '',
+      dataset: { row: String(index), col: '0' },
+      'aria-label': `Student ID, row ${index + 1}`,
+    });
+    const nameInput = el('input', {
+      type: 'text',
+      value: student.full_name || '',
+      class: 'name-input',
+      dataset: { row: String(index), col: '1' },
+      'aria-label': `Full name, row ${index + 1}`,
+    });
+
+    const save = async (field, input) => {
+      const value = input.value.trim();
+      if ((student[field === 'studentId' ? 'student_id' : 'full_name'] || '') === value) return;
+      await guard(() => api.students.update(student.id, { [field]: value }), 'Saving');
+      student[field === 'studentId' ? 'student_id' : 'full_name'] = value;
+      saved();
+      await refreshComputed();
+    };
+    idInput.addEventListener('change', () => save('studentId', idInput));
+    idInput.addEventListener('blur', () => save('studentId', idInput));
+    nameInput.addEventListener('change', () => save('fullName', nameInput));
+    nameInput.addEventListener('blur', () => save('fullName', nameInput));
+
+    for (const input of [idInput, nameInput]) {
+      input.addEventListener('keydown', (e) => onRosterKey(e, course, students.length));
+    }
+
+    return el('tr', {},
+      el('td', { class: 'idx', text: student.number ?? index + 1 }),
+      el('td', { class: 'entry w-id' }, idInput),
+      el('td', { class: 'entry w-auto' }, nameInput),
+      el('td', { class: 'ta-center' },
+        el('button', {
+          class: 'x btn ghost small',
+          title: 'Remove this student',
+          onclick: () => removeStudent(student),
+        }, '✕'))
+    );
+  };
+
+  students.forEach((s, i) => tbody.append(makeRow(s, i)));
+
+  if (!students.length) {
+    setChildren(content, note, emptyState({
+      icon: '☰',
+      title: 'The class list is empty',
+      text: 'Add rows and type each student’s ID and full name. You can also paste a list copied from anywhere.',
+      actionLabel: '＋ Add rows',
+      onAction: () => addRosterRows(course, 10),
+    }));
+    return;
+  }
+
+  setChildren(content,
+    note,
+    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
+    el('div', { class: 'hint' }, `${students.length} student${students.length === 1 ? '' : 's'} in this course.`)
+  );
+}
+
+function onRosterKey(event, course, rowCount) {
+  const row = Number(event.target.dataset.row);
+  const col = Number(event.target.dataset.col);
+  const focus = (r, c) => {
+    const next = document.querySelector(`#content input[data-row="${r}"][data-col="${c}"]`);
+    if (next) {
+      next.focus();
+      next.select();
+      event.preventDefault();
+      return true;
+    }
+    return false;
+  };
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    if (!focus(row + 1, col) && row === rowCount - 1) addRosterRows(course, 1);
+    return;
+  }
+  if (event.key === 'ArrowDown') focus(row + 1, col);
+  if (event.key === 'ArrowUp') focus(row - 1, col);
+}
+
+async function addRosterRows(course, count) {
+  const rows = Array.from({ length: count }, () => ({ studentId: '', fullName: '' }));
+  await guard(() => api.students.addMany(course.id, rows), 'Adding rows');
+  await refreshComputed();
+  await renderScreen();
+  const inputs = document.querySelectorAll('#content input[data-col="0"]');
+  const target = inputs[inputs.length - count];
+  if (target) target.focus();
+}
+
+async function pasteRoster(course) {
+  const textarea = el('textarea', {
+    rows: '10',
+    class: 'paste-area',
+    placeholder: '44305\tAllison, Elizabeth Y.\n38901\tAllison, Emmanuel M.',
+  });
+  const result = await modal({
+    title: 'Paste a class list',
+    subtitle: 'One student per line. ID and name separated by a tab or comma, or just names.',
+    body: el('div', {}, textarea),
+    confirmLabel: 'Add students',
+    wide: true,
+    onConfirm: () => textarea.value.trim() || false,
+  });
+  if (!result) return;
+
+  const rows = result
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split(/\t|,(?=\s*\S)/).map((p) => p.trim());
+      if (parts.length === 1) return { studentId: '', fullName: parts[0] };
+      // "Surname, Given" with no ID is one name, not an id plus a name.
+      if (parts.length === 2 && !/\d/.test(parts[0])) return { studentId: '', fullName: line };
+      return { studentId: parts[0], fullName: parts.slice(1).join(' ') };
+    });
+
+  await guard(() => api.students.addMany(course.id, rows), 'Adding students');
+  await refreshComputed();
+  await renderScreen();
+  toast(`Added ${rows.length} student${rows.length === 1 ? '' : 's'}`);
+}
+
+async function removeStudent(student) {
+  const ok = await confirmDialog({
+    title: `Remove ${student.full_name || 'this student'}?`,
+    subtitle: 'Their scores and attendance marks are deleted with them.',
+    confirmLabel: 'Remove student',
+  });
+  if (!ok) return;
+  await guard(() => api.students.remove(student.id), 'Removing student');
+  await refreshComputed();
+  await renderScreen();
+  saved('Student removed');
+}
+
+// ------------------------------------------------------ assessments & policy
+
+async function renderConfig(content, course) {
+  const maximums = await api.policies.maximums(course.policy);
+  const selectable = state.policies.filter((p) => p.selectable);
+  const policyInfo = state.policies.find((p) => p.policy === String(course.policy));
+
+  const policySelect = el('select', {},
+    ...selectable.map((p) => el('option', { value: p.policy, selected: p.policy === String(course.policy) }, p.label))
+  );
+  policySelect.addEventListener('change', () => changePolicy(course, policySelect.value, policySelect));
+
+  const kpis = el('div', { class: 'kpis' },
+    el('div', { class: 'kpi' }, el('div', { class: 'v', text: `${course.policy}%` }), el('div', { class: 'l', text: 'Transmutation policy' })),
+    el('div', { class: 'kpi' },
+      el('div', { class: 'v', text: String(state.assessments.midterm.filter((a) => a.kind !== 'exam').length) }),
+      el('div', { class: 'l', text: 'Midterm assessments' })),
+    el('div', { class: 'kpi' },
+      el('div', { class: 'v', text: String(state.assessments.final.filter((a) => a.kind !== 'exam').length) }),
+      el('div', { class: 'l', text: 'Final assessments' })),
+    el('div', { class: 'kpi' }, el('div', { class: 'v', text: '40' }), el('div', { class: 'l', text: 'Exam max (fixed)' }))
+  );
+
+  const courseFields = el('div', { class: 'panel mb-16' },
+    el('h3', { text: 'Course' }),
+    el('div', { class: 'sub', text: 'These details appear on the exported grade sheet.' }),
+    el('div', { class: 'fieldrow' },
+      field('Course code', course.code, (v) => updateCourseField(course, 'code', v)),
+      field('Section', course.section, (v) => updateCourseField(course, 'section', v))),
+    el('div', { class: 'fieldrow' },
+      field('Course name', course.name, (v) => updateCourseField(course, 'name', v)),
+      field('Instructor', course.instructor, (v) => updateCourseField(course, 'instructor', v))),
+    el('div', { class: 'field' },
+      el('label', { text: 'Transmutation policy' }),
+      policySelect,
+      policyInfo ? el('div', { class: 'hint', text: policyInfo.note }) : null)
+  );
+
+  const note = el('div', { class: 'note' },
+    'Class standing is the ', el('b', {}, 'equal-weight average'), ' of the assessments below × 0.6. ',
+    'Add or remove freely, no reweighting is ever needed. ',
+    `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`
+  );
+
+  const panels = el('div', { class: 'panelgrid' },
+    termPanel('midterm', 'Midterm term', course, maximums),
+    termPanel('final', 'Final term', course, maximums)
+  );
+
+  setChildren(content, kpis, courseFields, note, panels);
+}
+
+function field(label, value, onSave) {
+  const input = el('input', { type: 'text', value: value || '' });
+  const commit = () => onSave(input.value.trim());
+  input.addEventListener('change', commit);
+  input.addEventListener('blur', commit);
+  return el('div', { class: 'field' }, el('label', { text: label }), input);
+}
+
+async function updateCourseField(course, key, value) {
+  if ((course[key] || '') === value) return;
+  await guard(() => api.courses.update(course.id, { [key]: value }), 'Saving course');
+  course[key] = value;
+  await loadCourses();
+  renderRail();
+  saved();
+}
+
+function termPanel(kind, title, course, maximums) {
+  const list = state.assessments[kind];
+  const term = state.terms[kind];
+  const exam = list.find((a) => a.kind === 'exam');
+  const classStanding = list.filter((a) => a.kind !== 'exam');
+
+  const rows = classStanding.map((a) => {
+    const nameInput = el('input', { type: 'text', value: a.name, 'aria-label': 'Assessment name' });
+    const commitName = async () => {
+      const v = nameInput.value.trim();
+      if (!v || v === a.name) {
+        nameInput.value = a.name;
+        return;
+      }
+      await guard(() => api.assessments.update(a.id, { name: v }), 'Renaming');
+      a.name = v;
+      saved();
+    };
+    nameInput.addEventListener('change', commitName);
+    nameInput.addEventListener('blur', commitName);
+
+    const maxSelect = el('select', { 'aria-label': 'Point value' },
+      ...maximums.map((m) => el('option', { value: m, selected: m === a.max_points }, `${m} pts`)),
+      // Keep an existing out-of-table value visible rather than silently changing it.
+      maximums.includes(a.max_points) ? null : el('option', { value: a.max_points, selected: true }, `${a.max_points} pts (unsupported)`)
+    );
+    maxSelect.addEventListener('change', async () => {
+      const value = Number(maxSelect.value);
+      const check = await api.policies.validateMax(value, course.policy);
+      if (check && !check.ok) {
+        toast(check.message, 'error');
+        maxSelect.value = String(a.max_points);
+        return;
+      }
+      await guard(() => api.assessments.update(a.id, { maxPoints: value }), 'Changing points');
+      a.max_points = value;
+      await refreshComputed();
+      saved();
+    });
+
+    return el('div', { class: 'arow' },
+      el('span', { class: 'aname' }, nameInput),
+      a.kind === 'attendance' ? el('span', { class: 'badge', text: 'auto' }) : null,
+      maxSelect,
+      el('button', { type: 'button', class: 'x', title: 'Remove', onclick: () => removeAssessment(a) }, '✕')
+    );
+  });
+
+  return el('div', { class: 'panel' },
+    el('h3', { text: title }),
+    el('div', { class: 'sub', text: 'Class standing (averaged equally) + one exam at 40%' }),
+    ...rows,
+    exam
+      ? el('div', { class: 'arow' },
+          el('span', { class: 'aname' }, exam.name),
+          el('span', { class: 'badge exam', text: 'exam · 40 · fixed' }))
+      : null,
+    el('div', { class: 'addrow' },
+      el('button', { class: 'btn ghost', onclick: () => addAssessment(term, kind, course) }, '＋ Add assessment'),
+      classStanding.some((a) => a.kind === 'attendance')
+        ? null
+        : el('button', { class: 'btn ghost', onclick: () => addAssessment(term, kind, course, true) }, '＋ Add attendance'))
+  );
+}
+
+async function addAssessment(term, kind, course, isAttendance = false) {
+  const maximums = await api.policies.maximums(course.policy);
+  const name = el('input', {
+    type: 'text',
+    required: true,
+    value: isAttendance ? 'Attendance' : '',
+    placeholder: 'Quiz 1',
+  });
+  const points = el('select', {},
+    ...maximums.map((m) => el('option', { value: m, selected: m === 10 }, `${m} pts`))
+  );
+
+  const result = await modal({
+    title: isAttendance ? 'Add attendance' : 'Add assessment',
+    subtitle: isAttendance
+      ? 'Its raw score is computed from session marks, then transmuted like any other assessment.'
+      : `Added to the ${kind === 'midterm' ? 'midterm' : 'final'} term and averaged equally with the others.`,
+    body: el('div', {},
+      el('div', { class: 'field' }, el('label', { text: 'Name' }), name),
+      el('div', { class: 'field' }, el('label', { text: 'Point value' }), points)),
+    confirmLabel: 'Add',
+    onConfirm: () => (name.value.trim() ? { name: name.value.trim(), maxPoints: Number(points.value) } : false),
+  });
+  if (!result) return;
+
+  await guard(
+    () => api.assessments.add(term.id, {
+      name: result.name,
+      maxPoints: result.maxPoints,
+      kind: isAttendance ? 'attendance' : 'class_standing',
+    }),
+    'Adding assessment'
+  );
+  await loadCourseDetail();
+  await renderScreen();
+  saved();
+}
+
+async function removeAssessment(assessment) {
+  const count = await api.assessments.countScores(assessment.id);
+  const ok = await confirmDialog({
+    title: `Remove ${assessment.name}?`,
+    subtitle: count
+      ? `${count} entered score${count === 1 ? '' : 's'} will be deleted.`
+      : 'This assessment has no scores yet.',
+    body: el('div', { class: 'note warn' },
+      'Class standing is an average, so removing an assessment changes every student’s grade in this term.'),
+    confirmLabel: 'Remove assessment',
+  });
+  if (!ok) return;
+  await guard(() => api.assessments.remove(assessment.id), 'Removing assessment');
+  await loadCourseDetail();
+  await renderScreen();
+  saved('Assessment removed');
+}
+
+async function changePolicy(course, newPolicy, selectEl) {
+  if (String(newPolicy) === String(course.policy)) return;
+  const all = [...state.assessments.midterm, ...state.assessments.final]
+    .filter((a) => a.kind !== 'exam')
+    .map((a) => ({ name: a.name, maxPoints: a.max_points }));
+  const stranded = await api.policies.stranded(all, newPolicy);
+
+  const info = state.policies.find((p) => p.policy === String(newPolicy));
+  const ok = await confirmDialog({
+    title: `Switch this course to the ${newPolicy}% table?`,
+    subtitle: 'Every grade in the course is recomputed with the new lookup values.',
+    body: el('div', {},
+      stranded.length
+        ? el('div', { class: 'note warn' },
+            el('b', {}, `The ${newPolicy}% table has no column for `),
+            stranded.map((s) => `${s.name} (${s.maxPoints} pts)`).join(', '),
+            '. Those assessments will not transmute until you change their point values.')
+        : null,
+      info && info.confidence !== 'grade-verified'
+        ? el('div', { class: 'note warn' }, info.note)
+        : null,
+      el('div', { class: 'hint' }, 'You can switch back at any time; no scores are lost.')),
+    confirmLabel: 'Switch policy',
+    danger: stranded.length > 0,
+  });
+  if (!ok) {
+    if (selectEl) selectEl.value = String(course.policy);
+    return;
+  }
+
+  await guard(() => api.courses.update(course.id, { policy: String(newPolicy) }), 'Changing policy');
+  await loadCourses();
+  await loadCourseDetail();
+  renderRail();
+  await renderScreen();
+  saved('Policy changed');
+}
+
+// ------------------------------------------------------------------ issues
+
+function showIssues(issues) {
+  const body = issues.length
+    ? el('div', { class: 'gridcard' },
+        ...issues.map((i) =>
+          el('div', { class: 'issue' },
+            el('span', { class: `sev ${i.severity}`, text: i.severity }),
+            el('span', {}, i.message))))
+    : el('div', { class: 'note' }, 'No issues found. Every student has a computable grade.');
+
+  modal({
+    title: 'Review issues',
+    subtitle: issues.length
+      ? `${issues.length} thing${issues.length === 1 ? '' : 's'} to check before exporting.`
+      : 'Checked every student in this course.',
+    body,
+    confirmLabel: 'Close',
+    wide: true,
+    onConfirm: () => true,
+  });
+}
+
+async function exportRecordFile() {
+  const file = await guard(() => api.exports.gradeRecord(state.courseId), 'Export');
+  if (file) toast('Grade record exported');
+}
+
+async function exportSummaryFile() {
+  const file = await guard(() => api.exports.summary(state.courseId), 'Export');
+  if (file) toast('Summary exported');
+}
+
+// -------------------------------------------------------------------- start
+
+loadAll();

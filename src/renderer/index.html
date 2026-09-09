@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+  <title>GradeDesk</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <h1>GradeDesk</h1>
+        <div class="tag">Offline grade recorder</div>
+      </div>
+
+      <div class="sem">
+        <label for="semesterSelect">Active semester</label>
+        <select id="semesterSelect"></select>
+        <div class="semactions">
+          <button class="linkbtn" id="newSemesterBtn">New semester</button>
+          <button class="linkbtn" id="backupBtn">Back up</button>
+          <button class="linkbtn" id="restoreBtn">Restore</button>
+        </div>
+      </div>
+
+      <div class="railscroll">
+        <div class="navsec">Courses</div>
+        <nav id="courseNav"></nav>
+        <div class="navsec">This course</div>
+        <nav id="screenNav"></nav>
+      </div>
+
+      <div class="foot" id="saveStatus">All data saved locally</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <div class="crumbs" id="crumbs"></div>
+          <h2 id="screenTitle">Grade entry</h2>
+        </div>
+        <div class="spacer"></div>
+        <div id="topActions"></div>
+      </div>
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <div id="modalRoot"></div>
+  <script src="app.js"></script>
+</body>
+</html>
