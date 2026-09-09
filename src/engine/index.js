@@ -15,9 +15,11 @@
 const transmutation = require('./transmutation');
 const grades = require('./grades');
 const policy = require('./policy');
+const roster = require('./roster');
 
 module.exports = {
   ...transmutation,
   ...grades,
   ...policy,
+  ...roster,
 };

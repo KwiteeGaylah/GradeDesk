@@ -43,6 +43,7 @@ contextBridge.exposeInMainWorld('gradedesk', {
     list: (courseId) => call('students:list', courseId),
     add: (courseId, row) => call('students:add', courseId, row),
     addMany: (courseId, rows) => call('students:addMany', courseId, rows),
+    parsePaste: (text) => call('students:parsePaste', text),
     update: (id, fields) => call('students:update', id, fields),
     remove: (id) => call('students:delete', id),
   },

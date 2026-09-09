@@ -15,8 +15,14 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const { Store } = require('./data/store');
 const { computeCourse, reviewIssues } = require('./data/gradebook');
 const { exportToFile, importFromFile } = require('./data/backup');
-const { TransmutationTables, allPolicies, validateMaxPoints, strandedByPolicy, DEFAULT_POLICY } =
-  require('./engine');
+const {
+  TransmutationTables,
+  allPolicies,
+  validateMaxPoints,
+  strandedByPolicy,
+  DEFAULT_POLICY,
+  parseRosterText,
+} = require('./engine');
 const { exportGradeRecord, exportSummary } = require('./export/excel');
 
 const TABLES_JSON = path.join(__dirname, '..', 'data', 'transmutation_tables.json');
@@ -63,6 +69,11 @@ function createWindow() {
   if (process.env.GRADEDESK_UITEST) loadHarness('uidriver', (m) => m.drive(mainWindow, app));
   if (process.env.GRADEDESK_SHOT) {
     loadHarness('shotdriver', (m) => m.capture(mainWindow, app, process.env.GRADEDESK_SHOT));
+  }
+  if (process.env.GRADEDESK_EXPLORE) {
+    loadHarness('explore', (m) =>
+      m.explore(mainWindow, app, process.env.GRADEDESK_EXPLORE, process.env.GRADEDESK_EXPLORE_LOG)
+    );
   }
 }
 
@@ -217,6 +228,7 @@ function registerHandlers() {
   handle('students:list', (courseId) => store.listStudents(courseId));
   handle('students:add', (courseId, row) => store.addStudent(courseId, row));
   handle('students:addMany', (courseId, rows) => store.addStudents(courseId, rows));
+  handle('students:parsePaste', (text) => parseRosterText(text));
   handle('students:update', (id, fields) => store.updateStudent(id, fields));
   handle('students:delete', (id) => store.deleteStudent(id));
 

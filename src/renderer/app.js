@@ -431,11 +431,20 @@ async function renderScreen() {
   if (state.screen !== 'config') {
     const issues = (state.computed && (await api.gradebook.issues(state.courseId))) || [];
     const errorCount = issues.filter((i) => i.severity !== 'info').length;
+    const reviewBtn = el('button', {
+      class: 'btn',
+      // Fetch fresh on click rather than reusing the list captured at render
+      // time: scores change constantly between renders, and a stale review that
+      // omits a real problem is worse than no review at all.
+      onclick: async () => {
+        const current = await guard(() => api.gradebook.issues(state.courseId), 'Reviewing');
+        showIssues(current || []);
+        updateIssueCount(reviewBtn, current || []);
+      },
+    }, `Review issues${errorCount ? ` (${errorCount})` : ''}`);
+
     actions.append(
-      el('button', {
-        class: 'btn',
-        onclick: () => showIssues(issues),
-      }, `Review issues${errorCount ? ` (${errorCount})` : ''}`),
+      reviewBtn,
       el('button', { class: 'btn', onclick: exportSummaryFile }, 'Export summary'),
       el('button', { class: 'btn primary', onclick: exportRecordFile }, 'Export grade sheet')
     );
@@ -667,6 +676,7 @@ async function commitScore(input, studentId, assessment) {
   saved();
   await refreshComputed();
   updateComputedColumns(assessment);
+  refreshIssueBadge();
 }
 
 /** Refresh only the read-only cells, so the focused input is never disturbed. */
@@ -1020,17 +1030,10 @@ async function pasteRoster(course) {
   });
   if (!result) return;
 
-  const rows = result
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const parts = line.split(/\t|,(?=\s*\S)/).map((p) => p.trim());
-      if (parts.length === 1) return { studentId: '', fullName: parts[0] };
-      // "Surname, Given" with no ID is one name, not an id plus a name.
-      if (parts.length === 2 && !/\d/.test(parts[0])) return { studentId: '', fullName: line };
-      return { studentId: parts[0], fullName: parts.slice(1).join(' ') };
-    });
+  // Parsing lives in the engine so it can be unit-tested directly, rather than
+  // being duplicated here where only the running app could exercise it.
+  const rows = await guard(() => api.students.parsePaste(result), 'Reading list');
+  if (!rows || !rows.length) return;
 
   await guard(() => api.students.addMany(course.id, rows), 'Adding students');
   await refreshComputed();
@@ -1280,6 +1283,30 @@ async function changePolicy(course, newPolicy, selectEl) {
 }
 
 // ------------------------------------------------------------------ issues
+
+/** Keep the "Review issues (n)" badge honest as scores change. */
+function updateIssueCount(button, issues) {
+  if (!button || !button.isConnected) return;
+  const count = issues.filter((i) => i.severity !== 'info').length;
+  button.textContent = `Review issues${count ? ` (${count})` : ''}`;
+}
+
+/**
+ * Refresh the issue badge in the top bar after an edit. Runs in the background;
+ * a slow count must never hold up the next keystroke.
+ */
+async function refreshIssueBadge() {
+  const button = [...document.querySelectorAll('#topActions .btn')].find((b) =>
+    b.textContent.startsWith('Review issues')
+  );
+  if (!button || !state.courseId) return;
+  try {
+    updateIssueCount(button, await api.gradebook.issues(state.courseId));
+  } catch {
+    // A failed count is not worth interrupting entry over; the review dialog
+    // fetches fresh anyway.
+  }
+}
 
 function showIssues(issues) {
   const body = issues.length

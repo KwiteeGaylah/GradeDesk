@@ -488,3 +488,42 @@ test('a malformed backup leaves existing data untouched', () => {
   assert.equal(store.listStudents(course.id)[0].full_name, 'Still, Here');
   store.close();
 });
+
+// --------------------------------------------------------- issue freshness
+
+test('issue review reflects the latest scores, not a stale snapshot', () => {
+  // The UI once captured the issue list when the screen rendered and reused it
+  // when the button was clicked, so a score typed in between was never checked.
+  // Found by driving the real app: a 99 entered into a 15-point quiz did not
+  // appear in the review. The store-level guarantee is that a fresh call always
+  // reflects the current data.
+  const store = newStore();
+  const { course, a } = seedCourse(store);
+  const [s] = store.addStudents(course.id, [{ fullName: 'Typo, Tim' }]);
+
+  const before = reviewIssues(store, course.id, tables);
+  assert.equal(before.filter((i) => i.kind === 'score_above_max').length, 0);
+
+  store.setScore(s.id, a.midQuiz1.id, 99); // out of 15
+  const after = reviewIssues(store, course.id, tables);
+  assert.equal(after.filter((i) => i.kind === 'score_above_max').length, 1);
+
+  // And correcting it clears the issue again.
+  store.setScore(s.id, a.midQuiz1.id, 12);
+  const fixed = reviewIssues(store, course.id, tables);
+  assert.equal(fixed.filter((i) => i.kind === 'score_above_max').length, 0);
+  store.close();
+});
+
+test('an over-maximum exam score is flagged too', () => {
+  const store = newStore();
+  const { course, a } = seedCourse(store);
+  const [s] = store.addStudents(course.id, [{ fullName: 'Over, Exam' }]);
+  store.setScore(s.id, a.midExam.id, 45); // the exam is fixed at 40
+
+  const issues = reviewIssues(store, course.id, tables);
+  const found = issues.find((i) => i.kind === 'score_above_max');
+  assert.ok(found, 'an exam above 40 should be flagged');
+  assert.match(found.message, /above the maximum of 40/);
+  store.close();
+});
