@@ -2,8 +2,8 @@
 /**
  * Tests for policy availability and point-maximum validation.
  *
- * These encode a correctness decision: the 60% policy must not be offered
- * while two of its columns are known to be mis-transcribed.
+ * All three policies are usable. 70% remains the hard gate: it is the only one
+ * proven against real student grades, and it stays the default.
  */
 
 const test = require('node:test');
@@ -23,31 +23,42 @@ const {
 
 const tables = new TransmutationTables(require('../data/transmutation_tables.json'));
 
-test('70% is the default and the only fully verified policy', () => {
+test('70% is the default and the only grade-verified policy', () => {
   assert.equal(DEFAULT_POLICY, '70');
-  assert.equal(policyStatus('70').confidence, CONFIDENCE.VERIFIED);
+  assert.equal(policyStatus('70').confidence, CONFIDENCE.GRADE_VERIFIED);
   assert.equal(policyStatus('70').isDefault, true);
-  const verified = allPolicies(tables).filter((p) => p.confidence === CONFIDENCE.VERIFIED);
-  assert.deepEqual(verified.map((p) => p.policy), ['70']);
+  const verified = allPolicies(tables).filter(
+    (p) => p.confidence === CONFIDENCE.GRADE_VERIFIED
+  );
+  assert.deepEqual(
+    verified.map((p) => p.policy),
+    ['70'],
+    'only 70% has a real-grade fixture behind it'
+  );
 });
 
-test('60% is not selectable while its columns are unverified', () => {
-  assert.equal(isSelectable('60'), false);
-  assert.equal(policyStatus('60').confidence, CONFIDENCE.UNVERIFIED);
-  const offered = selectablePolicies(tables).map((p) => p.policy);
-  assert.ok(!offered.includes('60'), '60% must not be offered in the UI');
-});
-
-test('50% is selectable but flagged as sanity-checked only', () => {
+test('all three policies are selectable', () => {
+  const offered = selectablePolicies(tables).map((p) => p.policy).sort();
+  assert.deepEqual(offered, ['50', '60', '70']);
   assert.equal(isSelectable('50'), true);
-  assert.equal(policyStatus('50').confidence, CONFIDENCE.SANITY_ONLY);
-  assert.match(policyStatus('50').note, /not been verified against real grades/i);
+  assert.equal(isSelectable('60'), true);
+  assert.equal(isSelectable('70'), true);
 });
 
-test('the unavailable policy explains itself rather than vanishing silently', () => {
-  const sixty = allPolicies(tables).find((p) => p.policy === '60');
-  assert.ok(sixty, '60% should still be listed, just not selectable');
-  assert.match(sixty.note, /mis-transcribed|re-transcribed/i);
+test('50% and 60% are offered as structurally verified, not grade-verified', () => {
+  for (const p of ['50', '60']) {
+    assert.equal(policyStatus(p).confidence, CONFIDENCE.STRUCTURAL, `${p}% confidence`);
+    assert.equal(policyStatus(p).isDefault, false);
+    assert.match(policyStatus(p).note, /not cross-checked against a real/i);
+  }
+});
+
+test('every policy carries a note explaining its provenance', () => {
+  for (const p of allPolicies(tables)) {
+    assert.ok(p.note && p.note.length > 20, `${p.policy}% should explain its confidence`);
+    assert.ok(p.label, `${p.policy}% should have a label`);
+    assert.ok(Array.isArray(p.supportedMaximums) && p.supportedMaximums.length);
+  }
 });
 
 test('point maximums are validated against real table columns', () => {

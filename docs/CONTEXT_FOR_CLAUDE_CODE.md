@@ -77,15 +77,17 @@ combined.
 - Load the tables from `transmutation_tables.json`. Do not hard-code them, and do not
   copy the partial table embedded in the mockup.
 
-> **Correction (post-review).** An earlier build of the JSON had three mis-transcribed
-> 70% columns (30, 35, 40) and two bad 60% columns (30, 40). The 70% columns have been
-> corrected from the instructor's authoritative workbook table and the corrected JSON
-> now reproduces every real grade with zero mismatches. The two **60% columns (30 and
-> 40) remain unverified** (they do not reach 100 at a perfect score) and are flagged in
-> the JSON's `_verification` field. They are unused by the real dataset (all 70%). Do
-> not offer the 60% policy in the UI until those two columns are re-transcribed from the
-> source PDF. The 50% policy and the rest of 60% pass monotonic + perfect-score sanity
-> checks but are not grade-verified against real data.
+> **Correction (post-review, now resolved).** An earlier build of the JSON had three
+> mis-transcribed 70% columns (30, 35, 40) and two bad 60% columns (30, 40). All are now
+> fixed. The 70% columns were corrected from the instructor's authoritative workbook
+> table and the JSON reproduces every real grade with zero mismatches. The two 60%
+> columns were re-transcribed from the source PDF and now pass all structural checks
+> (start at 50, reach 100 at max, monotonic), and cross-check correctly against the 50%
+> and 70% columns (50% ≥ 60% ≥ 70% at every raw). **All three policies are now
+> usable.** Note the distinction: the 70% policy is *grade-verified* against 114 real
+> students; the 50% and 60% policies are *structurally verified* (transcribed from the
+> source PDF and sanity-checked) but not grade-verified, since the real dataset uses
+> only 70%.
 
 ### Class standing
 Equal-weight **average** of the transmuted assessment scores in a term, times 0.6.

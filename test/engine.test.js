@@ -84,29 +84,60 @@ test('an unsupported point maximum throws rather than guessing a column', () => 
 });
 
 test('every column is monotonic and anchored at 50 and 100', () => {
-  // Guards against a future bad transcription of the lookup data.
-  const known = { 60: [30, 40] }; // documented-unverified columns, see _verification
+  // The structural bar for all three policies, with no exemptions. These are
+  // exactly the checks that caught the original mis-transcription, so they stay
+  // as a standing guard against a future bad edit of the lookup data.
   for (const policy of tables.policies()) {
     for (const max of tables.supportedMaximums(policy)) {
       const col = tables.column(policy, max);
       assert.equal(col[0][0], 0, `${policy}%/${max} should start at raw 0`);
       assert.equal(col[0][1], 50, `${policy}%/${max} raw 0 should transmute to 50`);
+      assert.equal(
+        col.length,
+        max + 1,
+        `${policy}%/${max} should list every raw score from 0 to ${max}`
+      );
+      assert.equal(
+        col[col.length - 1][0],
+        max,
+        `${policy}%/${max} should end at raw ${max}`
+      );
       for (let i = 1; i < col.length; i++) {
         assert.ok(
           col[i][1] >= col[i - 1][1],
           `${policy}%/${max} is non-monotonic at raw ${col[i][0]}`
         );
       }
-      const isKnownUnverified = (known[policy] || []).includes(max);
-      if (!isKnownUnverified) {
-        assert.equal(
-          col[col.length - 1][1],
-          100,
-          `${policy}%/${max}: a perfect raw score should transmute to 100`
-        );
+      assert.equal(
+        col[col.length - 1][1],
+        100,
+        `${policy}%/${max}: a perfect raw score should transmute to 100`
+      );
+    }
+  }
+});
+
+test('a stricter policy never transmutes higher than a looser one', () => {
+  // 50% is the most generous curve and 70% the most demanding, so at any raw
+  // score 50% >= 60% >= 70%. One documented exception: the 70% 35-point column
+  // reads 99 at raw 34 where 50% and 60% read 98. That value comes from the
+  // instructor's own workbook and is part of the grade-verified data, so it is
+  // pinned here rather than "corrected".
+  const EXCEPTIONS = new Set(['35/34']);
+  const violations = [];
+  for (const max of tables.supportedMaximums('70')) {
+    if (!tables.supports('50', max) || !tables.supports('60', max)) continue;
+    for (const [raw] of tables.column('70', max)) {
+      const a = tables.transmute(raw, max, '50');
+      const b = tables.transmute(raw, max, '60');
+      const c = tables.transmute(raw, max, '70');
+      if (EXCEPTIONS.has(`${max}/${raw}`)) continue;
+      if (!(a >= b && b >= c)) {
+        violations.push(`${max}pt raw ${raw}: 50%=${a} 60%=${b} 70%=${c}`);
       }
     }
   }
+  assert.deepEqual(violations, [], `${violations.length} ordering violation(s)`);
 });
 
 // ------------------------------------------------------------------ attendance

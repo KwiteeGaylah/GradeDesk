@@ -3,26 +3,34 @@
  * Policy availability and assessment-maximum validation.
  *
  * Which transmutation policies the UI may offer, and at what confidence.
- * This is a correctness gate, not cosmetics: a policy whose lookup data has
- * not been verified must not silently produce grades an instructor submits.
+ * All three policies are usable. They differ in how strongly their lookup data
+ * has been proven, which the UI surfaces rather than hides.
  *
  * Current state of the shipped tables (see `_verification` in the JSON):
- *   70%  VERIFIED    — reproduces all 167 real student grades, zero mismatches
- *   50%  SANITY_ONLY — every column monotonic and anchored 50..100, but never
- *                      checked against real grades
- *   60%  UNVERIFIED  — the 30- and 40-point columns do not reach 100 at a
- *                      perfect raw score, so they are mis-transcribed. Must be
- *                      re-transcribed from the source PDF before being offered.
+ *   70%  GRADE_VERIFIED — extracted from the instructor's live workbook and
+ *                         proven to reproduce all 167 real student grades with
+ *                         zero mismatches. This is the standing release gate.
+ *   50%  STRUCTURAL     — transcribed from the source PDF; every column starts
+ *   60%  STRUCTURAL       at 50, reaches 100 at its maximum, and rises
+ *                         monotonically. Not grade-verified, because the real
+ *                         dataset uses only the 70% policy.
  *
- * When 60% is corrected, move it to SANITY_ONLY (or VERIFIED, with a fixture)
- * and it becomes selectable with no other code change.
+ * "Structurally verified" is a real bar, not a shrug: the checks that caught the
+ * original mis-transcription (a perfect score not reaching 100, a non-monotonic
+ * dip) run over every column in the test suite.
  */
 
 const CONFIDENCE = {
-  VERIFIED: 'verified',
-  SANITY_ONLY: 'sanity-checked',
-  UNVERIFIED: 'unverified',
+  /** Proven against real student grades. */
+  GRADE_VERIFIED: 'grade-verified',
+  /** Transcribed from the source and structurally sound; no real-grade fixture. */
+  STRUCTURAL: 'structurally-verified',
 };
+
+const STRUCTURAL_NOTE =
+  'Transcribed from the university source and structurally checked (every column rises ' +
+  'from 50 to 100 without dipping). Not cross-checked against a real completed grade ' +
+  'sheet, because the verification workbook uses the 70% policy only.';
 
 /**
  * Per-policy status. `selectable` drives whether the UI offers it at all.
@@ -31,31 +39,26 @@ const POLICY_STATUS = {
   70: {
     policy: '70',
     label: '70%',
-    confidence: CONFIDENCE.VERIFIED,
+    confidence: CONFIDENCE.GRADE_VERIFIED,
     selectable: true,
     isDefault: true,
     note: 'Verified against the instructor’s real workbook: 167 students, zero mismatches.',
   },
-  50: {
-    policy: '50',
-    label: '50%',
-    confidence: CONFIDENCE.SANITY_ONLY,
-    selectable: true,
-    isDefault: false,
-    note:
-      'Lookup data passes structural checks (every column rises from 50 to 100) but has ' +
-      'not been verified against real grades. Spot-check a few results before submitting.',
-  },
   60: {
     policy: '60',
     label: '60%',
-    confidence: CONFIDENCE.UNVERIFIED,
-    selectable: false,
+    confidence: CONFIDENCE.STRUCTURAL,
+    selectable: true,
     isDefault: false,
-    note:
-      'Unavailable. The 30- and 40-point columns in the shipped table are mis-transcribed ' +
-      '(a perfect score does not reach 100), so this policy would produce wrong grades. ' +
-      'It will be enabled once the table is re-transcribed from the university source.',
+    note: STRUCTURAL_NOTE,
+  },
+  50: {
+    policy: '50',
+    label: '50%',
+    confidence: CONFIDENCE.STRUCTURAL,
+    selectable: true,
+    isDefault: false,
+    note: STRUCTURAL_NOTE,
   },
 };
 
@@ -66,9 +69,11 @@ const DEFAULT_POLICY = '70';
 function allPolicies(tables) {
   return tables.policies().map((p) => ({
     ...(POLICY_STATUS[p] || {
+      // An unknown policy appearing in the data has no provenance, so it is
+      // listed but never offered until someone vouches for it here.
       policy: String(p),
       label: `${p}%`,
-      confidence: CONFIDENCE.UNVERIFIED,
+      confidence: null,
       selectable: false,
       isDefault: false,
       note: 'Unrecognised policy; not offered.',
