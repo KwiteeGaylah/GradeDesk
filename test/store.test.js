@@ -563,3 +563,66 @@ test('a row with an ID but no name is still a real student', () => {
   assert.ok(issues.some((i) => i.kind === 'blank_exam'), 'it is checked like any student');
   store.close();
 });
+
+// -------------------------------------------------- attendance sessions
+
+test('the same session date cannot be added twice to a course', () => {
+  // A duplicate would silently double that day's weight in every attendance
+  // score, since the denominator counts sessions.
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  store.addSession(course.id, terms.midterm.id, '2026-09-02');
+
+  assert.throws(
+    () => store.addSession(course.id, terms.midterm.id, '2026-09-02'),
+    /already a session on 2026-09-02/
+  );
+  assert.equal(store.listSessions(terms.midterm.id).length, 1);
+  store.close();
+});
+
+test('a duplicate is refused across terms, not just within one', () => {
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  store.addSession(course.id, terms.midterm.id, '2026-09-02');
+  assert.throws(
+    () => store.addSession(course.id, terms.final.id, '2026-09-02'),
+    /already a session on 2026-09-02/
+  );
+  store.close();
+});
+
+test('the same date in a different course is fine', () => {
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  const other = store.createCourse({ semesterId: store.getActiveSemester().id, code: 'CSE 205' });
+  const otherTerms = store.getTerms(other.id).byKind;
+
+  store.addSession(course.id, terms.midterm.id, '2026-09-02');
+  const second = store.addSession(other.id, otherTerms.midterm.id, '2026-09-02');
+  assert.ok(second, 'two different courses can meet on the same day');
+  store.close();
+});
+
+test('a past date can be added, and sessions stay in date order', () => {
+  // Attendance is often entered days later from a paper register, so a
+  // back-dated session must slot into the right column, not the end.
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  store.addSession(course.id, terms.midterm.id, '2026-09-11');
+  store.addSession(course.id, terms.midterm.id, '2026-09-02');
+  store.addSession(course.id, terms.midterm.id, '2026-09-09');
+
+  assert.deepEqual(
+    store.listSessions(terms.midterm.id).map((s) => s.date),
+    ['2026-09-02', '2026-09-09', '2026-09-11']
+  );
+  store.close();
+});
+
+test('a session needs a date', () => {
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  assert.throws(() => store.addSession(course.id, terms.midterm.id, '   '), /needs a date/);
+  store.close();
+});

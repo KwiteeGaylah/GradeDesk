@@ -44,6 +44,7 @@ Development harnesses that drive the real application:
 npm run smoke         # boot the app, fail on any renderer error
 npm run uitest        # drive a full workflow and cross-check on-screen grades
 npm run screenshot    # write a PNG of the seeded UI
+npm run icon          # rasterise build/icon.svg to the installer PNG sizes
 ```
 
 ## How it is put together
@@ -89,6 +90,9 @@ wrong:
   of the nearest lower listed score, exactly like Excel `VLOOKUP(..., TRUE)`.
 - **A blank assessment counts.** It transmutes to 50 and stays in the average.
   A blank *exam* is a different rule: it forces the letter `I`.
+- **Attendance is recorded in whole points.** The raw division can produce
+  9.1666..., which is neither how the workbook records it nor readable in a
+  cell, so it is rounded to the nearest point before transmutation.
 - **The final grade is truncated to two decimals, never rounded.** 89.999 is
   shown and exported as 89.99, a B. The one concession is that a value sitting
   a single floating-point step below a hundredth is treated as that hundredth,

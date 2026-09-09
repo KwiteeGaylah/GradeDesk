@@ -118,12 +118,14 @@ nav a.active .sub { color: #d3e6da; }
    be sliced in half by the pinned final grade. Class standing and the term
    total are intermediate workings; the raw score, the transmuted value and the
    final grade are what the instructor is actually reading. */
+/* The hint about hidden columns only appears when they are actually hidden.
+   Declared BEFORE the media query so the query wins; the other way round the
+   base rule overrides it at equal specificity and the hint never shows. */
+.narrow-only { display: none; }
 @media (max-width: 1180px) {
   .col-secondary { display: none; }
   .narrow-only { display: inline; }
 }
-/* The hint about hidden columns only appears when they are actually hidden. */
-.narrow-only { display: none; }
 
 .btn {
   border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink);
