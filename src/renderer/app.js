@@ -858,7 +858,7 @@ async function renderGradeEntry(content, course, policyInfo) {
         },
           row.student.full_name || '',
           row.student.unofficial
-            ? el('span', { class: 'offroster', title: 'Not on the official list yet' }, 'not on list')
+            ? el('span', { class: 'offroster', title: 'Not on the official roster yet' }, 'not on roster')
             : null),
         el('td', { class: 'entry' }, input),
         el('td', { class: 'read', text: show(cell.transmuted, 0) }),
@@ -1098,11 +1098,14 @@ async function renderAttendance(content, course) {
 
     const cells = sessions.map((session, si) => {
       const code = studentMarks[si];
+      // The mark sits in a chip rather than being loose text in the cell, so it
+      // reads as something you click, the same way a score box does.
+      const chip = el('span', { class: 'attchip', text: code || '·' });
       const td = el('td', {
         class: `att ${code || 'blank'}`,
-        text: code || '·',
         tabindex: '0',
         role: 'button',
+        title: 'Click to change: present, excused, absent, or blank',
         'aria-label': `${row.student.full_name}, ${session.date}`,
         onclick: () => cycleMark(td, row.student.id, session.id, rawCell, transCell, attendanceAssessment, termKind),
         onkeydown: (e) => {
@@ -1111,7 +1114,7 @@ async function renderAttendance(content, course) {
             td.click();
           }
         },
-      });
+      }, chip);
       return td;
     });
 
@@ -1125,7 +1128,7 @@ async function renderAttendance(content, course) {
       },
         row.student.full_name,
         row.student.unofficial
-          ? el('span', { class: 'offroster', title: 'Not on the official list yet' }, 'not on list')
+          ? el('span', { class: 'offroster', title: 'Not on the official roster yet' }, 'not on roster')
           : null),
       ...cells,
       rawCell,
@@ -1145,11 +1148,13 @@ async function renderAttendance(content, course) {
 const MARK_CYCLE = ['P', 'E', 'A', null];
 
 async function cycleMark(td, studentId, sessionId, rawCell, transCell, assessment, termKind) {
-  const current = td.textContent.trim() === '·' ? null : td.textContent.trim();
+  const chip = td.querySelector('.attchip') || td;
+  const shown = chip.textContent.trim();
+  const current = shown === '·' ? null : shown;
   const next = MARK_CYCLE[(MARK_CYCLE.indexOf(current) + 1) % MARK_CYCLE.length];
 
   td.className = `att ${next || 'blank'}`;
-  td.textContent = next || '·';
+  chip.textContent = next || '·';
 
   await guard(() => api.attendance.setMark(studentId, sessionId, next), 'Saving mark');
   saved();
@@ -1250,7 +1255,7 @@ async function renderRoster(content, course) {
     offRoster
       ? el('div', {
           class: 'kpi flagged',
-          title: 'Sitting in your class but not on the official list yet',
+          title: 'Sitting in your class but not on the official roster yet',
         },
           el('div', { class: 'v', text: String(offRoster) }),
           el('div', { class: 'l', text: 'Not on roster' }))
@@ -1309,7 +1314,7 @@ async function renderRoster(content, course) {
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Student ID', class: 'w-id' }),
     el('th', { text: 'Full name', class: 'namecol' }),
-    el('th', { text: 'On list?', class: 'w-status ta-center' }),
+    el('th', { text: 'On roster?', class: 'w-status ta-center' }),
     el('th', { text: '', class: 'w-action' })
   ));
 
@@ -1399,8 +1404,8 @@ async function renderRoster(content, course) {
         el('button', {
           class: `statustoggle${student.unofficial ? ' off' : ''}`,
           title: student.unofficial
-            ? 'Sitting in but not on the official list. Click once they are added.'
-            : 'On the official list. Click if they are not on it yet.',
+            ? 'Sitting in but not on the official roster. Click once they are added.'
+            : 'On the official roster. Click if they are not on it yet.',
           onclick: () => toggleUnofficial(student, tr),
         }, student.unofficial ? 'Not yet' : 'Yes')),
       el('td', { class: 'ta-center' },
@@ -1447,7 +1452,7 @@ async function renderRoster(content, course) {
             'addendum list comes through. You still mark them like everyone ',
             'else, and the tag shows on every screen and in the export.'),
           el('div', { class: 'field' }, el('label', { text: 'Note (optional)' }), why)),
-        confirmLabel: 'Mark as not on list',
+        confirmLabel: 'Mark as not on roster',
         onConfirm: () => ({ note: why.value.trim() }),
       });
       if (!result) return;

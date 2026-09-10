@@ -1,26 +1,42 @@
 /* GradeDesk UI. Structure and palette follow docs/GradeDesk_Mockup.html. */
 
 :root {
-  --ink: #1b2230;
-  --ink-soft: #5b6472;
-  --line: #dde3ec;
-  --line-strong: #c4ccd8;
+  /*
+   * Chosen for a projector as much as a laptop screen. Projectors have poor
+   * black levels and wash out mid greys, so the interface is light, the text
+   * is near black, and every text-on-background pair clears a contrast ratio
+   * of 4.5 to 1. One green accent carries meaning; everything else is neutral.
+   */
+  --ink: #12181f;           /* body text, 17.9:1 on white */
+  --ink-soft: #4a5561;      /* secondary text, 7.6:1 on white */
+  --ink-faint: #657079;     /* labels and hints, 5.1:1 on white, 4.7:1 on canvas */
+  --line: #dfe4ea;
+  --line-strong: #c2cad3;
   --paper: #ffffff;
-  --canvas: #eef1f6;
-  --rail: #20293a;
-  --rail-soft: #2c374d;
-  --rail-ink: #c3ccdb;
-  --brand: #2f6d4f;
-  --brand-ink: #215439;
-  --brand-tint: #e7f1eb;
-  --amber: #a25a12;
-  --amber-tint: #fbf1e2;
-  --red: #a3372f;
-  --red-tint: #f7e3e0;
-  --read: #f4f6fa;
-  --focus: #2f6d4f;
-  --entry-bg: #eef7f1;      /* the editable column's well */
-  --entry-line: #b9cfc2;    /* the outline around an editable cell */
+  --canvas: #f4f6f8;
+
+  /* The side panel is light. A dark panel looks smart on a laptop and turns
+     into an unreadable block when projected. */
+  --rail: #ffffff;
+  --rail-edge: #e4e8ee;
+  --rail-ink: #3d4854;
+  --rail-muted: #657079;
+  --rail-hover: #eef1f5;
+
+  --brand: #0f6b4f;
+  --brand-ink: #0b5540;
+  --brand-tint: #e3f2ec;
+  --amber: #8a5300;
+  --amber-tint: #fdf3e0;
+  --red: #a3231b;
+  --red-tint: #fbe6e4;
+  --blue: #1a4f8a;
+  --blue-tint: #e5eef8;
+
+  --read: #f6f8fa;          /* computed cells */
+  --focus: #0f6b4f;
+  --entry-bg: #eaf4ef;      /* the editable column's well */
+  --entry-line: #9dc2b0;    /* the outline around an editable cell */
 }
 
 * { box-sizing: border-box; }
@@ -42,54 +58,63 @@ body {
 
 .app { display: grid; grid-template-columns: 236px 1fr; height: 100vh; overflow: hidden; }
 
-/* ---------------- left rail ---------------- */
-.rail { background: var(--rail); color: var(--rail-ink); display: flex; flex-direction: column; overflow: hidden; }
-.brand { padding: 18px 20px 16px; border-bottom: 1px solid var(--rail-soft); flex: none; }
-.brand h1 { font-size: 17px; margin: 0; color: #fff; letter-spacing: .2px; font-weight: 600; }
-.brand .tag { font-size: 11.5px; color: #8b97ab; margin-top: 2px; }
+/* ---------------- left panel ----------------
+   Light, with a hairline separating it from the work area. The active item is
+   the only saturated thing on screen, so it is obvious even on a washed-out
+   projector. */
+.rail {
+  background: var(--rail); color: var(--rail-ink);
+  display: flex; flex-direction: column; overflow: hidden;
+  border-right: 1px solid var(--rail-edge);
+}
+.brand { padding: 16px 18px 14px; border-bottom: 1px solid var(--rail-edge); flex: none; }
+.brand h1 { font-size: 17px; margin: 0; color: var(--ink); letter-spacing: -.2px; font-weight: 650; }
+.brand .tag { font-size: 11.5px; color: var(--rail-muted); margin-top: 2px; }
 
-.rail .sem { padding: 12px 16px; border-bottom: 1px solid var(--rail-soft); flex: none; }
-.rail .sem label { font-size: 11px; color: #8b97ab; display: block; margin-bottom: 4px; }
+.rail .sem { padding: 12px 14px; border-bottom: 1px solid var(--rail-edge); flex: none; }
+.rail .sem label {
+  font-size: 11px; color: var(--rail-muted); display: block; margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+}
 .rail .sem select {
-  width: 100%; background: var(--rail-soft); color: #e7ecf4;
-  border: 1px solid #3b475f; border-radius: 6px; padding: 7px 8px; font-size: 13px;
+  width: 100%; background: var(--paper); color: var(--ink);
+  border: 1px solid var(--line-strong); border-radius: 7px;
+  padding: 8px 9px; font-size: 13px; font-family: inherit;
 }
-.rail .sem .semactions { display: flex; gap: 8px; margin-top: 8px; }
-.rail .sem .linkbtn {
-  background: none; border: none; color: #8fa6c4; font-size: 11.5px;
-  cursor: pointer; padding: 0; text-decoration: underline;
-}
-.rail .sem .linkbtn:hover { color: #cfe0f4; }
+.rail .sem select:hover { border-color: var(--line-strong); }
 
 .railscroll { overflow-y: auto; flex: 1; }
-.navsec { padding: 14px 12px 4px; font-size: 10.5px; letter-spacing: .5px; color: #78859b; text-transform: uppercase; }
+.navsec {
+  padding: 15px 14px 5px; font-size: 10.5px; letter-spacing: .6px;
+  color: var(--rail-muted); text-transform: uppercase; font-weight: 700;
+}
 nav a {
-  display: flex; align-items: center; gap: 9px; padding: 8px 14px;
-  color: var(--rail-ink); text-decoration: none; border-radius: 7px;
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  color: var(--rail-ink); text-decoration: none; border-radius: 8px;
   margin: 1px 8px; font-size: 13.5px; cursor: pointer; user-select: none;
 }
-nav a .ico { width: 16px; opacity: .85; flex: none; text-align: center; }
-nav a.active { background: var(--brand); color: #fff; }
-nav a.active .ico { opacity: 1; }
-nav a:not(.active):hover { background: var(--rail-soft); }
-nav a .sub { font-size: 11px; color: #8b97ab; margin-left: auto; }
-nav a.active .sub { color: #d3e6da; }
+nav a .ico { width: 16px; flex: none; text-align: center; color: var(--rail-muted); }
+nav a.active { background: var(--brand); color: #fff; font-weight: 600; }
+nav a.active .ico { color: #fff; }
+nav a:not(.active):hover { background: var(--rail-hover); color: var(--ink); }
+nav a .sub { font-size: 11px; color: var(--rail-muted); margin-left: auto; }
+nav a.active .sub { color: #d6ece1; }
 
-.rail .foot {
-  padding: 8px 16px 10px; font-size: 11px; color: #7c88a0; flex: none;
-}
+.rail .foot { padding: 8px 16px 10px; font-size: 11px; color: var(--rail-muted); flex: none; }
 /* Semester lifecycle and backup used to be three small links under the picker,
    where "Restore" (which replaces everything) sat one slip from daily
    navigation. They now live behind these deliberate footer buttons. */
-.railfoot { margin-top: auto; border-top: 1px solid var(--rail-soft); padding-top: 8px; flex: none; }
+.railfoot { margin-top: auto; border-top: 1px solid var(--rail-edge); padding-top: 8px; flex: none; }
 .railbtn {
-  display: flex; align-items: center; gap: 9px; width: calc(100% - 16px);
-  margin: 1px 8px; padding: 8px 14px; border-radius: 7px;
+  display: flex; align-items: center; gap: 10px; width: calc(100% - 16px);
+  margin: 1px 8px; padding: 8px 12px; border-radius: 8px;
   background: transparent; border: none; color: var(--rail-ink);
   font: inherit; font-size: 13px; cursor: pointer; text-align: left;
 }
-.railbtn:hover { background: var(--rail-soft); color: #e7ecf4; }
-.railbtn .ico { width: 16px; text-align: center; opacity: .85; flex: none; }
+.railbtn:hover { background: var(--rail-hover); color: var(--ink); }
+.railbtn .ico { width: 16px; text-align: center; color: var(--rail-muted); flex: none; }
+.railbtn.active { background: var(--brand); color: #fff; font-weight: 600; }
+.railbtn.active .ico { color: #fff; }
 
 /* ---------------- main ---------------- */
 .main { overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
@@ -134,7 +159,7 @@ nav a.active .sub { color: #d3e6da; }
   padding: 7px 13px; border-radius: 7px; font-size: 13px; cursor: pointer; font-weight: 500;
   font-family: inherit; white-space: nowrap;
 }
-.btn:hover { border-color: #9aa6b6; }
+.btn:hover { border-color: var(--line-strong); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
 .btn.primary:hover:not(:disabled) { background: var(--brand-ink); }
@@ -142,7 +167,7 @@ nav a.active .sub { color: #d3e6da; }
 /* A row's remove control is destructive, so it stays quiet until pointed at and
    never reads as a link the way the brand-coloured ghost button does. */
 .btn.rowdel {
-  border-color: transparent; background: transparent; color: #aab3c0;
+  border-color: transparent; background: transparent; color: var(--ink-faint);
   font-size: 15px; line-height: 1; padding: 4px 8px;
 }
 .btn.rowdel:hover { color: var(--red); background: var(--red-tint); border-color: transparent; }
@@ -166,7 +191,7 @@ nav a.active .sub { color: #d3e6da; }
 .atab, .term-pill { flex: 0 0 auto; }
 .term-pill {
   font-size: 11px; font-weight: 600; color: var(--ink-soft);
-  background: #e3e8f0; border-radius: 5px; padding: 4px 8px; margin-right: 2px;
+  background: var(--rail-hover); border-radius: 5px; padding: 4px 8px; margin-right: 2px;
 }
 .atab {
   border: 1px solid var(--line-strong); background: var(--paper); border-radius: 20px;
@@ -175,7 +200,7 @@ nav a.active .sub { color: #d3e6da; }
 }
 .atab.active { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
 .atab .max { opacity: .7; font-size: 11px; margin-left: 4px; }
-.atab.exam { border-color: #ddb98a; }
+.atab.exam { border-color: #d9b57a; }
 .atab.exam.active { background: var(--amber-tint); border-color: var(--amber); color: var(--amber); }
 
 /* ---------------- entry toolbar ----------------
@@ -191,7 +216,7 @@ nav a.active .sub { color: #d3e6da; }
   padding: 7px 10px; font-size: 13.5px; font-family: inherit; color: var(--ink);
   font-weight: 600; max-width: 280px;
 }
-.apicker:hover { border-color: #9aa6b6; }
+.apicker:hover { border-color: var(--line-strong); }
 .btn.step { padding: 5px 10px; font-size: 15px; line-height: 1; color: var(--ink-soft); }
 .btn.step:disabled { opacity: .35; }
 .searchbox {
@@ -227,7 +252,7 @@ td.emptyrow { text-align: center; color: var(--ink-soft); padding: 26px 12px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 0; border-bottom: 1px solid var(--line); }
 thead th {
-  background: #f6f8fb; font-size: 11.5px; color: var(--ink-soft); font-weight: 600;
+  background: var(--read); font-size: 11.5px; color: var(--ink-soft); font-weight: 600;
   padding: 9px 12px; position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--line-strong); white-space: nowrap;
 }
@@ -257,14 +282,14 @@ td.entry input {
 }
 td.entry input:hover:not([readonly]) { border-color: var(--brand); }
 td.entry input:focus {
-  border-color: var(--focus); background: #f4fbf7;
+  border-color: var(--focus); background: #f2faf6;
   box-shadow: 0 0 0 3px rgba(47, 109, 79, .18);
   font-weight: 600;
 }
 /* The whole row lifts while a cell in it is being edited, so the eye keeps its
    place when typing down a long class list. */
-tbody tr:focus-within td { background: #f3f8f5; }
-tbody tr:focus-within td.entry { background: #e4efe8; }
+tbody tr:focus-within td { background: #f3f9f6; }
+tbody tr:focus-within td.entry { background: #dff0e7; }
 td.entry input.over {
   background: var(--red-tint); color: var(--red); font-weight: 600;
   border-color: var(--red);
@@ -277,7 +302,7 @@ td.entry input[readonly] {
 /* The column being typed into is tinted in the header too. */
 th.th-entry { position: relative; }
 td.read { background: var(--read); color: var(--ink-soft); text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px; }
-td.total { background: #eef2f7; color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
+td.total { background: var(--read); color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
 /* The final grade and letter are the point of this screen, so they are pinned
    to the right edge and stay readable however narrow the window gets. */
 td.final, th.final {
@@ -289,42 +314,58 @@ td.letter, th.letter {
   text-align: center; width: 60px; font-weight: 700;
   position: sticky; right: 0; background: var(--paper);
 }
-thead th.final, thead th.letter { background: #f6f8fb; z-index: 3; }
-tbody tr:hover td.final, tbody tr:hover td.letter { background: #f7faf8; }
-tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: #f7faf8; }
+thead th.final, thead th.letter { background: var(--read); z-index: 3; }
+tbody tr:hover td.final, tbody tr:hover td.letter { background: var(--rail-hover); }
+tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: var(--rail-hover); }
 
 .lg { display: inline-block; min-width: 22px; padding: 2px 7px; border-radius: 5px; font-size: 12.5px; }
-.lg.A { background: #e2f0e8; color: #1f6b45; }
-.lg.B { background: #e6eef7; color: #2b5b93; }
-.lg.C { background: #fcf3e0; color: #8a5a10; }
-.lg.D { background: #f8ebe2; color: #9a5322; }
-.lg.F { background: var(--red-tint); color: #993229; }
-.lg.I { background: #eceff3; color: #5b6472; }
-.lg.NG { background: #eceff3; color: #5b6472; }
+.lg.A { background: var(--brand-tint); color: var(--brand); }
+.lg.B { background: var(--blue-tint); color: var(--blue); }
+.lg.C { background: var(--amber-tint); color: var(--amber); }
+.lg.D { background: #fceee2; color: #8a3d00; }
+.lg.F { background: var(--red-tint); color: var(--red); }
+.lg.I { background: var(--rail-hover); color: var(--ink-soft); }
+.lg.NG { background: var(--rail-hover); color: var(--ink-soft); }
 
 /* ---------------- notes, legends ---------------- */
 .note {
-  background: var(--brand-tint); border: 1px solid #cfe2d6; border-left: 3px solid var(--brand);
+  background: var(--brand-tint); border: 1px solid #bfdfd0; border-left: 3px solid var(--brand);
   border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--brand-ink); margin-bottom: 14px;
 }
-.note.warn { background: var(--amber-tint); border-color: #e6cfa8; border-left-color: var(--amber); color: var(--amber); }
+.note.warn { background: var(--amber-tint); border-color: #e5c48c; border-left-color: var(--amber); color: var(--amber); }
 .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--ink-soft); }
 .legend .k { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
 .hint { font-size: 12.5px; color: var(--ink-soft); margin: 10px 2px 0; }
 
 /* ---------------- attendance ---------------- */
-td.att { width: 46px; text-align: center; cursor: pointer; font-weight: 600; font-size: 13px; user-select: none; }
-td.att:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-td.att.P { background: #e4f1ea; color: #1f6b45; }
-td.att.E { background: var(--amber-tint); color: #8a5a10; }
-td.att.A { background: var(--red-tint); color: #993229; }
-td.att.blank { color: #b7c0cd; }
+/* An attendance cell is clicked, so it has to look clickable. The mark sits in
+   a chip with its own outline, the same idea as the bordered score box on the
+   entry screen, and the whole cell lights up under the pointer. */
+td.att {
+  width: 52px; padding: 3px 4px; text-align: center; cursor: pointer;
+  user-select: none; background: var(--entry-bg);
+}
+.attchip {
+  display: block; height: 28px; line-height: 26px;
+  border: 1px solid var(--entry-line); border-radius: 6px; background: #fff;
+  font-size: 13px; font-weight: 700; color: var(--ink-faint);
+  transition: border-color .12s, box-shadow .12s;
+}
+td.att:hover .attchip { border-color: var(--brand); }
+td.att:focus-visible { outline: none; }
+td.att:focus-visible .attchip {
+  border-color: var(--focus); box-shadow: 0 0 0 3px rgba(15, 107, 79, .2);
+}
+td.att.P .attchip { background: #e3f2ec; border-color: #7fb79c; color: var(--brand); }
+td.att.E .attchip { background: var(--amber-tint); border-color: #d9b57a; color: var(--amber); }
+td.att.A .attchip { background: var(--red-tint); border-color: #d99f9a; color: var(--red); }
+td.att.blank .attchip { color: #b7c0cd; border-style: dashed; }
 th.session { text-align: center; font-size: 11px; }
 /* Attendance grows a column per session, so the computed result is pinned to
    the right the same way the final grade is on the entry screen. Otherwise it
    scrolls out of sight the moment a term has more than a handful of meetings. */
 td.att-raw, th.att-raw {
-  position: sticky; right: 74px; background: #eef2f7;
+  position: sticky; right: 74px; background: var(--read);
   text-align: center; font-weight: 600;
   /* Wide enough for the header "Raw /10" and a two-decimal value like 10.00;
      at 82px both were clipped. */
@@ -336,8 +377,8 @@ td.att-trans, th.att-trans {
   position: sticky; right: 0; background: var(--read);
   text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
 }
-thead th.att-raw, thead th.att-trans { background: #f6f8fb; z-index: 3; }
-th.session .del { color: #aab3c0; cursor: pointer; margin-left: 4px; }
+thead th.att-raw, thead th.att-trans { background: var(--read); z-index: 3; }
+th.session .del { color: var(--ink-faint); cursor: pointer; margin-left: 4px; }
 th.session .del:hover { color: var(--red); }
 
 /* ---------------- panels, config ---------------- */
@@ -355,7 +396,7 @@ th.session .del:hover { color: var(--red); }
 }
 .arow .aname input:hover { border-color: var(--line); }
 .arow .aname input:focus { border-color: var(--brand); background: #fff; outline: none; }
-.arow .badge { font-size: 11px; color: var(--ink-soft); background: #eef2f7; border-radius: 5px; padding: 3px 8px; white-space: nowrap; }
+.arow .badge { font-size: 11px; color: var(--ink-soft); background: var(--read); border-radius: 5px; padding: 3px 8px; white-space: nowrap; }
 .arow .badge.exam { background: var(--amber-tint); color: var(--amber); }
 .arow select, .field select, .field input {
   border: 1px solid var(--line-strong); border-radius: 6px; padding: 5px 7px;
@@ -413,7 +454,7 @@ th.session .del:hover { color: var(--red); }
 .issue .sev { font-size: 11px; font-weight: 700; border-radius: 5px; padding: 2px 7px; flex: none; }
 .issue .sev.error { background: var(--red-tint); color: var(--red); }
 .issue .sev.warning { background: var(--amber-tint); color: var(--amber); }
-.issue .sev.info { background: #eef2f7; color: var(--ink-soft); }
+.issue .sev.info { background: var(--read); color: var(--ink-soft); }
 
 .toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
@@ -430,7 +471,7 @@ th.session .del:hover { color: var(--red); }
 .ta-center { text-align: center; }
 .ta-left { text-align: left; }
 .th-entry { text-align: center; background: #eef7f1; }
-.th-computed { text-align: center; background: #eef2f7; }
+.th-computed { text-align: center; background: var(--read); }
 .w-id { width: 140px; }
 .w-auto { width: auto; }
 .w-action { width: 44px; }
@@ -438,19 +479,30 @@ th.session .del:hover { color: var(--red); }
 .mb-16 { margin-bottom: 16px; }
 /* Roster cells are text, not scores: they read left like a class list. The
    score grid centres its inputs, so these need the higher specificity to win. */
-/* Roster cells are text, not scores: they read left like a class list, and the
-   well is neutral rather than the green of the score column. */
-.rostertable td.entry { background: #fbfcfd; }
+/* The roster reads as an ordinary table, not a grid of boxes. The cells are
+   still editable, but they only show their outline when you point at one or
+   click into it, so the list stays quiet while you read it. */
+.rostertable td.entry { background: transparent; padding: 0; }
 td.entry input.name-input,
-td.entry input.id-input { text-align: left; padding-left: 10px; border-color: var(--line-strong); }
-td.entry input.name-input:hover, td.entry input.id-input:hover { border-color: #9aa6b6; }
+td.entry input.id-input {
+  text-align: left; padding-left: 12px; height: 36px;
+  border-color: transparent; background: transparent; border-radius: 0;
+}
+td.entry input.name-input { font-weight: 500; color: var(--ink); }
+td.entry input.id-input { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.rostertable tr:hover td.entry input:not(:focus) { border-color: var(--line); background: #fff; }
+td.entry input.name-input:focus,
+td.entry input.id-input:focus {
+  border-color: var(--focus); background: #fff; border-radius: 6px;
+  box-shadow: 0 0 0 3px rgba(15, 107, 79, .18); font-weight: 500;
+}
 .paste-area {
   width: 100%; font-family: inherit; font-size: 13px; padding: 8px;
   border: 1px solid var(--line-strong); border-radius: 6px; resize: vertical;
 }
-.k-entry { background: #eef7f1; border: 1px solid #cfe2d6; }
+.k-entry { background: #eef7f1; border: 1px solid #bfdfd0; }
 .k-read { background: var(--read); border: 1px solid var(--line); }
-.k-total { background: #eef2f7; border: 1px solid var(--line); }
+.k-total { background: var(--read); border: 1px solid var(--line); }
 
 
 /* ---------------- wizard ---------------- */
@@ -481,7 +533,7 @@ td.entry input.name-input:hover, td.entry input.id-input:hover { border-color: #
 tbody tr.rowblank td { background: #fbfbfc; }
 tbody tr.rowblank td.idx { color: #c3cad4; }
 tbody tr.rowpartial td.entry { background: #fffdf6; }
-.kpi.warn { border-color: #e6cfa8; background: var(--amber-tint); }
+.kpi.warn { border-color: #e5c48c; background: var(--amber-tint); }
 .kpi.warn .v { color: var(--amber); }
 .kpi.warn .l { color: var(--amber); }
 td.entry input::placeholder { color: #c3cad4; }
@@ -506,7 +558,7 @@ td.entry input::placeholder { color: #c3cad4; }
   border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 11.5px;
   cursor: pointer; white-space: nowrap;
 }
-.statustoggle:hover { border-color: #9aa6b6; }
+.statustoggle:hover { border-color: var(--line-strong); }
 .statustoggle.off {
   background: var(--amber-tint); border-color: #e0be8c; color: var(--amber); font-weight: 600;
 }
@@ -564,7 +616,7 @@ td.name .offroster {
 .glist { display: flex; flex-direction: column; gap: 1px; border-radius: 8px; overflow: hidden; }
 .glistrow {
   display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px;
-  padding: 10px 14px; background: #f6f8fb; font-size: 13.5px; align-items: baseline;
+  padding: 10px 14px; background: var(--read); font-size: 13.5px; align-items: baseline;
 }
 .gk { font-weight: 600; color: var(--ink); }
 .gv { color: var(--ink-soft); line-height: 1.55; }
