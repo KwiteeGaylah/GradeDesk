@@ -134,3 +134,36 @@ test('the stylesheet defines every colour it relies on', () => {
   const missing = [...used].filter((name) => !defined.has(name));
   assert.deepEqual(missing, [], `stylesheet uses undefined token(s): ${missing.join(', ')}`);
 });
+
+test('a destructive button is readable, including when it is also the primary', () => {
+  // The confirm button in a dangerous dialog carries both .primary and .danger.
+  // When .danger only set a text colour, that combination produced red text on
+  // the green primary background: 1.15:1, effectively invisible.
+  const dangerRule = /\.btn\.primary\.danger\s*\{[^}]*\}|\.btn\.danger,\s*\n\.btn\.primary\.danger\s*\{[^}]*\}/.exec(CSS);
+  assert.ok(dangerRule, '.btn.primary.danger should have its own rule');
+  assert.match(dangerRule[0], /background:/, 'it must set a background, not just a text colour');
+  assert.match(dangerRule[0], /color:\s*#fff/i, 'white text on the red fill');
+
+  // And the fill it uses has to carry white text.
+  assert.ok(
+    contrast('#ffffff', token('red')) >= AA_BODY,
+    `white on the danger colour is only ${contrast('#ffffff', token('red')).toFixed(2)}:1`
+  );
+});
+
+test('no button sets a text colour without also setting its background', () => {
+  // The class of bug above: a modifier that only recolours text, then lands on
+  // a button whose background came from somewhere else.
+  const rules = [...CSS.matchAll(/(\.btn[.\w:()-]*(?:,\s*\.btn[.\w:()-]*)*)\s*\{([^}]*)\}/g)];
+  const offenders = [];
+  for (const [, selector, body] of rules) {
+    const setsColor = /(^|[;\s])color:/.test(body);
+    const setsBg = /background(-color)?:/.test(body);
+    const isModifier = /\.btn\.\w/.test(selector);
+    // A modifier that recolours text must say what it sits on.
+    if (isModifier && setsColor && !setsBg && !/transparent/.test(body)) {
+      offenders.push(selector.trim());
+    }
+  }
+  assert.deepEqual(offenders, [], `button rule(s) recolour text without a background: ${offenders.join(', ')}`);
+});

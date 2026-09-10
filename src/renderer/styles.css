@@ -159,11 +159,12 @@ nav a.active .sub { color: #d6ece1; }
   padding: 7px 13px; border-radius: 7px; font-size: 13px; cursor: pointer; font-weight: 500;
   font-family: inherit; white-space: nowrap;
 }
-.btn:hover { border-color: var(--line-strong); }
+.btn:hover:not(:disabled) { border-color: #9aa6b6; background: var(--rail-hover); }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--brand-ink); }
+.btn.primary:hover:not(:disabled) { background: var(--brand-ink); border-color: var(--brand-ink); }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--brand-ink); }
+.btn.ghost:hover:not(:disabled) { background: var(--brand-tint); border-color: transparent; }
 /* A row's remove control is destructive, so it stays quiet until pointed at and
    never reads as a link the way the brand-coloured ghost button does. */
 .btn.rowdel {
@@ -171,7 +172,18 @@ nav a.active .sub { color: #d6ece1; }
   font-size: 15px; line-height: 1; padding: 4px 8px;
 }
 .btn.rowdel:hover { color: var(--red); background: var(--red-tint); border-color: transparent; }
-.btn.danger { color: var(--red); }
+/* A destructive action is a solid red button, not red text laid over whatever
+   colour the button already had. Combining .primary with .danger used to give
+   red on green at 1.15:1, which is invisible. The rule below wins over
+   .primary because it comes later and matches both classes. */
+.btn.danger,
+.btn.primary.danger {
+  background: var(--red); border-color: var(--red); color: #fff;
+}
+.btn.danger:hover:not(:disabled),
+.btn.primary.danger:hover:not(:disabled) {
+  background: #8f1f18; border-color: #8f1f18;
+}
 .btn.small { padding: 4px 9px; font-size: 12px; }
 
 .content { padding: 18px 24px 40px; overflow: auto; flex: 1; }
@@ -217,7 +229,12 @@ nav a.active .sub { color: #d6ece1; }
   font-weight: 600; max-width: 280px;
 }
 .apicker:hover { border-color: var(--line-strong); }
-.btn.step { padding: 5px 10px; font-size: 15px; line-height: 1; color: var(--ink-soft); }
+/* The prev/next arrows state their own background, so they cannot inherit one
+   from another modifier and end up with unreadable text. */
+.btn.step {
+  padding: 5px 10px; font-size: 15px; line-height: 1;
+  color: var(--ink-soft); background: var(--paper);
+}
 .btn.step:disabled { opacity: .35; }
 .searchbox {
   border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
