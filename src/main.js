@@ -25,6 +25,7 @@ const {
   formatDate,
   formatDateShort,
   formatDateForFilename,
+  todayStored,
 } = require('./engine');
 const { exportGradeRecord, exportSummary, exportAttendance } = require('./export/excel');
 
@@ -325,7 +326,7 @@ function registerHandlers() {
     if (!any) throw new Error('There are no attendance sessions to export yet.');
 
     const filePath = await askWhereToSave(
-      'Export attendance register', exportName(result.course, 'Attendance'));
+      'Export attendance', exportName(result.course, 'Attendance'));
     if (!filePath) return null;
     await exportAttendance(result, register, filePath);
     return filePath;

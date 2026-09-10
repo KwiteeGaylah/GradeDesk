@@ -350,7 +350,7 @@ test('a student not on the official roster is highlighted in the export', async 
   store.close();
 });
 
-test('the attendance register exports with readable dates and a score', async () => {
+test('attendance exports with readable dates and a score', async () => {
   const { store, course, students } = seed();
   const { byKind } = store.getTerms(course.id);
   const att = store.addAssessment(byKind.midterm.id, {
@@ -372,7 +372,7 @@ test('the attendance register exports with readable dates and a score', async ()
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
   assert.match(ws.name, /Attendance/);
-  assert.match(String(ws.getCell(1, 1).value), /Attendance Register/);
+  assert.match(String(ws.getCell(1, 1).value), /Attendance/);
 
   const headers = [];
   ws.getRow(5).eachCell((c) => headers.push(String(c.value ?? '')));

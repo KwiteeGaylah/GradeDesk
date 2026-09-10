@@ -15,7 +15,8 @@
     "uitest": "node scripts/uitest.js",
     "screenshot": "node scripts/screenshot.js",
     "icon": "node scripts/makeicon.js",
-    "build:dates": "node scripts/build-dates.js"
+    "build:dates": "node scripts/build-dates.js",
+    "check:refs": "node scripts/check-references.js"
   },
   "devDependencies": {
     "electron": "^44.3.0",

@@ -150,7 +150,7 @@ const GUIDE_SECTIONS = [
   {
     id: 'attendance',
     title: 'Attendance',
-    lead: 'Mark the register and the score works itself out.',
+    lead: 'Mark who came to class and the score works itself out.',
     blocks: [
       { type: 'text', text:
         'Add a session for each class meeting, then click a cell to change it. Clicking ' +
@@ -170,7 +170,7 @@ const GUIDE_SECTIONS = [
         'point, then treated like any other assessment.' },
       { type: 'tip', text:
         'You can add a session for a day that has already passed, which is what you do ' +
-        'when entering a paper register later. The same date cannot be added twice.' },
+        'when you are entering attendance from paper later. The same date cannot be added twice.' },
     ],
   },
   {

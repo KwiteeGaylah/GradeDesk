@@ -470,7 +470,7 @@ function buildSummary(workbook, result) {
 }
 
 /**
- * The attendance register, one sheet per term.
+ * The attendance sheet, one per term.
  *
  * A column per class meeting with the mark taken, then the score that fed the
  * grade sheet. Instructors are asked for this separately from the grade record,
@@ -510,7 +510,7 @@ function buildAttendance(workbook, result, register) {
     // --- title ---
     ws.mergeCells(1, 1, 1, lastCol);
     const title = ws.getCell(1, 1);
-    title.value = `${UNIVERSITY}  ·  Attendance Register`;
+    title.value = `${UNIVERSITY}  ·  Attendance`;
     title.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
     title.alignment = { horizontal: 'center', vertical: 'middle' };
     title.fill = FILL_TITLE;
@@ -655,7 +655,7 @@ async function exportGradeRecord(result, filePath) {
   return filePath;
 }
 
-/** Write the attendance register on its own. */
+/** Write the attendance sheets on their own. */
 async function exportAttendance(result, register, filePath) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'GradeDesk';

@@ -584,12 +584,12 @@ async function renderScreen() {
 
     actions.append(
       reviewBtn,
-      // The attendance register is asked for separately from the grade sheet,
-      // usually to back up a low attendance mark, so it exports on its own.
+      // Attendance is asked for separately from the grade sheet, usually to
+      // back up a low attendance mark, so it exports on its own.
       state.screen === 'attendance'
         ? el('button', {
-            class: 'btn', title: 'Export the attendance register', onclick: exportAttendanceFile,
-          }, 'Export', el('span', { class: 'long', text: ' register' }))
+            class: 'btn', title: 'Export the attendance sheet', onclick: exportAttendanceFile,
+          }, 'Export', el('span', { class: 'long', text: ' attendance' }))
         : el('button', { class: 'btn', title: 'Export the summary sheet', onclick: exportSummaryFile },
             'Summary', el('span', { class: 'long', text: ' sheet' })),
       el('button', { class: 'btn primary', title: 'Export the full grade record', onclick: exportRecordFile },
@@ -745,7 +745,7 @@ async function renderGradeEntry(content, course, policyInfo) {
   const isAttendance = selected.kind === 'attendance';
   const note = isAttendance
     ? el('div', { class: 'note' },
-        el('b', {}, selected.name), ' works itself out from the register. ',
+        el('b', {}, selected.name), ' works itself out from the attendance you have marked. ',
         'Mark the sessions on the Attendance screen. You cannot type in this column.')
     : el('div', { class: 'note' },
         'Entering ', el('b', {}, selected.name), `. Each score is out of ${selected.max_points}. `,
@@ -841,7 +841,7 @@ async function renderGradeEntry(content, course, policyInfo) {
           committed: showRaw(cell.raw),
         },
         readonly: isAtt,
-        title: isAtt ? 'Worked out from the register' : '',
+        title: isAtt ? 'Worked out from the attendance you have marked' : '',
         'aria-label': `${selected.name} for ${row.student.full_name}`,
       });
       if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
@@ -1727,7 +1727,7 @@ async function addAssessment(term, kind, course, isAttendance = false) {
   const result = await modal({
     title: isAttendance ? 'Add attendance' : 'Add assessment',
     subtitle: isAttendance
-      ? 'Its score works itself out from the register, then counts like any other assessment.'
+      ? 'Its score works itself out from the attendance you mark, then counts like any other assessment.'
       : `Added to the ${kind === 'midterm' ? 'midterm' : 'final'} term and averaged equally with the others.`,
     body: el('div', {},
       el('div', { class: 'field' }, el('label', { text: 'Name' }), name),
@@ -1876,7 +1876,7 @@ async function exportSummaryFile() {
 
 async function exportAttendanceFile() {
   const file = await guard(() => api.exports.attendance(state.courseId), 'Export');
-  if (file) toast('Attendance register exported');
+  if (file) toast('Attendance exported');
 }
 
 

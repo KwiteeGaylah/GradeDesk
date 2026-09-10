@@ -1,3 +1,8 @@
-*.log
-dist/
 node_modules/
+dist/
+*.log
+
+# Real student data never goes into the repository. The verification test reads
+# the instructor's own workbook from data/, but the file itself stays on their
+# machine. Anyone cloning this repo supplies their own.
+data/*.xlsx
