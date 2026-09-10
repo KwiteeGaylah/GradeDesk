@@ -86,6 +86,17 @@ async function capture(win, app, outPath) {
       return true;
     })()`);
 
+    // The first-run wizard opens over an empty database, which is exactly the
+    // state this driver seeds from. Close it so it does not sit on top of the
+    // screen being photographed.
+    await win.webContents.executeJavaScript(`(async () => {
+      const skip = [...document.querySelectorAll('button')]
+        .find((b) => b.textContent.trim() === 'Skip for now');
+      if (skip) skip.click();
+      return true;
+    })()`);
+    await new Promise((r) => setTimeout(r, 500));
+
     await new Promise((r) => setTimeout(r, 900));
     const image = await win.webContents.capturePage();
     fs.writeFileSync(outPath, image.toPNG());

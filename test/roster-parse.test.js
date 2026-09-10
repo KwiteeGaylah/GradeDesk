@@ -108,3 +108,37 @@ test('a block pasted with Windows line endings parses the same', () => {
   assert.equal(rows.length, 2);
   assert.equal(rows[0].fullName, 'Bestman, Comfort K.');
 });
+
+test('a couple of spaces separates the ID from the name, like a tab', () => {
+  // Tab used to move focus out of the paste box, so someone typing by hand
+  // reaches for spaces instead. Both now mean the same thing.
+  assert.deepEqual(parseRosterLine('10001  Bestman, Comfort K.'), {
+    studentId: '10001',
+    fullName: 'Bestman, Comfort K.',
+  });
+  assert.deepEqual(parseRosterLine('TU-90001     Dolo, Patience M.'), {
+    studentId: 'TU-90001',
+    fullName: 'Dolo, Patience M.',
+  });
+});
+
+test('a single space is not a separator, so a name survives', () => {
+  // "Comfort Bestman" is one name, not an ID and a surname.
+  assert.deepEqual(parseRosterLine('Comfort Bestman'), {
+    studentId: '',
+    fullName: 'Comfort Bestman',
+  });
+  // Even with a digit in it, one space is not enough to split on.
+  assert.deepEqual(parseRosterLine('10001 Bestman'), {
+    studentId: '',
+    fullName: '10001 Bestman',
+  });
+});
+
+test('a name that itself contains a wide gap is left alone', () => {
+  // The head has to look like an ID before a run of spaces splits anything.
+  assert.deepEqual(parseRosterLine('Doe  Jr, John'), {
+    studentId: '',
+    fullName: 'Doe  Jr, John',
+  });
+});

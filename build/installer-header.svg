@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 57" width="150" height="57">
+  <!--
+    NSIS page header, shown along the top of every step after the welcome
+    page. Fixed at 150x57. White ground so it sits against the wizard chrome,
+    with the mark on the left and the name beside it.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#15805e"/>
+      <stop offset="1" stop-color="#0a4c38"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="150" height="57" fill="#ffffff"/>
+
+  <g transform="translate(12 11)">
+    <rect x="0" y="0" width="35" height="35" rx="8" fill="url(#tile)"/>
+    <rect x="7" y="6" width="21" height="23" rx="3" fill="#ffffff"/>
+    <rect x="7" y="6" width="21" height="5.5" rx="3" fill="#20293a"/>
+    <rect x="7" y="9" width="21" height="2.5" fill="#20293a"/>
+    <g fill="#c4ccd8">
+      <rect x="10" y="15" width="10" height="2" rx="1"/>
+      <rect x="10" y="20" width="12" height="2" rx="1"/>
+    </g>
+    <circle cx="23" cy="24" r="6" fill="#0f6b4f"/>
+    <path d="M20 24 l2 2 l4 -4.5" fill="none" stroke="#ffffff" stroke-width="2"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="56" y="27" fill="#12181f" font-family="Segoe UI, Arial, sans-serif"
+        font-size="14" font-weight="600">GradeDesk</text>
+  <text x="56" y="40" fill="#657079" font-family="Segoe UI, Arial, sans-serif"
+        font-size="8.5">Offline grade recorder</text>
+</svg>

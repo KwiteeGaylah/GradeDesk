@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 164 314" width="164" height="314">
+  <!--
+    NSIS welcome/finish sidebar. Fixed at 164x314 by the installer, so every
+    measurement here is deliberate rather than scalable.
+
+    The panel is the brand green with the app mark near the top and a short
+    line about what the program does, because someone running an installer
+    they were handed on a flash drive may never have seen GradeDesk before.
+  -->
+  <defs>
+    <linearGradient id="panel" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#15805e"/>
+      <stop offset="0.55" stop-color="#0f6b4f"/>
+      <stop offset="1" stop-color="#0a4c38"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#eef2f7"/>
+    </linearGradient>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#04211a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="164" height="314" fill="url(#panel)"/>
+
+  <!-- faint ruled lines, echoing a grade sheet -->
+  <g stroke="#ffffff" stroke-opacity="0.06" stroke-width="1">
+    <line x1="0" y1="196" x2="164" y2="196"/>
+    <line x1="0" y1="214" x2="164" y2="214"/>
+    <line x1="0" y1="232" x2="164" y2="232"/>
+    <line x1="0" y1="250" x2="164" y2="250"/>
+    <line x1="0" y1="268" x2="164" y2="268"/>
+  </g>
+
+  <!-- the app mark: a small grade sheet with a tick -->
+  <g transform="translate(41 34)" filter="url(#lift)">
+    <rect x="0" y="0" width="82" height="94" rx="9" fill="url(#paper)"/>
+    <rect x="0" y="0" width="82" height="17" rx="9" fill="#20293a"/>
+    <rect x="0" y="10" width="82" height="7" fill="#20293a"/>
+    <rect x="10" y="6" width="34" height="5" rx="2.5" fill="#8fa6b8" opacity="0.9"/>
+    <g fill="#c4ccd8">
+      <rect x="10" y="29" width="38" height="5" rx="2.5"/>
+      <rect x="10" y="44" width="44" height="5" rx="2.5"/>
+      <rect x="10" y="59" width="34" height="5" rx="2.5"/>
+    </g>
+    <g fill="#9fb3c4">
+      <rect x="58" y="29" width="14" height="5" rx="2.5"/>
+      <rect x="58" y="44" width="14" height="5" rx="2.5"/>
+    </g>
+    <circle cx="63" cy="72" r="15" fill="#0f6b4f"/>
+    <path d="M56 72 l5 5 l9 -11" fill="none" stroke="#ffffff" stroke-width="5"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="82" y="152" text-anchor="middle" fill="#ffffff"
+        font-family="Segoe UI, Arial, sans-serif" font-size="21" font-weight="600"
+        letter-spacing="0.2">GradeDesk</text>
+
+  <text x="82" y="171" text-anchor="middle" fill="#b8ddcb"
+        font-family="Segoe UI, Arial, sans-serif" font-size="10.5">
+    Grade sheets, done for you
+  </text>
+
+  <!-- three plain promises, the reasons someone would install this -->
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="9.5" fill="#dff0e7">
+    <g transform="translate(20 200)">
+      <circle cx="0" cy="-3.5" r="6" fill="#ffffff" fill-opacity="0.14"/>
+      <path d="M-3 -3.5 l2 2 l4 -4.5" fill="none" stroke="#ffffff" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="14" y="0">Type marks, not formulas</text>
+    </g>
+    <g transform="translate(20 236)">
+      <circle cx="0" cy="-3.5" r="6" fill="#ffffff" fill-opacity="0.14"/>
+      <path d="M-3 -3.5 l2 2 l4 -4.5" fill="none" stroke="#ffffff" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="14" y="0">Works with no internet</text>
+    </g>
+    <g transform="translate(20 272)">
+      <circle cx="0" cy="-3.5" r="6" fill="#ffffff" fill-opacity="0.14"/>
+      <path d="M-3 -3.5 l2 2 l4 -4.5" fill="none" stroke="#ffffff" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="14" y="0">Exports the usual sheet</text>
+    </g>
+  </g>
+
+  <text x="82" y="303" text-anchor="middle" fill="#7fbfa2"
+        font-family="Segoe UI, Arial, sans-serif" font-size="8.5">
+    William V.S. Tubman University
+  </text>
+</svg>

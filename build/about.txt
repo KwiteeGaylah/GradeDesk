@@ -1,0 +1,36 @@
+GradeDesk
+Offline grade recorder for William V.S. Tubman University
+
+WHAT IT DOES
+
+GradeDesk does the grade sheet you already do in Excel, without the formulas.
+You type each student's raw marks across the class list, one assessment at a
+time. GradeDesk looks every score up in the university transmutation table,
+averages them into class standing, applies the weights, works out the final
+grade and the letter, and exports the sheet you submit.
+
+WHY YOU MIGHT WANT IT
+
+  - You type marks instead of building and maintaining formulas.
+  - Attendance scores itself from the register you mark.
+  - It catches mistakes a spreadsheet will not: a score above its maximum,
+    a missing exam that forces an I, blanks quietly counting as 50.
+  - The exported record and summary open in Excel ready to submit, with no
+    reformatting.
+
+YOUR DATA
+
+Everything stays on this computer, in a single file. Nothing is ever sent
+anywhere, and no internet connection is needed at any point. Scores are saved
+the moment you leave the cell, so a power cut costs you nothing already typed.
+
+You can back up all your work to one file and carry it to another machine.
+
+ACCURACY
+
+The grading model was rebuilt from a real completed semester and checked
+against it: 167 students across 6 course sections, every final grade and every
+letter reproduced exactly, with no mismatches. That check runs automatically
+on every build.
+
+Built by Kwitee D. Gaylah.

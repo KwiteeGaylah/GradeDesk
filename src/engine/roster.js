@@ -44,6 +44,14 @@ function parseRosterLine(line) {
     }
   }
 
+  // A run of two or more spaces, which is what someone types when they mean a
+  // tab. Same guard as the comma rule: the head has to look like an ID, so
+  // "Doe  Jr, John" is still read as one name rather than being split.
+  const gap = /^(\S+)\s{2,}(\S.*)$/.exec(text.trim());
+  if (gap && /\d/.test(gap[1])) {
+    return { studentId: gap[1].trim(), fullName: gap[2].trim() };
+  }
+
   // No usable separator: the whole line is a name, commas included.
   return { studentId: '', fullName: text.trim() };
 }

@@ -680,3 +680,55 @@ td.name .offroster {
   .tocitem.active { border-left-color: transparent; border-bottom-color: var(--brand); }
   .glistrow, .gkeyrow, .gformularow { grid-template-columns: 1fr; gap: 3px; }
 }
+
+/* A small toolbar that sits directly on top of a table, holding the action
+   that belongs to that table. Keeping it here rather than in the top action
+   bar means the button is where the reader is already looking. */
+.tabletools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 8px;
+  flex-wrap: wrap;
+}
+.tabletools .toolcount {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* The four setup steps in the welcome guide. These had no rules at all, so the
+   label ran straight into its description ("1. SemesterName the term..."). A
+   two-column grid keeps the number and the label in their own column and the
+   explanation beside it, aligned down the list. */
+.guidesteps {
+  display: grid;
+  gap: 1px;
+  margin-top: 16px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.guidestep {
+  display: grid;
+  grid-template-columns: minmax(110px, 168px) 1fr;
+  gap: 16px;
+  align-items: baseline;
+  padding: 11px 14px;
+  background: var(--paper);
+}
+.guidestep > b {
+  color: var(--brand);
+  font-weight: 600;
+}
+.guidestep > span {
+  color: var(--ink-soft);
+}
+/* Side by side is wrong once the dialog is narrow: stack and drop the gap. */
+@media (max-width: 520px) {
+  .guidestep {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}

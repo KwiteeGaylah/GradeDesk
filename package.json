@@ -14,7 +14,7 @@
     "smoke": "node scripts/smoketest.js",
     "uitest": "node scripts/uitest.js",
     "screenshot": "node scripts/screenshot.js",
-    "icon": "node scripts/makeicon.js",
+    "icon": "node scripts/makeicon.js && node scripts/build-ico.js",
     "build:dates": "node scripts/build-dates.js",
     "check:refs": "node scripts/check-references.js"
   },
@@ -52,7 +52,8 @@
         }
       ],
       "artifactName": "GradeDesk-Setup-${version}.exe",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "legalTrademarks": ""
     },
     "nsis": {
       "oneClick": false,
@@ -60,7 +61,18 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "GradeDesk"
+      "shortcutName": "GradeDesk",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "license": "build/about.txt",
+      "runAfterFinish": true,
+      "menuCategory": false,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "GradeDesk-Setup-${version}.exe",
+      "include": "build/installer.nsh"
     }
   }
 }

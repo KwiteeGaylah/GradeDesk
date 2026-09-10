@@ -748,7 +748,8 @@ async function renderGradeEntry(content, course, policyInfo) {
         el('b', {}, selected.name), ' works itself out from the attendance you have marked. ',
         'Mark the sessions on the Attendance screen. You cannot type in this column.')
     : el('div', { class: 'note' },
-        'Entering ', el('b', {}, selected.name), `. Each score is out of ${selected.max_points}. `,
+        'Entering ', el('b', {}, selected.name), '. ',
+        `The highest mark you can give here is ${selected.max_points}. `,
         'Type a score on each row and press Enter to drop to the next student, just like in Excel. ',
         'A blank counts as 50. The shaded columns work themselves out.');
 
@@ -1031,10 +1032,6 @@ async function renderAttendance(content, course) {
     )
   );
 
-  $('topActions').prepend(
-    el('button', { class: 'btn', onclick: () => addSession(course, term) }, '＋ Add session')
-  );
-
   if (!attendanceAssessment) {
     setChildren(content, termSwitch, emptyState({
       icon: '◷',
@@ -1062,7 +1059,7 @@ async function renderAttendance(content, course) {
       icon: '◷',
       title: 'No sessions yet',
       text: 'Add a session for each class you hold, then mark the whole class down the column.',
-      actionLabel: '＋ Add session',
+      actionLabel: '＋ Record attendance',
       onAction: () => addSession(course, term),
     }));
     return;
@@ -1071,8 +1068,10 @@ async function renderAttendance(content, course) {
   const note = el('div', { class: 'note' },
     'Click a cell to cycle ', el('b', {}, 'P'), ' (present, full) → ', el('b', {}, 'E'),
     ' (excused, half) → ', el('b', {}, 'A'), ' (absent, zero) → blank. ',
-    `The score is worked out of ${attendanceAssessment.max_points} marks: points × (P + half the E's) ÷ sessions marked, `,
-    'then treated like any other assessment.'
+    `Attendance is graded on ${attendanceAssessment.max_points} points. `,
+    'Everyone starts from the full ', el('b', {}, String(attendanceAssessment.max_points)),
+    '; each P counts in full, each E counts half, each A counts nothing, and the points are shared out over the classes you marked. ',
+    'The result is then treated like any other assessment.'
   );
 
   const thead = el('thead', {}, el('tr', {},
@@ -1145,6 +1144,15 @@ async function renderAttendance(content, course) {
   setChildren(content,
     termSwitch,
     note,
+    // The button sits directly above the table rather than in the top action
+    // bar: recording attendance is a thing you do to this table, so it belongs
+    // next to it where the eye already is.
+    el('div', { class: 'tabletools' },
+      el('span', { class: 'toolcount' },
+        `${sessions.length} ${sessions.length === 1 ? 'class' : 'classes'} marked`),
+      el('button', { class: 'btn primary', onclick: () => addSession(course, term) },
+        '＋ Record attendance')
+    ),
     el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
     el('div', { class: 'hint' },
       'It divides by the sessions you have actually marked, not the whole term, so the score is fair even halfway through.')
@@ -1544,10 +1552,42 @@ async function pasteRoster(course) {
     class: 'paste-area',
     placeholder: '10001\tBestman, Comfort K.\n10002\tBestman, Daniel T.',
   });
+  // Tab normally moves focus to the next button, so the old instruction to put
+  // a tab between the ID and the name was impossible to follow by typing.
+  // Inside this box Tab types a real tab. Pressing Escape first, then Tab,
+  // still moves focus out for anyone navigating by keyboard.
+  let tabLeaves = false;
+  textarea.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      tabLeaves = true;
+      return;
+    }
+    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) {
+      tabLeaves = false;
+      return;
+    }
+    if (tabLeaves || e.shiftKey) {
+      tabLeaves = false;
+      return; // let focus move on
+    }
+    e.preventDefault();
+    const from = textarea.selectionStart;
+    const to = textarea.selectionEnd;
+    const value = textarea.value;
+    textarea.value = value.slice(0, from) + '\t' + value.slice(to);
+    textarea.selectionStart = from + 1;
+    textarea.selectionEnd = from + 1;
+  });
+
   const result = await modal({
     title: 'Paste a class list',
-    subtitle: 'One student per line. Put the ID and the name on the same line with a tab between them.',
-    body: el('div', {}, textarea),
+    subtitle: 'One student per line, with the ID first and then the name.',
+    body: el('div', {},
+      textarea,
+      el('div', { class: 'hint' },
+        'Separate the ID from the name with a Tab or a couple of spaces. ',
+        'Pressing Tab in this box types a tab instead of jumping to a button. ',
+        'A line with no ID is taken as a name on its own.')),
     confirmLabel: 'Add students',
     wide: true,
     onConfirm: () => textarea.value.trim() || false,
@@ -2000,24 +2040,6 @@ function openGuide() {
 
 // ------------------------------------------------------- first-run wizard
 
-/** Remember that setup has been offered, so it is not shown on every launch. */
-function markSetupSeen() {
-  try {
-    localStorage.setItem('gradedesk.setupSeen', '1');
-  } catch {
-    // Blocked storage is not worth interrupting anything over; at worst the
-    // wizard is offered once more.
-  }
-}
-
-function setupAlreadySeen() {
-  try {
-    return localStorage.getItem('gradedesk.setupSeen') === '1';
-  } catch {
-    return false;
-  }
-}
-
 /**
  * First-run setup.
  *
@@ -2055,7 +2077,6 @@ async function runSetupWizard() {
     onConfirm: () => true,
   });
   if (!intro) {
-    markSetupSeen();
     return;
   }
 
@@ -2063,7 +2084,7 @@ async function runSetupWizard() {
   let semester = state.activeSemester;
   if (!semester) {
     const created = await newSemester();
-    if (!created) { markSetupSeen(); return; }
+    if (!created) return;
     semester = state.activeSemester;
   } else {
     const rename = el('input', { type: 'text', value: semester.name });
@@ -2075,7 +2096,7 @@ async function runSetupWizard() {
       cancelLabel: 'Skip setup',
       onConfirm: () => rename.value.trim() || false,
     });
-    if (!ok) { markSetupSeen(); return; }
+    if (!ok) return;
     if (ok !== semester.name) {
       await guard(() => api.semesters.rename(semester.id, ok), 'Renaming semester');
       state.semesters = await api.semesters.list();
@@ -2118,11 +2139,11 @@ async function runSetupWizard() {
         }
       : false),
   });
-  if (!courseFields) { markSetupSeen(); return; }
+  if (!courseFields) return;
 
   const course = await guard(
     () => api.courses.create({ semesterId: semester.id, ...courseFields }), 'Creating course');
-  if (!course) { markSetupSeen(); return; }
+  if (!course) return;
   await loadCourses();
   state.courseId = course.id;
   await loadCourseDetail();
@@ -2146,7 +2167,7 @@ async function runSetupWizard() {
     cancelLabel: 'Skip setup',
     onConfirm: () => preset.value,
   });
-  if (!chosen) { markSetupSeen(); return; }
+  if (!chosen) return;
 
   if (chosen !== 'none') {
     const terms = await api.courses.terms(course.id);
@@ -2198,7 +2219,6 @@ async function runSetupWizard() {
     }
   }
 
-  markSetupSeen();
   await loadCourses();
   state.courseId = course.id;
   state.screen = 'grades';
@@ -2225,8 +2245,15 @@ async function runSetupWizard() {
 // -------------------------------------------------------------------- start
 
 loadAll().then(async () => {
-  // Offer setup only on a genuinely empty install, and only once.
-  if (!setupAlreadySeen() && state.courses.length === 0) {
+  // Offer setup whenever there is no course to work on.
+  //
+  // This used to also require a localStorage flag that was set the first time
+  // the wizard appeared and never cleared. That flag drifts from the database:
+  // clear the data, restore a backup made before any course existed, or move
+  // the database to another machine, and you land on an empty app with no way
+  // back to setup. Whether a course exists is the real question, and the
+  // database already answers it, so ask that instead.
+  if (state.courses.length === 0) {
     await runSetupWizard();
   }
 });

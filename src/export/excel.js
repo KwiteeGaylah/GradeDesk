@@ -529,7 +529,7 @@ function buildAttendance(workbook, result, register) {
     detail(3, 1, 'Course:', course.name || '');
     detail(2, 5, 'Term:', label);
     detail(3, 5, 'Sessions:', term.sessions.length);
-    detail(2, 8, 'Marked out of:', points);
+    detail(2, 8, 'Points:', points);
     detail(3, 8, 'Generated:', formatDate(todayStored()));
 
     // --- key ---
