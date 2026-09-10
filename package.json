@@ -14,7 +14,8 @@
     "smoke": "node scripts/smoketest.js",
     "uitest": "node scripts/uitest.js",
     "screenshot": "node scripts/screenshot.js",
-    "icon": "node scripts/makeicon.js"
+    "icon": "node scripts/makeicon.js",
+    "build:dates": "node scripts/build-dates.js"
   },
   "devDependencies": {
     "electron": "^44.3.0",

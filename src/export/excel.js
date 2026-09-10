@@ -18,7 +18,7 @@
  */
 
 const ExcelJS = require('exceljs');
-const { formatGrade } = require('../engine');
+const { formatGrade, formatDate, formatDateForFilename, todayStored } = require('../engine');
 
 const UNIVERSITY = 'William V.S. Tubman University';
 
@@ -45,6 +45,7 @@ const FILL_EXAM = fill('FFFFC7CE');         // pink: the exam column
 const FILL_WEIGHT = fill('FFFFFFFF');
 const FILL_BAND = fill('FFF2F2F2');         // every other student row
 const FILL_FLAGGED = fill('FFFFF2CC');      // a student not on the official roster
+const FILL_TOTALROW = fill('FFEDF1F7');     // the per-session totals row
 const FILL_TITLE = fill('FF2F6D4F');        // brand green title bar
 
 /** Letter grades are tinted the same way they are on screen. */
@@ -173,7 +174,7 @@ function buildGradeRecord(workbook, result) {
   detail(2, 5, 'Instructor:', course.instructor || '');
   detail(3, 5, 'Policy:', `${result.policy}% transmutation`);
   detail(2, 9, 'Students:', students.length);
-  detail(3, 9, 'Generated:', new Date().toISOString().slice(0, 10));
+  detail(3, 9, 'Generated:', formatDate(todayStored()));
   ws.getRow(2).height = 18;
   ws.getRow(3).height = 18;
 
@@ -197,6 +198,11 @@ function buildGradeRecord(workbook, result) {
   // --- weight row: the share each column carries, as percentages ---
   // The instructor's sheet shows these under the banner, so the reader can see
   // at a glance that class standing is 60% and the exam 40%.
+  //
+  // The share per assessment is 60 divided by however many there are. Point
+  // maxima do not need to add up to anything: each raw score is transmuted to a
+  // 50-to-100 value first, and it is those that get averaged. Three assessments
+  // at full marks give exactly 60, and so do five.
   const weightRow = 5;
   const weight = (col, text, tint) => {
     const c = ws.getCell(weightRow, col);
@@ -392,7 +398,7 @@ function buildSummary(workbook, result) {
   sdetail(2, 1, 'Course Code:', courseLabel(course));
   sdetail(3, 1, 'Course:', course.name || '');
   sdetail(2, 4, 'Students:', students.length);
-  sdetail(3, 4, 'Generated:', new Date().toISOString().slice(0, 10));
+  sdetail(3, 4, 'Generated:', formatDate(todayStored()));
 
   const headerRow = 5;
   ['No.', 'ID', 'FullName', 'Final Grade', 'Letter Grade'].forEach((h, i) => {
@@ -463,6 +469,181 @@ function buildSummary(workbook, result) {
   return ws;
 }
 
+/**
+ * The attendance register, one sheet per term.
+ *
+ * A column per class meeting with the mark taken, then the score that fed the
+ * grade sheet. Instructors are asked for this separately from the grade record,
+ * usually to back up a low attendance mark, so it exports on its own.
+ *
+ * @param {object} workbook
+ * @param {object} result   output of gradebook.computeCourse
+ * @param {object} register { midterm: {sessions, marks}, final: {...} }
+ */
+function buildAttendance(workbook, result, register) {
+  const { course, students } = result;
+
+  for (const termKey of ['midterm', 'final']) {
+    const term = register[termKey];
+    if (!term || !term.sessions.length) continue;
+
+    const label = termKey === 'midterm' ? 'Mid-Term' : 'Final-Term';
+    const ws = workbook.addWorksheet(`Attendance ${label}`, {
+      views: [{ state: 'frozen', xSplit: 3, ySplit: 5 }],
+      pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    });
+
+    const attendance = (result.terms[termKey].classStanding || [])
+      .find((a) => a.kind === 'attendance');
+    const points = attendance ? attendance.max_points : 10;
+    const lastCol = 3 + term.sessions.length + 2;
+
+    ws.columns = [
+      { width: 5 },
+      { width: 12 },
+      { width: 28 },
+      ...term.sessions.map(() => ({ width: 12 })),
+      { width: 11 },
+      { width: 12 },
+    ];
+
+    // --- title ---
+    ws.mergeCells(1, 1, 1, lastCol);
+    const title = ws.getCell(1, 1);
+    title.value = `${UNIVERSITY}  ·  Attendance Register`;
+    title.font = { bold: true, size: 15, color: { argb: 'FFFFFFFF' } };
+    title.alignment = { horizontal: 'center', vertical: 'middle' };
+    title.fill = FILL_TITLE;
+    ws.getRow(1).height = 30;
+
+    const detail = (row, col, text, value) => {
+      const l = ws.getCell(row, col);
+      l.value = text;
+      l.font = { bold: true, size: 10, color: { argb: 'FF5B6472' } };
+      l.alignment = { horizontal: 'right' };
+      const v = ws.getCell(row, col + 1);
+      v.value = value;
+      v.font = { size: 11, bold: true };
+    };
+    detail(2, 1, 'Course Code:', courseLabel(course));
+    detail(3, 1, 'Course:', course.name || '');
+    detail(2, 5, 'Term:', label);
+    detail(3, 5, 'Sessions:', term.sessions.length);
+    detail(2, 8, 'Marked out of:', points);
+    detail(3, 8, 'Generated:', formatDate(todayStored()));
+
+    // --- key ---
+    const key = ws.getCell(4, 1);
+    key.value = 'P = present (full)   ·   E = excused (half)   ·   A = absent (zero)   ·   blank = not counted';
+    key.font = { size: 9, italic: true, color: { argb: 'FF5B6472' } };
+    ws.mergeCells(4, 1, 4, lastCol);
+
+    // --- header ---
+    const headerRow = 5;
+    const headers = [
+      'No.',
+      'ID',
+      'FullName',
+      ...term.sessions.map((s) => formatDate(s.date)),
+      `Score /${points}`,
+      'Transmuted',
+    ];
+    headers.forEach((h, i) => {
+      const cell = ws.getCell(headerRow, i + 1);
+      cell.value = h;
+      styleHeaderCell(cell);
+      if (i >= 3 && i < 3 + term.sessions.length) cell.fill = FILL_TERMBAND;
+      if (i >= 3 + term.sessions.length) cell.fill = FILL_STANDING;
+    });
+    ws.getRow(headerRow).height = 32;
+
+    // --- students ---
+    const MARK_FILL = {
+      P: fill('FFE3F2EC'),
+      E: fill('FFFDF3E0'),
+      A: fill('FFFBE6E4'),
+    };
+    const MARK_COLOR = { P: 'FF0F6B4F', E: 'FF8A5300', A: 'FFA3231B' };
+
+    students.forEach((row, i) => {
+      const marks = term.marks.get(row.student.id) || [];
+      const computed = (row[termKey].assessments || [])
+        .find((a) => attendance && a.assessment.id === attendance.id);
+
+      const excelRow = ws.addRow([
+        row.student.number ?? i + 1,
+        row.student.student_id || '',
+        row.student.full_name || '',
+        ...term.sessions.map((_, j) => marks[j] || ''),
+        computed && computed.raw !== null && computed.raw !== undefined ? computed.raw : null,
+        computed ? computed.transmuted : null,
+      ]);
+      excelRow.height = 17;
+      excelRow.eachCell({ includeEmpty: true }, (cell, col) => {
+        cell.border = BORDER_LIGHT;
+        cell.font = { size: 10 };
+        if (col > 3) cell.alignment = { horizontal: 'center' };
+        if (i % 2 === 1) cell.fill = FILL_BAND;
+      });
+      ws.getCell(excelRow.number, 2).alignment = { horizontal: 'left' };
+      ws.getCell(excelRow.number, 3).alignment = { horizontal: 'left' };
+
+      // Colour each mark the way the screen does.
+      term.sessions.forEach((_, j) => {
+        const code = String(marks[j] || '').toUpperCase();
+        if (!MARK_FILL[code]) return;
+        const cell = ws.getCell(excelRow.number, 4 + j);
+        cell.fill = MARK_FILL[code];
+        cell.font = { size: 10, bold: true, color: { argb: MARK_COLOR[code] } };
+      });
+
+      // The two result columns, tinted like the grade sheet.
+      for (const col of [lastCol - 1, lastCol]) {
+        const cell = ws.getCell(excelRow.number, col);
+        cell.fill = FILL_STANDING;
+        cell.font = { size: 10, bold: true };
+      }
+
+      // A student who is not on the official roster is flagged here too.
+      if (row.student.unofficial) {
+        for (const col of [1, 2, 3]) {
+          const cell = ws.getCell(excelRow.number, col);
+          cell.fill = FILL_FLAGGED;
+          cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
+        }
+        ws.getCell(excelRow.number, 3).note = row.student.note
+          ? `Not on the official roster yet. ${row.student.note}`
+          : 'Not on the official roster yet.';
+      }
+    });
+
+    // --- per-session totals, which is what a query about attendance asks for ---
+    const totalRow = headerRow + students.length + 1;
+    const label2 = ws.getCell(totalRow, 3);
+    label2.value = 'Present on the day';
+    label2.font = { size: 10, bold: true, color: { argb: 'FF5B6472' } };
+    label2.alignment = { horizontal: 'right' };
+    term.sessions.forEach((_, j) => {
+      let present = 0;
+      for (const row of students) {
+        const marks = term.marks.get(row.student.id) || [];
+        if (String(marks[j] || '').toUpperCase() === 'P') present += 1;
+      }
+      const cell = ws.getCell(totalRow, 4 + j);
+      cell.value = `${present}/${students.length}`;
+      cell.font = { size: 10, bold: true };
+      cell.alignment = { horizontal: 'center' };
+      cell.border = BORDER_LIGHT;
+      cell.fill = FILL_TOTALROW;
+    });
+
+    ws.autoFilter = {
+      from: { row: headerRow, column: 1 },
+      to: { row: headerRow, column: 3 },
+    };
+  }
+}
+
 /** Write the full grade record workbook. */
 async function exportGradeRecord(result, filePath) {
   const wb = new ExcelJS.Workbook();
@@ -470,6 +651,19 @@ async function exportGradeRecord(result, filePath) {
   wb.created = new Date();
   buildGradeRecord(wb, result);
   buildSummary(wb, result);
+  await wb.xlsx.writeFile(filePath);
+  return filePath;
+}
+
+/** Write the attendance register on its own. */
+async function exportAttendance(result, register, filePath) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'GradeDesk';
+  wb.created = new Date();
+  buildAttendance(wb, result, register);
+  if (!wb.worksheets.length) {
+    throw new Error('There are no attendance sessions to export yet.');
+  }
   await wb.xlsx.writeFile(filePath);
   return filePath;
 }
@@ -484,4 +678,12 @@ async function exportSummary(result, filePath) {
   return filePath;
 }
 
-module.exports = { exportGradeRecord, exportSummary, buildGradeRecord, buildSummary, formatGrade };
+module.exports = {
+  exportGradeRecord,
+  exportSummary,
+  exportAttendance,
+  buildGradeRecord,
+  buildSummary,
+  buildAttendance,
+  formatGrade,
+};

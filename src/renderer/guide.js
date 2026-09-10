@@ -94,21 +94,25 @@ const GUIDE_SECTIONS = [
     id: 'offroster',
     title: 'Students not on the official roster',
     lead:
-      'Sometimes the university lets a student sit your class before the addendum list ' +
-      'arrives. You can flag them so you do not forget to chase it.',
+      'Sometimes you let a student sit your class before they are on the official ' +
+      'roster. Flag them so you do not forget to put them on your addendum list.',
     blocks: [
       { type: 'text', text:
+        'A timetable clash or a late registration can leave a student sitting your class ' +
+        'without being on the official roster. You allow them in, mark them like anyone ' +
+        'else, and send their name on the addendum list with your grades at the end.' },
+      { type: 'text', text:
         'On the Roster screen, every student has an "On roster?" button. Click it to ' +
-        'switch a student to "Not yet", and add a short note if you want to remember why.' },
+        'switch a student to "Not yet", and add a short note about why if you want.' },
       { type: 'steps', title: 'Once a student is flagged', items: [
         ['You see it everywhere', 'A tag next to their name on every screen.'],
-        ['It is in the reminder list', 'Review issues lists them every time you open it.'],
+        ['It is in the reminder list', 'Review issues names them every time you open it.'],
         ['It goes into the export', 'Their row is highlighted, with your note attached.'],
         ['Their grades are normal', 'The flag changes nothing about the marking.'],
       ] },
       { type: 'text', text:
-        'When the addendum comes through and the student is added properly, click the ' +
-        'same button again. The flag and the highlight disappear everywhere at once.' },
+        'Once you have sent the addendum and the student is on the roster properly, click ' +
+        'the same button again. The flag and the highlight disappear everywhere at once.' },
       { type: 'tip', text:
         'This replaces colouring the row and adding a comment in Excel, and it will not ' +
         'get lost when you re-sort or re-export.' },
@@ -184,6 +188,11 @@ const GUIDE_SECTIONS = [
         ['Final grade', 'midterm total × 0.4 + final total × 0.6'],
         ['Letter', 'A from 90, B from 80, C from 70, D from 60, otherwise F'],
       ] },
+      { type: 'tip', text:
+        'Point values do not have to add up to anything. Each score is turned into a ' +
+        'value between 50 and 100 first, and those are what get averaged. Three ' +
+        'assessments at full marks give exactly 60, and so do five. The percentages on ' +
+        'the exported sheet show each assessment’s share of that 60.' },
       { type: 'steps', title: 'Two rules that look similar but are not', items: [
         ['A blank assessment', 'Counts as 50 and stays in the average.'],
         ['A blank exam', 'Makes the letter I, whatever the numbers say.'],
@@ -208,7 +217,7 @@ const GUIDE_SECTIONS = [
         ['Scores above the maximum', 'Usually a typo that would inflate a grade.'],
         ['Missing exams', 'These force an I, listed by student.'],
         ['Blank scores', 'A reminder that they are counting as 50.'],
-        ['Students not on the roster', 'The addendum you are still waiting on.'],
+        ['Students not on the roster', 'Names to put on your addendum list.'],
         ['Grades that cannot be worked out', 'Shown as NG.'],
       ] },
       { type: 'steps', title: 'Two files you can produce', items: [

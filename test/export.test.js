@@ -349,3 +349,52 @@ test('a student not on the official roster is highlighted in the export', async 
   assert.match(String(ws.getCell(row, 3).note || ''), /addendum expected/, 'the note is attached');
   store.close();
 });
+
+test('the attendance register exports with readable dates and a score', async () => {
+  const { store, course, students } = seed();
+  const { byKind } = store.getTerms(course.id);
+  const att = store.addAssessment(byKind.midterm.id, {
+    name: 'Attendance', maxPoints: 10, kind: 'attendance',
+  });
+  const s1 = store.addSession(course.id, byKind.midterm.id, '2026-09-02');
+  const s2 = store.addSession(course.id, byKind.midterm.id, '2026-09-09');
+  store.setMark(students.alice.id, s1.id, 'P');
+  store.setMark(students.alice.id, s2.id, 'E');
+  store.setMark(students.bob.id, s1.id, 'A');
+  store.setMark(students.bob.id, s2.id, 'P');
+
+  const { exportAttendance } = require('../src/export/excel');
+  const result = computeCourse(store, course.id, tables);
+  const { sessions, byStudent } = store.getMarksForTerm(byKind.midterm.id);
+  const file = path.join(tmpDir, 'attendance.xlsx');
+  await exportAttendance(result, { midterm: { sessions, marks: byStudent } }, file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  assert.match(ws.name, /Attendance/);
+  assert.match(String(ws.getCell(1, 1).value), /Attendance Register/);
+
+  const headers = [];
+  ws.getRow(5).eachCell((c) => headers.push(String(c.value ?? '')));
+  assert.ok(headers.includes('Sept. 2, 2026'), `dates should read plainly: ${headers.join(', ')}`);
+  assert.ok(headers.includes('Sept. 9, 2026'));
+  assert.ok(headers.some((h) => /Score \/10/.test(h)));
+
+  // Alice: one P and one E over two sessions is 7.5, recorded as 8.
+  const row = rowFor(ws, 5, 'Allison, Elizabeth Y.');
+  assert.equal(row['Sept. 2, 2026'], 'P');
+  assert.equal(row['Sept. 9, 2026'], 'E');
+  assert.equal(row['Score /10'], 8);
+  store.close();
+});
+
+test('exporting attendance with no sessions says so rather than writing an empty file', async () => {
+  const { store, course } = seed();
+  const { exportAttendance } = require('../src/export/excel');
+  const result = computeCourse(store, course.id, tables);
+  await assert.rejects(
+    () => exportAttendance(result, {}, path.join(tmpDir, 'empty-att.xlsx')),
+    /no attendance sessions/i
+  );
+  store.close();
+});

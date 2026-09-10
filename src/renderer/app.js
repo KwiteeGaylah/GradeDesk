@@ -584,8 +584,14 @@ async function renderScreen() {
 
     actions.append(
       reviewBtn,
-      el('button', { class: 'btn', title: 'Export the summary sheet', onclick: exportSummaryFile },
-        'Summary', el('span', { class: 'long', text: ' sheet' })),
+      // The attendance register is asked for separately from the grade sheet,
+      // usually to back up a low attendance mark, so it exports on its own.
+      state.screen === 'attendance'
+        ? el('button', {
+            class: 'btn', title: 'Export the attendance register', onclick: exportAttendanceFile,
+          }, 'Export', el('span', { class: 'long', text: ' register' }))
+        : el('button', { class: 'btn', title: 'Export the summary sheet', onclick: exportSummaryFile },
+            'Summary', el('span', { class: 'long', text: ' sheet' })),
       el('button', { class: 'btn primary', title: 'Export the full grade record', onclick: exportRecordFile },
         'Export', el('span', { class: 'long', text: ' grade sheet' }))
     );
@@ -668,7 +674,7 @@ async function renderGradeEntry(content, course, policyInfo) {
       group.append(el('option', {
         value: String(a.id),
         selected: a.id === selected.id,
-      }, `${a.name}  (out of ${a.max_points})${a.kind === 'exam' ? ' · exam' : ''}`));
+      }, `${a.name}  ·  ${a.max_points} marks${a.kind === 'exam' ? '  (exam)' : ''}`));
     }
     picker.append(group);
   }
@@ -742,7 +748,7 @@ async function renderGradeEntry(content, course, policyInfo) {
         el('b', {}, selected.name), ' works itself out from the register. ',
         'Mark the sessions on the Attendance screen. You cannot type in this column.')
     : el('div', { class: 'note' },
-        'Entering ', el('b', {}, selected.name), ` (out of ${selected.max_points}). `,
+        'Entering ', el('b', {}, selected.name), `. Each score is out of ${selected.max_points}. `,
         'Type a score on each row and press Enter to drop to the next student, just like in Excel. ',
         'A blank counts as 50. The shaded columns work themselves out.');
 
@@ -760,7 +766,7 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('th', { text: '#', class: 'ta-right' }),
       el('th', { text: 'ID' }),
       el('th', { text: 'Full name' }),
-      el('th', { class: 'th-entry', text: `${selected.name} (raw)` }),
+      el('th', { class: 'th-entry', text: `${selected.name} (of ${selected.max_points})` }),
       el('th', { class: 'ta-center', text: 'Transmuted' }),
       el('th', { class: 'ta-center col-secondary', text: 'Class standing' }),
       el('th', { class: 'ta-center col-secondary', text: `${termLabel} total` }),
@@ -1065,7 +1071,7 @@ async function renderAttendance(content, course) {
   const note = el('div', { class: 'note' },
     'Click a cell to cycle ', el('b', {}, 'P'), ' (present, full) → ', el('b', {}, 'E'),
     ' (excused, half) → ', el('b', {}, 'A'), ' (absent, zero) → blank. ',
-    `The score is points × (P + 0.5·E) ÷ sessions marked, out of ${attendanceAssessment.max_points}, `,
+    `The score is worked out of ${attendanceAssessment.max_points} marks: points × (P + half the E's) ÷ sessions marked, `,
     'then treated like any other assessment.'
   );
 
@@ -1073,8 +1079,8 @@ async function renderAttendance(content, course) {
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Full name' }),
     ...sessions.map((s) =>
-      el('th', { class: 'session' },
-        s.date,
+      el('th', { class: 'session', title: GradeDeskDates.formatDate(s.date) },
+        GradeDeskDates.formatDateShort(s.date, sessions.map((x) => x.date)),
         el('span', {
           class: 'del',
           title: 'Remove this session',
@@ -1106,7 +1112,7 @@ async function renderAttendance(content, course) {
         tabindex: '0',
         role: 'button',
         title: 'Click to change: present, excused, absent, or blank',
-        'aria-label': `${row.student.full_name}, ${session.date}`,
+        'aria-label': `${row.student.full_name}, ${GradeDeskDates.formatDate(session.date)}`,
         onclick: () => cycleMark(td, row.student.id, session.id, rawCell, transCell, attendanceAssessment, termKind),
         onkeydown: (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1171,7 +1177,7 @@ async function cycleMark(td, studentId, sessionId, rawCell, transCell, assessmen
 }
 
 async function addSession(course, term) {
-  const date = el('input', { type: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
+  const date = el('input', { type: 'date', required: true, value: GradeDeskDates.todayStored() });
   const result = await modal({
     title: 'Add attendance session',
     subtitle: 'One session for each class you hold.',
@@ -1189,7 +1195,7 @@ async function addSession(course, term) {
 async function removeSession(session) {
   const count = await api.attendance.countMarks(session.id);
   const ok = await confirmDialog({
-    title: `Remove the session on ${session.date}?`,
+    title: `Remove the session on ${GradeDeskDates.formatDate(session.date)}?`,
     subtitle: count
       ? `${count} mark${count === 1 ? '' : 's'} will be deleted, which changes attendance scores.`
       : 'You have not marked anyone for this session.',
@@ -1431,9 +1437,10 @@ async function renderRoster(content, course) {
 
   /**
    * Flip a student between "on the official roster" and "sitting in, not added
-   * yet". The second state is the addendum case: the university lets them
-   * attend and sends the paperwork later, and until then the instructor wants
-   * to be reminded every time they look at the class.
+   * yet". This is the addendum case: the instructor lets a student sit the
+   * class after a timetable clash or a late registration, and submits their
+   * name on the addendum list with the grades at the end. Until that is sent,
+   * they want reminding every time they look at the class.
    */
   async function toggleUnofficial(student, tr) {
     const now = student.unofficial ? 0 : 1;
@@ -1441,16 +1448,17 @@ async function renderRoster(content, course) {
       const why = el('input', {
         type: 'text',
         value: student.note || '',
-        placeholder: 'for example: sent by the dean, waiting on paperwork',
+        placeholder: 'for example: timetable clash, or registered late',
       });
       const result = await modal({
         title: `Mark ${student.full_name || 'this student'} as not on the roster`,
         subtitle: 'You will see a tag beside their name until you turn this off.',
         body: el('div', {},
           el('div', { class: 'note' },
-            'Use this when the university lets a student sit your class before the ',
-            'addendum list comes through. You still mark them like everyone ',
-            'else, and the tag shows on every screen and in the export.'),
+            'Use this for a student you have allowed to sit the class who is not on the ',
+            'official roster yet, after a timetable clash or a late registration. You mark ',
+            'them like everyone else, and the tag reminds you to put their name on the ',
+            'addendum list you send with your grades.'),
           el('div', { class: 'field' }, el('label', { text: 'Note (optional)' }), why)),
         confirmLabel: 'Mark as not on roster',
         onConfirm: () => ({ note: why.value.trim() }),
@@ -1864,6 +1872,11 @@ async function exportRecordFile() {
 async function exportSummaryFile() {
   const file = await guard(() => api.exports.summary(state.courseId), 'Export');
   if (file) toast('Summary exported');
+}
+
+async function exportAttendanceFile() {
+  const file = await guard(() => api.exports.attendance(state.courseId), 'Export');
+  if (file) toast('Attendance register exported');
 }
 
 

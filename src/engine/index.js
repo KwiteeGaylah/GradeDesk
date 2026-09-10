@@ -16,10 +16,12 @@ const transmutation = require('./transmutation');
 const grades = require('./grades');
 const policy = require('./policy');
 const roster = require('./roster');
+const dates = require('./dates');
 
 module.exports = {
   ...transmutation,
   ...grades,
   ...policy,
   ...roster,
+  ...dates,
 };

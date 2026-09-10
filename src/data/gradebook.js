@@ -239,9 +239,10 @@ function reviewIssues(store, courseId, tables) {
     }
   }
 
-  // Students sitting in without being on the official roster. This is the
-  // reminder the instructor asked for: it appears every time they check the
-  // course, until the addendum arrives and they clear the flag.
+  // Students sitting in without being on the official roster. The instructor
+  // submits these names on an addendum list along with their grades, so this
+  // reminder appears every time they check the course until it is sent and
+  // they clear the flag.
   const offRoster = result.students.filter((r) => r.student.unofficial);
   for (const row of offRoster) {
     const who = row.student.full_name || `Student ${row.student.number ?? row.student.id}`;
@@ -252,7 +253,7 @@ function reviewIssues(store, courseId, tables) {
       message:
         `${who} is not on the official roster yet` +
         `${row.student.note ? ` (${row.student.note})` : ''}. ` +
-        'Chase the addendum, then clear the flag on the Roster screen.',
+        'Remember to include them on your addendum list. Clear the flag on the Roster screen once they are added.',
     });
   }
 

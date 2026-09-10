@@ -22,8 +22,11 @@ const {
   strandedByPolicy,
   DEFAULT_POLICY,
   parseRosterText,
+  formatDate,
+  formatDateShort,
+  formatDateForFilename,
 } = require('./engine');
-const { exportGradeRecord, exportSummary } = require('./export/excel');
+const { exportGradeRecord, exportSummary, exportAttendance } = require('./export/excel');
 
 const TABLES_JSON = path.join(__dirname, '..', 'data', 'transmutation_tables.json');
 
@@ -270,29 +273,61 @@ function registerHandlers() {
   handle('gradebook:issues', (courseId) => reviewIssues(store, courseId, tables));
 
   // ---- export and backup ----
-  handle('export:gradeRecord', async (courseId) => {
-    const result = computeCourse(store, courseId, tables);
-    const suggested = `${(result.course.code || 'Course').replace(/[\\/:*?"<>|]/g, '-')} Grade Record.xlsx`;
+  /**
+   * A file name a person can find later: what it is, which course, and the day
+   * it was produced. "CSE 102 Sec 2 Grade Record Sept 10 2026.xlsx".
+   */
+  const exportName = (course, kind) => {
+    const safe = (t) => String(t || '').replace(/[\/:*?"<>|]/g, '-').trim();
+    const label = safe(
+      `${course.code || 'Course'}${course.section ? ` Sec ${course.section}` : ''}`
+    );
+    return `${label} ${kind} ${formatDateForFilename(todayStored())}.xlsx`;
+  };
+
+  const askWhereToSave = async (title, suggested) => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: 'Export grade record',
+      title,
       defaultPath: path.join(app.getPath('documents'), suggested),
       filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
     });
-    if (canceled || !filePath) return null;
+    return canceled ? null : filePath || null;
+  };
+
+  handle('export:gradeRecord', async (courseId) => {
+    const result = computeCourse(store, courseId, tables);
+    const filePath = await askWhereToSave(
+      'Export grade record', exportName(result.course, 'Grade Record'));
+    if (!filePath) return null;
     await exportGradeRecord(result, filePath);
     return filePath;
   });
 
   handle('export:summary', async (courseId) => {
     const result = computeCourse(store, courseId, tables);
-    const suggested = `${(result.course.code || 'Course').replace(/[\\/:*?"<>|]/g, '-')} Summary.xlsx`;
-    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-      title: 'Export summary sheet',
-      defaultPath: path.join(app.getPath('documents'), suggested),
-      filters: [{ name: 'Excel Workbook', extensions: ['xlsx'] }],
-    });
-    if (canceled || !filePath) return null;
+    const filePath = await askWhereToSave(
+      'Export summary sheet', exportName(result.course, 'Summary'));
+    if (!filePath) return null;
     await exportSummary(result, filePath);
+    return filePath;
+  });
+
+  handle('export:attendance', async (courseId) => {
+    const result = computeCourse(store, courseId, tables);
+    const { byKind } = store.getTerms(courseId);
+    const register = {};
+    for (const kind of ['midterm', 'final']) {
+      if (!byKind[kind]) continue;
+      const { sessions, byStudent } = store.getMarksForTerm(byKind[kind].id);
+      register[kind] = { sessions, marks: byStudent };
+    }
+    const any = Object.values(register).some((t) => t.sessions.length);
+    if (!any) throw new Error('There are no attendance sessions to export yet.');
+
+    const filePath = await askWhereToSave(
+      'Export attendance register', exportName(result.course, 'Attendance'));
+    if (!filePath) return null;
+    await exportAttendance(result, register, filePath);
     return filePath;
   });
 
