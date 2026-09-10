@@ -7,18 +7,18 @@
  *
  * WVSTU names are written "Surname, Given", so a comma is part of the name far
  * more often than it is a separator. Splitting on commas indiscriminately
- * turns "Allison, Elizabeth Y." into "Allison Elizabeth Y." for every pasted
+ * turns "Bestman, Comfort K." into "Bestman Comfort K." for every pasted
  * row, which is why the rules below are deliberately conservative.
  */
 
 /**
  * Parse one pasted roster line into an ID and a name.
  *
- *   "44305\tAllison, Elizabeth Y."  -> 44305 / "Allison, Elizabeth Y."
- *   "44305, Allison, Elizabeth Y."  -> 44305 / "Allison, Elizabeth Y."
- *   "Allison, Elizabeth Y."         ->       / "Allison, Elizabeth Y."
- *   "Harmon, H, Jonathan S."        ->       / "Harmon, H, Jonathan S."
- *   "Chea Catherine"                ->       / "Chea Catherine"
+ *   "10001\tBestman, Comfort K."  -> 44305 / "Bestman, Comfort K."
+ *   "44305, Bestman, Comfort K."  -> 44305 / "Bestman, Comfort K."
+ *   "Bestman, Comfort K."         ->       / "Bestman, Comfort K."
+ *   "Nagbe, S, Jonathan T."        ->       / "Nagbe, S, Jonathan T."
+ *   "Freeman Mercy"                ->       / "Freeman Mercy"
  *
  * @param {string} line
  * @returns {{studentId: string, fullName: string}}

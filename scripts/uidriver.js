@@ -44,9 +44,9 @@ async function drive(win, app) {
       a.quiz3  = await api.assessments.add(fin.id, { name: 'Quiz 3', maxPoints: 15 });
       a.project= await api.assessments.add(fin.id, { name: 'Project', maxPoints: 25 });
       const students = await api.students.addMany(course.id, [
-        { studentId: '44305', fullName: 'Allison, Elizabeth Y.' },
-        { studentId: '38901', fullName: 'Allison, Emmanuel M.' },
-        { studentId: '36095', fullName: 'Dogbeh, Princess' }
+        { studentId: '10001', fullName: 'Bestman, Comfort K.' },
+        { studentId: '10002', fullName: 'Bestman, Daniel T.' },
+        { studentId: '10007', fullName: 'Karnga, Esther' }
       ]);
       return { courseId: course.id, assessments: a, studentIds: students.map(s => s.id) };
     })()`);
@@ -191,7 +191,7 @@ async function drive(win, app) {
       return { rows, firstName: nameInput ? nameInput.value : null };
     })()`);
     check('roster shows every student as an editable row', roster.rows === 3, JSON.stringify(roster));
-    check('roster cells hold the typed names', roster.firstName === 'Allison, Elizabeth Y.', JSON.stringify(roster));
+    check('roster cells hold the typed names', roster.firstName === 'Bestman, Comfort K.', JSON.stringify(roster));
 
     // ---- config screen offers only supported maxima ----
     const config = await run(win, `(async () => {
@@ -217,7 +217,7 @@ async function drive(win, app) {
     const sorting = await run(win, `(async () => {
       const api = window.gradedesk;
       const studs = await api.students.list(state.courseId);
-      const ids = ['44305', '9812', 'TU-03265'];
+      const ids = ['10001', '10014', 'TU-90001'];
       for (let i = 0; i < studs.length && i < ids.length; i++) {
         await api.students.update(studs[i].id, { studentId: ids[i] });
       }
@@ -260,7 +260,7 @@ async function drive(win, app) {
     check('sorting by name really reorders the list',
       JSON.stringify(sorting.byName) === JSON.stringify(sortedCopy), JSON.stringify(sorting.byName));
     check('sorting by student ID puts numbers in numeric order',
-      sorting.byId.indexOf('9812') < sorting.byId.indexOf('44305'), JSON.stringify(sorting.byId));
+      sorting.byId.indexOf('10014') < sorting.byId.indexOf('10001'), JSON.stringify(sorting.byId));
     check('searching narrows the list to the match', sorting.searchCount >= 1 &&
       sorting.searchCount < sorting.roster.length, JSON.stringify(sorting));
     check('the row count says how many are showing',

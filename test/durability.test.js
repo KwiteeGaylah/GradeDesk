@@ -55,7 +55,7 @@ test('a score is durable the instant it is entered, with no clean shutdown', () 
      const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102' });
      const { byKind } = store.getTerms(course.id);
      const quiz = store.addAssessment(byKind.midterm.id, { name: 'Quiz 1', maxPoints: 15 });
-     const [s] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Allison, Elizabeth Y.' }]);
+     const [s] = store.addStudents(course.id, [{ studentId: '10001', fullName: 'Bestman, Comfort K.' }]);
      store.setScore(s.id, quiz.id, 12);
      process.kill(process.pid, 'SIGKILL');`,
     { kill: true }

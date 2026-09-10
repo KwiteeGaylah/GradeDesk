@@ -35,18 +35,18 @@ async function capture(win, app, outPath) {
       const finExam = (await api.assessments.list(fin.id)).find(a => a.kind === 'exam');
 
       const roster = [
-        ['44305','Allison, Elizabeth Y.', 10,11,15, 8,31, 10,15,23,35],
-        ['38901','Allison, Emmanuel M.',  10,10,15, 4,30, 10,15,20,25],
-        ['32474','Bioh, Alice T.',        10,10,15, 3,16, 10,15,23,28],
-        ['TU-03265','Butler, Frances E.', 10, 9,14, 8,28, 10,14,22,30],
-        ['28902','Chea, Catherine',      10,10,15,10,36, 10,15,25,38],
-        ['34785','Chea, Theophilus G.',   9, 8,13, 7,26,  9,13,20,27],
-        ['TU-03187','Cheetoh, Michael',  10,10,15, 9,33, 10,15,24,32],
-        ['TU-03446','Darkay, Traphena',  10,10,15,10,38, 10,15,25,39],
-        ['38711','Dennis, Princess',     10,10,15, 9,35, 10,15,24,36],
-        ['36095','Dogbeh, Princess',     10, 8,12, 6,null, 9,12,18,null],
-        ['TU-03213','Foko, Gabriel M.',  10,10,15,10,37, 10,15,25,37],
-        ['TU-03019','Freeman, Olando M.',10,10,15,10,39, 10,15,25,40]
+        ['10001','Bestman, Comfort K.', 10,11,15, 8,31, 10,15,23,35],
+        ['10002','Bestman, Daniel T.',  10,10,15, 4,30, 10,15,20,25],
+        ['10003','Cooper, Grace A.',        10,10,15, 3,16, 10,15,23,28],
+        ['TU-90001','Dolo, Patience M.', 10, 9,14, 8,28, 10,14,22,30],
+        ['10004','Freeman, Mercy',      10,10,15,10,36, 10,15,25,38],
+        ['34785','Freeman, Joseph G.',   9, 8,13, 7,26,  9,13,20,27],
+        ['TU-03187','Gbala, Michael',  10,10,15, 9,33, 10,15,24,32],
+        ['TU-90003','Howard, Ruth',  10,10,15,10,38, 10,15,25,39],
+        ['38711','Johnson, Deborah',     10,10,15, 9,35, 10,15,24,36],
+        ['10007','Karnga, Esther',     10, 8,12, 6,null, 9,12,18,null],
+        ['TU-03213','Kollie, Abraham M.',  10,10,15,10,37, 10,15,25,37],
+        ['TU-90005','Lomax, Peter M.',10,10,15,10,39, 10,15,25,40]
       ];
       const students = await api.students.addMany(course.id,
         roster.map(r => ({ studentId: r[0], fullName: r[1] })));

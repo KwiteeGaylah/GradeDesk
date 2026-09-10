@@ -1542,7 +1542,7 @@ async function pasteRoster(course) {
   const textarea = el('textarea', {
     rows: '10',
     class: 'paste-area',
-    placeholder: '44305\tAllison, Elizabeth Y.\n38901\tAllison, Emmanuel M.',
+    placeholder: '10001\tBestman, Comfort K.\n10002\tBestman, Daniel T.',
   });
   const result = await modal({
     title: 'Paste a class list',
@@ -2175,7 +2175,7 @@ async function runSetupWizard() {
   const paste = el('textarea', {
     rows: '8',
     class: 'paste-area',
-    placeholder: '44305\tAllison, Elizabeth Y.\n38901\tAllison, Emmanuel M.',
+    placeholder: '10001\tBestman, Comfort K.\n10002\tBestman, Daniel T.',
   });
   const rosterText = await modal({
     title: 'Step 4 of 4 · Class list',

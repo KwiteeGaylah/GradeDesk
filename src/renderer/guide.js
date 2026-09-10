@@ -80,9 +80,9 @@ const GUIDE_SECTIONS = [
       { type: 'text', text:
         'If the list already exists, use "Paste list". Put one student on each line, with ' +
         'the ID and the name separated by a tab. Names keep their commas, so ' +
-        '"Allison, Elizabeth Y." stays exactly as you wrote it.' },
+        '"Bestman, Comfort K." stays exactly as you wrote it.' },
       { type: 'example', title: 'A pasted list looks like this',
-        lines: ['44305\tAllison, Elizabeth Y.', '38901\tAllison, Emmanuel M.', 'TU-03265\tButler, Frances E.'] },
+        lines: ['10001\tBestman, Comfort K.', '10002\tBestman, Daniel T.', 'TU-90001\tDolo, Patience M.'] },
       { type: 'steps', title: 'The boxes at the top tell you', items: [
         ['How many students', 'The total in this course.'],
         ['How many are complete', 'They have both an ID and a name.'],

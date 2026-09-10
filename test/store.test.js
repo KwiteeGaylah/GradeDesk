@@ -171,13 +171,13 @@ test('roster rows keep their typed order and auto-number', () => {
   const store = newStore();
   const { course } = seedCourse(store);
   store.addStudents(course.id, [
-    { studentId: '44305', fullName: 'Allison, Elizabeth Y.' },
-    { studentId: '38901', fullName: 'Allison, Emmanuel M.' },
-    { studentId: '32474', fullName: 'Bioh, Alice T.' },
+    { studentId: '10001', fullName: 'Bestman, Comfort K.' },
+    { studentId: '10002', fullName: 'Bestman, Daniel T.' },
+    { studentId: '10003', fullName: 'Cooper, Grace A.' },
   ]);
   const roster = store.listStudents(course.id);
   assert.deepEqual(roster.map((s) => s.number), [1, 2, 3]);
-  assert.equal(roster[2].full_name, 'Bioh, Alice T.');
+  assert.equal(roster[2].full_name, 'Cooper, Grace A.');
   store.close();
 });
 
@@ -277,10 +277,10 @@ test('attendance with no sessions marked is blank and transmutes to 50', () => {
 // ------------------------------------------------------- store meets engine
 
 test('a stored course reproduces the known worked example end to end', () => {
-  // Allison, Elizabeth Y. from the real workbook: expects 90.39 and an A.
+  // Bestman, Comfort K. from the real workbook: expects 90.39 and an A.
   const store = newStore();
   const { course, a } = seedCourse(store);
-  const [s] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Allison, Elizabeth Y.' }]);
+  const [s] = store.addStudents(course.id, [{ studentId: '10001', fullName: 'Bestman, Comfort K.' }]);
 
   // Attendance is auto-computed, so mark a session to yield a raw 10.
   const { byKind } = store.getTerms(course.id);
@@ -534,7 +534,7 @@ test('empty roster rows are summarised, not reported one student at a time', () 
   // each as a student with nine missing scores buried the real issues.
   const store = newStore();
   const { course, a } = seedCourse(store);
-  const [real] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Real, Student' }]);
+  const [real] = store.addStudents(course.id, [{ studentId: '10001', fullName: 'Sample, Student' }]);
   store.addStudents(course.id, [{}, {}, {}]); // three blank rows
   store.setScore(real.id, a.midExam.id, 30);
   store.setScore(real.id, a.finExam.id, 30);
@@ -556,7 +556,7 @@ test('a row with an ID but no name is still a real student', () => {
   // Half-entered is not the same as untouched: it should still be checked.
   const store = newStore();
   const { course } = seedCourse(store);
-  store.addStudents(course.id, [{ studentId: '44305', fullName: '' }]);
+  store.addStudents(course.id, [{ studentId: '10001', fullName: '' }]);
 
   const issues = reviewIssues(store, course.id, tables);
   assert.equal(issues.filter((i) => i.kind === 'blank_roster_row').length, 0);
@@ -632,7 +632,7 @@ test('a session needs a date', () => {
 test('a student can be flagged as not on the official roster, and cleared', () => {
   const store = newStore();
   const { course } = seedCourse(store);
-  const [s] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Guest, One' }]);
+  const [s] = store.addStudents(course.id, [{ studentId: '10001', fullName: 'Guest, One' }]);
   assert.equal(store.getStudent(s.id).unofficial, 0, 'students start on the roster');
 
   store.updateStudent(s.id, { unofficial: 1, note: 'Sent by the dean' });

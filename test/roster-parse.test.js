@@ -4,8 +4,8 @@
  *
  * WVSTU names are written "Surname, Given", so a comma is part of the name far
  * more often than it is a separator. An earlier version split on tabs and
- * commas together and turned "Allison, Elizabeth Y." into
- * "Allison Elizabeth Y." for every pasted row — found by driving the real app.
+ * commas together and turned "Bestman, Comfort K." into
+ * "Bestman Comfort K." for every pasted row, found by driving the real app.
  *
  * The parser lives in src/engine/roster.js rather than in the renderer, so it
  * can be tested directly instead of only through the running application.
@@ -16,52 +16,52 @@ const assert = require('node:assert');
 const { parseRosterLine, parseRosterText } = require('../src/engine');
 
 test('a tab separates the ID from a name that contains commas', () => {
-  assert.deepEqual(parseRosterLine('44305\tAllison, Elizabeth Y.'), {
-    studentId: '44305',
-    fullName: 'Allison, Elizabeth Y.',
+  assert.deepEqual(parseRosterLine('10001\tBestman, Comfort K.'), {
+    studentId: '10001',
+    fullName: 'Bestman, Comfort K.',
   });
 });
 
 test('a non-numeric ID still works with a tab', () => {
-  assert.deepEqual(parseRosterLine('TU-03265\tButler, Frances E.'), {
-    studentId: 'TU-03265',
-    fullName: 'Butler, Frances E.',
+  assert.deepEqual(parseRosterLine('TU-90001\tDolo, Patience M.'), {
+    studentId: 'TU-90001',
+    fullName: 'Dolo, Patience M.',
   });
 });
 
 test('a name alone keeps its comma and is not treated as an ID', () => {
-  assert.deepEqual(parseRosterLine('Allison, Elizabeth Y.'), {
+  assert.deepEqual(parseRosterLine('Bestman, Comfort K.'), {
     studentId: '',
-    fullName: 'Allison, Elizabeth Y.',
+    fullName: 'Bestman, Comfort K.',
   });
 });
 
 test('a comma separates only when the head looks like an ID', () => {
-  assert.deepEqual(parseRosterLine('44305, Allison, Elizabeth Y.'), {
-    studentId: '44305',
-    fullName: 'Allison, Elizabeth Y.',
+  assert.deepEqual(parseRosterLine('10001, Bestman, Comfort K.'), {
+    studentId: '10001',
+    fullName: 'Bestman, Comfort K.',
   });
 });
 
 test('a name with two commas survives intact', () => {
   // This one is in the real workbook.
-  assert.deepEqual(parseRosterLine('Harmon, H, Jonathan S.'), {
+  assert.deepEqual(parseRosterLine('Nagbe, S, Jonathan T.'), {
     studentId: '',
-    fullName: 'Harmon, H, Jonathan S.',
+    fullName: 'Nagbe, S, Jonathan T.',
   });
 });
 
 test('a name with no separator at all is kept whole', () => {
-  assert.deepEqual(parseRosterLine('Chea Catherine'), {
+  assert.deepEqual(parseRosterLine('Freeman Mercy'), {
     studentId: '',
-    fullName: 'Chea Catherine',
+    fullName: 'Freeman Mercy',
   });
 });
 
 test('surrounding whitespace is trimmed from both parts', () => {
-  assert.deepEqual(parseRosterLine('  44305 \t  Bioh, Alice T.  '), {
-    studentId: '44305',
-    fullName: 'Bioh, Alice T.',
+  assert.deepEqual(parseRosterLine('  10001 \t  Cooper, Grace A.  '), {
+    studentId: '10001',
+    fullName: 'Cooper, Grace A.',
   });
 });
 
@@ -91,20 +91,20 @@ test('every name in the real workbook round-trips through a tab paste', async ()
 
 test('a pasted block skips blank lines and parses each row', () => {
   const block = [
-    '44305\tAllison, Elizabeth Y.',
+    '10001\tBestman, Comfort K.',
     '',
     '   ',
-    '38901\tAllison, Emmanuel M.',
+    '10002\tBestman, Daniel T.',
     '',
   ].join('\n');
   const rows = parseRosterText(block);
   assert.equal(rows.length, 2, 'blank and whitespace-only lines are skipped');
-  assert.deepEqual(rows[0], { studentId: '44305', fullName: 'Allison, Elizabeth Y.' });
-  assert.deepEqual(rows[1], { studentId: '38901', fullName: 'Allison, Emmanuel M.' });
+  assert.deepEqual(rows[0], { studentId: '10001', fullName: 'Bestman, Comfort K.' });
+  assert.deepEqual(rows[1], { studentId: '10002', fullName: 'Bestman, Daniel T.' });
 });
 
 test('a block pasted with Windows line endings parses the same', () => {
-  const rows = parseRosterText('44305\tAllison, Elizabeth Y.\r\n38901\tAllison, Emmanuel M.\r\n');
+  const rows = parseRosterText('10001\tBestman, Comfort K.\r\n10002\tBestman, Daniel T.\r\n');
   assert.equal(rows.length, 2);
-  assert.equal(rows[0].fullName, 'Allison, Elizabeth Y.');
+  assert.equal(rows[0].fullName, 'Bestman, Comfort K.');
 });
