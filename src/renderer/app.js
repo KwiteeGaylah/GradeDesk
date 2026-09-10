@@ -74,7 +74,7 @@ function toast(message, kind = '') {
 }
 
 function saved(message = 'Saved') {
-  $('saveStatus').textContent = `${message} · ${new Date().toLocaleTimeString()}`;
+  $('saveStatus').textContent = `${message} at ${new Date().toLocaleTimeString()}`;
 }
 
 async function guard(fn, context) {
@@ -280,6 +280,8 @@ function renderRail() {
     ['roster', '☰', 'Roster'],
     ['config', '⚙', 'Assessments & policy'],
   ];
+  const help = $('helpBtn');
+  if (help) help.classList.toggle('active', state.screen === 'guide');
   setChildren($('screenNav'),
     ...screens.map(([key, icon, label]) =>
       el('a', {
@@ -309,7 +311,7 @@ async function newSemester() {
   const input = el('input', { type: 'text', required: true, placeholder: 'e.g. 2027–2028 Semester 1' });
   const result = await modal({
     title: 'New semester',
-    subtitle: 'The current semester is archived, not deleted. You can switch back to it at any time.',
+    subtitle: 'Your current semester gets archived, not deleted. You can switch back any time.',
     body: el('div', { class: 'field' }, el('label', { text: 'Semester name' }), input),
     confirmLabel: 'Create and activate',
     onConfirm: () => input.value.trim() || false,
@@ -352,7 +354,7 @@ async function openManage() {
       el('div', { class: `manrow${sem.is_active ? ' current' : ''}` },
         el('div', { class: 'manname' },
           el('div', {}, sem.name),
-          el('div', { class: 'mansub', text: sem.is_active ? 'Active' : 'Archived, still readable and exportable' })),
+          el('div', { class: 'mansub', text: sem.is_active ? 'Active' : 'Archived. You can still open and export it' })),
         sem.is_active
           ? el('span', { class: 'badge', text: 'current' })
           : el('button', {
@@ -367,7 +369,7 @@ async function openManage() {
 
   await modal({
     title: 'Manage',
-    subtitle: 'Semesters, and keeping your data safe.',
+    subtitle: 'Your semesters and your backups.',
     wide: true,
     confirmLabel: 'Done',
     cancelLabel: null,
@@ -383,16 +385,16 @@ async function openManage() {
 
       el('h4', { class: 'mansec', text: 'Your data' }),
       el('div', { class: 'note' },
-        'Everything is saved on this computer as you type. A backup is a single ',
-        'file you can copy to a flash drive and carry to another machine.'),
+        'Your work is saved on this computer as you type. A backup is one ',
+        'file you can copy onto a flash drive and take to another computer.'),
       el('div', { class: 'manactions' },
-        el('button', { class: 'btn', onclick: backupNow }, 'Back up to a file'),
+        el('button', { class: 'btn', onclick: backupNow }, 'Save a backup'),
         el('button', {
           class: 'btn danger',
           onclick: async () => { setChildren($('modalRoot')); await restoreNow(); },
-        }, 'Restore from a backup…')),
+        }, 'Load a backup')),
       el('div', { class: 'hint' },
-        'Restoring replaces everything currently in GradeDesk. You will be asked to confirm.')),
+        'Restoring wipes what is here now and puts the backup in its place. We will ask you first.')),
   });
 }
 
@@ -402,9 +404,9 @@ async function switchSemester(id) {
   if (!target || target.is_active) return;
   const ok = await confirmDialog({
     title: `Switch to ${target.name}?`,
-    subtitle: 'This makes it the active semester and archives the current one.',
+    subtitle: 'This one becomes current, and the one you are in now gets archived.',
     body: el('div', { class: 'note' },
-      'Archived semesters stay fully readable and exportable. You can switch back at any time.'),
+      'You can still open and export an archived semester, and switch back whenever you like.'),
     confirmLabel: 'Switch semester',
     danger: false,
   });
@@ -495,13 +497,32 @@ async function renderScreen() {
   const actions = $('topActions');
   setChildren(actions);
 
+  // The guide is a page in its own right, not tied to a course or a semester,
+  // so it is handled before any of the "nothing selected" states.
+  if (state.screen === 'guide') {
+    $('crumbs').textContent = 'Help';
+    $('screenTitle').textContent = 'How to use GradeDesk';
+    actions.append(
+      el('button', {
+        class: 'btn',
+        onclick: async () => {
+          state.screen = 'grades';
+          renderRail();
+          await renderScreen();
+        },
+      }, 'Back to my course')
+    );
+    renderGuideScreen(content);
+    return;
+  }
+
   if (!state.activeSemester) {
     $('crumbs').textContent = '';
     $('screenTitle').textContent = 'Welcome';
     setChildren(content, emptyState({
       icon: '◷',
       title: 'No semester yet',
-      text: 'Create a semester to begin. Everything you enter is saved on this computer.',
+      text: 'Start by creating a semester. Everything you type is saved on this computer.',
       actionLabel: 'New semester',
       onAction: newSemester,
     }));
@@ -514,7 +535,7 @@ async function renderScreen() {
     setChildren(content, emptyState({
       icon: '▤',
       title: 'No courses in this semester',
-      text: 'Create your first course, then add its assessments and type in the class list.',
+      text: 'Make your first course, then add its assessments and type in your class list.',
       actionLabel: 'New course',
       onAction: newCourse,
     }));
@@ -546,7 +567,7 @@ async function renderScreen() {
     const errorCount = issues.filter((i) => i.severity !== 'info').length;
     const reviewBtn = el('button', {
       class: 'btn',
-      title: 'Review issues before exporting',
+      title: 'Things to check before you export',
       // Fetch fresh on click rather than reusing the list captured at render
       // time: scores change constantly between renders, and a stale review that
       // omits a real problem is worse than no review at all.
@@ -600,7 +621,7 @@ async function renderGradeEntry(content, course, policyInfo) {
     setChildren(content, emptyState({
       icon: '⚙',
       title: 'No assessments yet',
-      text: 'Add the quizzes, assignments and attendance this course uses. Each term also has a fixed 40-point exam.',
+      text: 'Add the quizzes, assignments and attendance you use. Each term already has its exam, fixed at 40 points.',
       actionLabel: 'Set up assessments',
       onAction: async () => { state.screen = 'config'; renderRail(); await renderScreen(); },
     }));
@@ -612,7 +633,7 @@ async function renderGradeEntry(content, course, policyInfo) {
     setChildren(content, emptyState({
       icon: '☰',
       title: 'No students yet',
-      text: 'Type the class list into the roster, then come back here to enter scores down the column.',
+      text: 'Type your class list in the Roster screen, then come back here to enter scores.',
       actionLabel: 'Go to roster',
       onAction: async () => { state.screen = 'roster'; renderRail(); await renderScreen(); },
     }));
@@ -718,18 +739,18 @@ async function renderGradeEntry(content, course, policyInfo) {
   const isAttendance = selected.kind === 'attendance';
   const note = isAttendance
     ? el('div', { class: 'note' },
-        el('b', {}, selected.name), ' is scored automatically from session marks. ',
-        'Open the Attendance screen to mark sessions; the raw score here is read-only.')
+        el('b', {}, selected.name), ' works itself out from the register. ',
+        'Mark the sessions on the Attendance screen. You cannot type in this column.')
     : el('div', { class: 'note' },
         'Entering ', el('b', {}, selected.name), ` (out of ${selected.max_points}). `,
-        'Type a score on each row and press Enter to drop down, exactly like an Excel column. ',
-        'Leave a cell blank to count it as 50. The grey columns are computed automatically.');
+        'Type a score on each row and press Enter to drop to the next student, just like in Excel. ',
+        'A blank counts as 50. The shaded columns work themselves out.');
 
   const policyWarn = policyInfo && policyInfo.confidence !== 'grade-verified'
     ? el('div', { class: 'note warn' },
         el('b', {}, `${policyInfo.label} policy: `),
-        'transcribed from the university source and structurally checked, but not cross-checked ',
-        'against a completed grade sheet. Spot-check a few results before submitting.')
+        'copied from the university tables and checked over, but not yet tried ',
+        'against a finished grade sheet. Check a few results yourself before you submit.')
     : null;
 
   // ---- table ----
@@ -814,7 +835,7 @@ async function renderGradeEntry(content, course, policyInfo) {
           committed: showRaw(cell.raw),
         },
         readonly: isAtt,
-        title: isAtt ? 'Computed from attendance sessions' : '',
+        title: isAtt ? 'Worked out from the register' : '',
         'aria-label': `${selected.name} for ${row.student.full_name}`,
       });
       if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
@@ -829,7 +850,16 @@ async function renderGradeEntry(content, course, policyInfo) {
       return el('tr', {},
         el('td', { class: 'idx', text: row.student.number ?? index + 1 }),
         el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
-        el('td', { class: 'name cellpad', title: row.student.full_name || '', text: row.student.full_name || '' }),
+        el('td', {
+          class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
+          title: row.student.unofficial
+            ? `Not on the official roster${row.student.note ? `: ${row.student.note}` : ''}`
+            : row.student.full_name || '',
+        },
+          row.student.full_name || '',
+          row.student.unofficial
+            ? el('span', { class: 'offroster', title: 'Not on the official list yet' }, 'not on list')
+            : null),
         el('td', { class: 'entry' }, input),
         el('td', { class: 'read', text: show(cell.transmuted, 0) }),
         el('td', { class: 'read col-secondary', text: show(term.classStanding) }),
@@ -866,10 +896,10 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
       el('span', {}, el('span', { class: 'k k-read' }), `Transmuted (${course.policy}% table)`),
       el('span', {}, el('span', { class: 'k k-total' }), 'Running totals'),
-      el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, no rounding'),
+      el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, never rounded up'),
       // Shown only when the running-total columns have been dropped, so the
       // instructor knows they are hidden rather than missing.
-      el('span', { class: 'narrow-only' }, 'Widen the window to see class standing and term totals')
+      el('span', { class: 'narrow-only' }, 'Make the window wider to see class standing and term totals')
     )
   );
 }
@@ -1002,8 +1032,8 @@ async function renderAttendance(content, course) {
   if (!attendanceAssessment) {
     setChildren(content, termSwitch, emptyState({
       icon: '◷',
-      title: 'No attendance assessment in this term',
-      text: 'Add an assessment of kind "attendance" so session marks have somewhere to land.',
+      title: 'No attendance set up for this term',
+      text: 'Add an attendance assessment so the marks you take have somewhere to go.',
       actionLabel: 'Set up assessments',
       onAction: async () => { state.screen = 'config'; renderRail(); await renderScreen(); },
     }));
@@ -1014,7 +1044,7 @@ async function renderAttendance(content, course) {
     setChildren(content, termSwitch, emptyState({
       icon: '☰',
       title: 'No students yet',
-      text: 'Type the class list into the roster first.',
+      text: 'Type your class list in the Roster screen first.',
       actionLabel: 'Go to roster',
       onAction: async () => { state.screen = 'roster'; renderRail(); await renderScreen(); },
     }));
@@ -1025,7 +1055,7 @@ async function renderAttendance(content, course) {
     setChildren(content, termSwitch, emptyState({
       icon: '◷',
       title: 'No sessions yet',
-      text: 'Add a session for each class meeting, then mark the whole class across it.',
+      text: 'Add a session for each class you hold, then mark the whole class down the column.',
       actionLabel: '＋ Add session',
       onAction: () => addSession(course, term),
     }));
@@ -1036,7 +1066,7 @@ async function renderAttendance(content, course) {
     'Click a cell to cycle ', el('b', {}, 'P'), ' (present, full) → ', el('b', {}, 'E'),
     ' (excused, half) → ', el('b', {}, 'A'), ' (absent, zero) → blank. ',
     `The score is points × (P + 0.5·E) ÷ sessions marked, out of ${attendanceAssessment.max_points}, `,
-    'then transmuted like any other assessment.'
+    'then treated like any other assessment.'
   );
 
   const thead = el('thead', {}, el('tr', {},
@@ -1087,7 +1117,16 @@ async function renderAttendance(content, course) {
 
     tbody.append(el('tr', {},
       el('td', { class: 'idx', text: row.student.number ?? i + 1 }),
-      el('td', { class: 'name cellpad', text: row.student.full_name }),
+      el('td', {
+        class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
+        title: row.student.unofficial
+          ? `Not on the official roster${row.student.note ? `: ${row.student.note}` : ''}`
+          : row.student.full_name,
+      },
+        row.student.full_name,
+        row.student.unofficial
+          ? el('span', { class: 'offroster', title: 'Not on the official list yet' }, 'not on list')
+          : null),
       ...cells,
       rawCell,
       transCell
@@ -1099,7 +1138,7 @@ async function renderAttendance(content, course) {
     note,
     el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
     el('div', { class: 'hint' },
-      'The denominator counts sessions actually marked, not the whole semester, so attendance is fair at any point in the term.')
+      'It divides by the sessions you have actually marked, not the whole term, so the score is fair even halfway through.')
   );
 }
 
@@ -1130,7 +1169,7 @@ async function addSession(course, term) {
   const date = el('input', { type: 'date', required: true, value: new Date().toISOString().slice(0, 10) });
   const result = await modal({
     title: 'Add attendance session',
-    subtitle: 'One session per class meeting.',
+    subtitle: 'One session for each class you hold.',
     body: el('div', { class: 'field' }, el('label', { text: 'Date' }), date),
     confirmLabel: 'Add session',
     onConfirm: () => date.value || false,
@@ -1148,9 +1187,9 @@ async function removeSession(session) {
     title: `Remove the session on ${session.date}?`,
     subtitle: count
       ? `${count} mark${count === 1 ? '' : 's'} will be deleted, which changes attendance scores.`
-      : 'This session has no marks yet.',
+      : 'You have not marked anyone for this session.',
     body: el('div', { class: 'note warn' },
-      'Attendance is divided by the number of sessions marked, so removing a session changes every student’s attendance score.'),
+      'Attendance is divided by the sessions you have marked, so taking one away changes everyone’s score.'),
     confirmLabel: 'Remove session',
   });
   if (!ok) return;
@@ -1174,7 +1213,7 @@ async function renderRoster(content, course) {
     setChildren(content, emptyState({
       icon: '☰',
       title: 'The class list is empty',
-      text: 'Add rows and type each student’s ID and full name, or paste a list you already have.',
+      text: 'Add some rows and type each student’s ID and name, or paste a list you already have.',
       actionLabel: '＋ Add rows',
       onAction: () => addRosterRows(course, 10),
     }));
@@ -1189,6 +1228,7 @@ async function renderRoster(content, course) {
     (s) => String(s.full_name || '').trim() && !String(s.student_id || '').trim()
   ).length;
   const complete = students.length - blanks - missingId;
+  const offRoster = students.filter((s) => s.unofficial).length;
 
   const summary = el('div', { class: 'kpis' },
     el('div', { class: 'kpi' },
@@ -1206,6 +1246,14 @@ async function renderRoster(content, course) {
       ? el('div', { class: 'kpi warn' },
           el('div', { class: 'v', text: String(blanks) }),
           el('div', { class: 'l', text: blanks === 1 ? 'Empty row' : 'Empty rows' }))
+      : null,
+    offRoster
+      ? el('div', {
+          class: 'kpi flagged',
+          title: 'Sitting in your class but not on the official list yet',
+        },
+          el('div', { class: 'v', text: String(offRoster) }),
+          el('div', { class: 'l', text: 'Not on roster' }))
       : null
   );
 
@@ -1245,7 +1293,7 @@ async function renderRoster(content, course) {
     el('div', { class: 'pickgroup' },
       el('button', {
         class: 'btn small',
-        title: 'Renumber students 1..n in the order shown',
+        title: 'Number the students 1, 2, 3 in the order shown',
         onclick: () => renumberRoster(course),
       }, 'Renumber')),
     el('div', { class: 'spacer' }),
@@ -1253,14 +1301,15 @@ async function renderRoster(content, course) {
   );
 
   const note = el('div', { class: 'note' },
-    'Type the class list like a spreadsheet. Enter or Tab moves to the next cell, and a new ',
-    'row appears when you fill the last one. Changes save as you type.'
+    'Type your class list like a spreadsheet. Enter or Tab moves along, and a new ',
+    'row appears once you fill the last one. Everything saves as you type.'
   );
 
   const thead = el('thead', {}, el('tr', {},
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Student ID', class: 'w-id' }),
     el('th', { text: 'Full name', class: 'namecol' }),
+    el('th', { text: 'On list?', class: 'w-status ta-center' }),
     el('th', { text: '', class: 'w-action' })
   ));
 
@@ -1346,6 +1395,14 @@ async function renderRoster(content, course) {
       el('td', { class: 'idx', text: student.number ?? index + 1 }),
       el('td', { class: 'entry w-id' }, idInput),
       el('td', { class: 'entry w-auto' }, nameInput),
+      el('td', { class: 'w-status ta-center' },
+        el('button', {
+          class: `statustoggle${student.unofficial ? ' off' : ''}`,
+          title: student.unofficial
+            ? 'Sitting in but not on the official list. Click once they are added.'
+            : 'On the official list. Click if they are not on it yet.',
+          onclick: () => toggleUnofficial(student, tr),
+        }, student.unofficial ? 'Not yet' : 'Yes')),
       el('td', { class: 'ta-center' },
         el('button', {
           class: 'btn rowdel',
@@ -1364,12 +1421,54 @@ async function renderRoster(content, course) {
     const hasId = !!String(student.student_id || '').trim();
     tr.classList.toggle('rowblank', !hasName && !hasId);
     tr.classList.toggle('rowpartial', hasName !== hasId);
+    tr.classList.toggle('rowunofficial', !!student.unofficial);
+  }
+
+  /**
+   * Flip a student between "on the official roster" and "sitting in, not added
+   * yet". The second state is the addendum case: the university lets them
+   * attend and sends the paperwork later, and until then the instructor wants
+   * to be reminded every time they look at the class.
+   */
+  async function toggleUnofficial(student, tr) {
+    const now = student.unofficial ? 0 : 1;
+    if (now) {
+      const why = el('input', {
+        type: 'text',
+        value: student.note || '',
+        placeholder: 'for example: sent by the dean, waiting on paperwork',
+      });
+      const result = await modal({
+        title: `Mark ${student.full_name || 'this student'} as not on the roster`,
+        subtitle: 'You will see a tag beside their name until you turn this off.',
+        body: el('div', {},
+          el('div', { class: 'note' },
+            'Use this when the university lets a student sit your class before the ',
+            'addendum list comes through. You still mark them like everyone ',
+            'else, and the tag shows on every screen and in the export.'),
+          el('div', { class: 'field' }, el('label', { text: 'Note (optional)' }), why)),
+        confirmLabel: 'Mark as not on list',
+        onConfirm: () => ({ note: why.value.trim() }),
+      });
+      if (!result) return;
+      await guard(() => api.students.update(student.id, { unofficial: 1, note: result.note }), 'Saving');
+      student.unofficial = 1;
+      student.note = result.note;
+      toast(`${student.full_name || 'Student'} flagged as not on the roster`);
+    } else {
+      await guard(() => api.students.update(student.id, { unofficial: 0 }), 'Saving');
+      student.unofficial = 0;
+      toast(`${student.full_name || 'Student'} is now on the official roster`);
+    }
+    saved();
+    await refreshComputed();
+    await renderScreen();
   }
 
   renderRosterRows();
 
   setChildren(content, summary, bar, note,
-    el('div', { class: 'gridcard rostercard' }, el('table', { class: 'rostertable' }, thead, tbody)));
+    el('div', { class: 'gridcard' }, el('table', { class: 'rostertable' }, thead, tbody)));
 }
 
 /** Renumber students 1..n in their current stored order. */
@@ -1379,7 +1478,7 @@ async function renumberRoster(course) {
     title: 'Renumber the class list?',
     subtitle: `Students will be numbered 1 to ${students.length} in roster order.`,
     body: el('div', { class: 'hint' },
-      'The number is only a label on the grade sheet. Scores and grades are unaffected.'),
+      'The number is only a label on the grade sheet. No scores or grades change.'),
     confirmLabel: 'Renumber',
     danger: false,
   });
@@ -1434,7 +1533,7 @@ async function pasteRoster(course) {
   });
   const result = await modal({
     title: 'Paste a class list',
-    subtitle: 'One student per line. ID and name separated by a tab or comma, or just names.',
+    subtitle: 'One student per line. Put the ID and the name on the same line with a tab between them.',
     body: el('div', {}, textarea),
     confirmLabel: 'Add students',
     wide: true,
@@ -1456,7 +1555,7 @@ async function pasteRoster(course) {
 async function removeStudent(student) {
   const ok = await confirmDialog({
     title: `Remove ${student.full_name || 'this student'}?`,
-    subtitle: 'Their scores and attendance marks are deleted with them.',
+    subtitle: 'Their scores and attendance go with them.',
     confirmLabel: 'Remove student',
   });
   if (!ok) return;
@@ -1491,7 +1590,7 @@ async function renderConfig(content, course) {
 
   const courseFields = el('div', { class: 'panel mb-16' },
     el('h3', { text: 'Course' }),
-    el('div', { class: 'sub', text: 'These details appear on the exported grade sheet.' }),
+    el('div', { class: 'sub', text: 'These show at the top of your exported grade sheet.' }),
     el('div', { class: 'fieldrow' },
       field('Course code', course.code, (v) => updateCourseField(course, 'code', v)),
       field('Section', course.section, (v) => updateCourseField(course, 'section', v))),
@@ -1506,7 +1605,7 @@ async function renderConfig(content, course) {
 
   const note = el('div', { class: 'note' },
     'Class standing is the ', el('b', {}, 'equal-weight average'), ' of the assessments below × 0.6. ',
-    'Add or remove freely, no reweighting is ever needed. ',
+    'Add or remove as you like. You never have to redo the weights. ',
     `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`
   );
 
@@ -1585,7 +1684,7 @@ function termPanel(kind, title, course, maximums) {
 
   return el('div', { class: 'panel' },
     el('h3', { text: title }),
-    el('div', { class: 'sub', text: 'Class standing (averaged equally) + one exam at 40%' }),
+    el('div', { class: 'sub', text: 'Everything averaged equally, plus one exam worth 40%' }),
     ...rows,
     exam
       ? el('div', { class: 'arow' },
@@ -1615,7 +1714,7 @@ async function addAssessment(term, kind, course, isAttendance = false) {
   const result = await modal({
     title: isAttendance ? 'Add attendance' : 'Add assessment',
     subtitle: isAttendance
-      ? 'Its raw score is computed from session marks, then transmuted like any other assessment.'
+      ? 'Its score works itself out from the register, then counts like any other assessment.'
       : `Added to the ${kind === 'midterm' ? 'midterm' : 'final'} term and averaged equally with the others.`,
     body: el('div', {},
       el('div', { class: 'field' }, el('label', { text: 'Name' }), name),
@@ -1644,9 +1743,9 @@ async function removeAssessment(assessment) {
     title: `Remove ${assessment.name}?`,
     subtitle: count
       ? `${count} entered score${count === 1 ? '' : 's'} will be deleted.`
-      : 'This assessment has no scores yet.',
+      : 'You have not entered any scores for this yet.',
     body: el('div', { class: 'note warn' },
-      'Class standing is an average, so removing an assessment changes every student’s grade in this term.'),
+      'Class standing is an average, so taking one away changes everyone’s grade for this term.'),
     confirmLabel: 'Remove assessment',
   });
   if (!ok) return;
@@ -1666,7 +1765,7 @@ async function changePolicy(course, newPolicy, selectEl) {
   const info = state.policies.find((p) => p.policy === String(newPolicy));
   const ok = await confirmDialog({
     title: `Switch this course to the ${newPolicy}% table?`,
-    subtitle: 'Every grade in the course is recomputed with the new lookup values.',
+    subtitle: 'Every grade in the course is worked out again with the new tables.',
     body: el('div', {},
       stranded.length
         ? el('div', { class: 'note warn' },
@@ -1677,7 +1776,7 @@ async function changePolicy(course, newPolicy, selectEl) {
       info && info.confidence !== 'grade-verified'
         ? el('div', { class: 'note warn' }, info.note)
         : null,
-      el('div', { class: 'hint' }, 'You can switch back at any time; no scores are lost.')),
+      el('div', { class: 'hint' }, 'You can switch back whenever you like. Nothing is lost.')),
     confirmLabel: 'Switch policy',
     danger: stranded.length > 0,
   });
@@ -1736,13 +1835,13 @@ function showIssues(issues) {
           el('div', { class: 'issue' },
             el('span', { class: `sev ${i.severity}`, text: i.severity }),
             el('span', {}, i.message))))
-    : el('div', { class: 'note' }, 'No issues found. Every student has a computable grade.');
+    : el('div', { class: 'note' }, 'Nothing to fix. Every student has a grade.');
 
   modal({
     title: 'Review issues',
     subtitle: issues.length
       ? `${issues.length} thing${issues.length === 1 ? '' : 's'} to check before exporting.`
-      : 'Checked every student in this course.',
+      : 'We looked at every student in this course.',
     body,
     confirmLabel: 'Close',
     // A review only dismisses, so a second dismissing button would be noise.
@@ -1766,56 +1865,119 @@ async function exportSummaryFile() {
 // ---------------------------------------------------------------- guide
 
 /**
- * The guide: a contents list on the left, the chosen section on the right.
- * Content lives in guide.js so it can be edited without touching rendering.
+ * The guide, rendered as a full screen rather than a dialog.
+ *
+ * It reads like a page: a contents list that sticks to the side, headings you
+ * can scroll through, and enough width for the text to breathe. A cramped
+ * modal was the wrong shape for something you read rather than answer.
  */
-function openGuide(startId = 'start') {
+function renderGuideScreen(content) {
   const sections = window.GradeDeskGuide.GUIDE_SECTIONS;
-  let currentId = startId;
 
-  const nav = el('div', { class: 'guidenav' });
-  const pane = el('div', { class: 'guidepane' });
+  const article = el('article', { class: 'guidedoc' });
+  const toc = el('nav', { class: 'guidetoc', 'aria-label': 'Guide contents' },
+    el('div', { class: 'tochead', text: 'On this page' }),
+    ...sections.map((s) =>
+      el('button', {
+        type: 'button',
+        class: 'tocitem',
+        dataset: { target: s.id },
+        onclick: () => {
+          const target = document.getElementById(`guide-${s.id}`);
+          if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        },
+      }, s.title))
+  );
 
-  const renderSection = () => {
-    const s = sections.find((x) => x.id === currentId) || sections[0];
-    setChildren(nav,
-      ...sections.map((x) =>
-        el('button', {
-          type: 'button',
-          class: `guidelink${x.id === s.id ? ' active' : ''}`,
-          onclick: () => { currentId = x.id; renderSection(); },
-        }, x.title))
-    );
-    setChildren(pane,
-      el('h4', { class: 'guidetitle', text: s.title }),
-      ...s.body.map((p) => el('p', { class: 'guidep', text: p })),
-      s.steps
-        ? el('div', { class: 'guidesteps' },
-            ...s.steps.map(([k, v]) =>
-              el('div', { class: 'guidestep' }, el('b', { text: k }), el('span', { text: v }))))
-        : null,
-      s.formula
-        ? el('div', { class: 'guideformula' },
-            ...s.formula.map(([k, v]) =>
-              el('div', { class: 'formularow' },
-                el('span', { class: 'fname', text: k }),
-                el('span', { class: 'fbody', text: v }))))
-        : null,
-      s.note ? el('div', { class: 'note', text: s.note }) : null
-    );
-    pane.scrollTop = 0;
+  const block = (b) => {
+    if (b.type === 'text') return el('p', { class: 'gp', text: b.text });
+    if (b.type === 'tip') {
+      return el('div', { class: 'gcallout tip' },
+        el('span', { class: 'gclabel', text: 'Worth knowing' }),
+        el('span', { text: b.text }));
+    }
+    if (b.type === 'warn') {
+      return el('div', { class: 'gcallout warn' },
+        el('span', { class: 'gclabel', text: 'Careful' }),
+        el('span', { text: b.text }));
+    }
+    if (b.type === 'steps') {
+      return el('div', { class: 'gblock' },
+        b.title ? el('h4', { class: 'gsub', text: b.title }) : null,
+        el('div', { class: 'glist' },
+          ...b.items.map(([k, v]) =>
+            el('div', { class: 'glistrow' },
+              el('span', { class: 'gk', text: k }),
+              el('span', { class: 'gv', text: v })))));
+    }
+    if (b.type === 'keys') {
+      return el('div', { class: 'gblock' },
+        b.title ? el('h4', { class: 'gsub', text: b.title }) : null,
+        el('div', { class: 'gkeys' },
+          ...b.items.map(([k, v]) =>
+            el('div', { class: 'gkeyrow' },
+              el('kbd', { class: 'gkbd', text: k }),
+              el('span', { class: 'gv', text: v })))));
+    }
+    if (b.type === 'formula') {
+      return el('div', { class: 'gblock' },
+        b.title ? el('h4', { class: 'gsub', text: b.title }) : null,
+        el('div', { class: 'gformula' },
+          ...b.rows.map(([k, v]) =>
+            el('div', { class: 'gformularow' },
+              el('span', { class: 'gfname', text: k }),
+              el('span', { class: 'gfbody', text: v })))));
+    }
+    if (b.type === 'example') {
+      return el('div', { class: 'gblock' },
+        b.title ? el('h4', { class: 'gsub', text: b.title }) : null,
+        el('pre', { class: 'gexample', text: b.lines.join('\n') }));
+    }
+    return null;
   };
-  renderSection();
 
-  return modal({
-    title: 'GradeDesk guide',
-    subtitle: 'How to run a course, from setup to submitted grade sheet.',
-    body: el('div', { class: 'guidewrap' }, nav, pane),
-    confirmLabel: 'Close',
-    cancelLabel: null,
-    wide: true,
-    onConfirm: () => true,
-  });
+  for (const s of sections) {
+    article.append(
+      el('section', { class: 'gsection', id: `guide-${s.id}` },
+        el('h3', { class: 'gtitle', text: s.title }),
+        s.lead ? el('p', { class: 'glead', text: s.lead }) : null,
+        ...s.blocks.map(block).filter(Boolean))
+    );
+  }
+
+  article.append(
+    el('section', { class: 'gsection' },
+      el('h3', { class: 'gtitle', text: 'Run the setup wizard again' }),
+      el('p', { class: 'glead', text:
+        'It sets up a semester, a course, its assessments and a class list with you.' }),
+      el('button', { class: 'btn primary', onclick: () => runSetupWizard() }, 'Start setup'))
+  );
+
+  const scroller = el('div', { class: 'guidescroll' }, article);
+
+  // Highlight the section you are reading as you scroll.
+  const markCurrent = () => {
+    const top = scroller.getBoundingClientRect().top;
+    let current = sections[0] && sections[0].id;
+    for (const s of sections) {
+      const node = document.getElementById(`guide-${s.id}`);
+      if (node && node.getBoundingClientRect().top - top <= 90) current = s.id;
+    }
+    toc.querySelectorAll('.tocitem').forEach((b) => {
+      b.classList.toggle('active', b.dataset.target === current);
+    });
+  };
+  scroller.addEventListener('scroll', markCurrent);
+
+  setChildren(content, el('div', { class: 'guidepage' }, toc, scroller));
+  markCurrent();
+}
+
+/** Open the guide as a screen. */
+function openGuide() {
+  state.screen = 'guide';
+  renderRail();
+  return renderScreen();
 }
 
 // ------------------------------------------------------- first-run wizard
@@ -1849,23 +2011,23 @@ function setupAlreadySeen() {
 async function runSetupWizard() {
   const intro = await modal({
     title: 'Welcome to GradeDesk',
-    subtitle: 'Four short steps and you can start entering scores.',
+    subtitle: 'Four quick steps and you can start marking.',
     body: el('div', {},
       el('div', { class: 'wizhero' },
         el('div', { class: 'wizmark', text: '✓' }),
         el('div', {},
           el('p', { class: 'guidep' },
-            'GradeDesk turns raw scores into your WVSTU grade record. You type marks ' +
-            'across the class list; it handles the transmutation, the averaging and the ' +
-            'letter grades, then exports the sheet you submit.'),
+            'GradeDesk turns your marks into the WVSTU grade record. You type the scores ' +
+            'across your class list, and it does the lookups, the averages and the ' +
+            'letter grades, then gives you the sheet to hand in.'),
           el('p', { class: 'guidep' },
-            'Everything stays on this computer and is saved as you type. No internet ' +
-            'connection is needed at any point.'))),
+            'It all stays on this computer and saves as you type. You do not need ' +
+            'an internet connection at any point.'))),
       el('div', { class: 'guidesteps' },
         el('div', { class: 'guidestep' }, el('b', { text: '1. Semester' }),
           el('span', { text: 'Name the term you are teaching.' })),
         el('div', { class: 'guidestep' }, el('b', { text: '2. Course' }),
-          el('span', { text: 'Code, section and grading policy.' })),
+          el('span', { text: 'Code, section and which table you use.' })),
         el('div', { class: 'guidestep' }, el('b', { text: '3. Assessments' }),
           el('span', { text: 'Quizzes, assignments, attendance.' })),
         el('div', { class: 'guidestep' }, el('b', { text: '4. Class list' }),
@@ -1889,7 +2051,7 @@ async function runSetupWizard() {
     const rename = el('input', { type: 'text', value: semester.name });
     const ok = await modal({
       title: 'Step 1 of 4 · Semester',
-      subtitle: 'Which term are you teaching? You can rename it later.',
+      subtitle: 'Which term are you teaching? You can change this later.',
       body: el('div', { class: 'field' }, el('label', { text: 'Semester name' }), rename),
       confirmLabel: 'Next',
       cancelLabel: 'Skip setup',
@@ -1925,7 +2087,7 @@ async function runSetupWizard() {
       el('div', { class: 'field' }, el('label', { text: 'Instructor' }), instructor),
       el('div', { class: 'field' }, el('label', { text: 'Transmutation policy' }), policy),
       el('div', { class: 'hint' },
-        'Most WVSTU courses use the 70% table. The policy applies to the whole course.')),
+        'Most WVSTU courses use the 70% table. It applies to the whole course.')),
     confirmLabel: 'Next',
     cancelLabel: 'Skip setup',
     onConfirm: () => (code.value.trim()
@@ -1956,12 +2118,12 @@ async function runSetupWizard() {
 
   const chosen = await modal({
     title: 'Step 3 of 4 · Assessments',
-    subtitle: 'A starting set for both terms. Add, rename or remove any of them afterwards.',
+    subtitle: 'A set to start you off, in both terms. Change any of them afterwards.',
     body: el('div', {},
       el('div', { class: 'field' }, el('label', { text: 'Start with' }), preset),
       el('div', { class: 'note' },
-        'Each term already has its exam, fixed at 40 points. Everything else is averaged ',
-        'together with equal weight, so adding or removing one never needs reweighting.')),
+        'Each term already has its exam, fixed at 40 points. The rest are averaged ',
+        'together equally, so adding or removing one never means redoing weights.')),
     confirmLabel: 'Next',
     cancelLabel: 'Skip setup',
     onConfirm: () => preset.value,
@@ -1999,11 +2161,11 @@ async function runSetupWizard() {
   });
   const rosterText = await modal({
     title: 'Step 4 of 4 · Class list',
-    subtitle: 'Paste your students now, or leave this empty and type them in the Roster screen.',
+    subtitle: 'Paste your students now, or skip this and type them in later.',
     body: el('div', {},
       paste,
       el('div', { class: 'hint' },
-        'One student per line, with the ID and the name separated by a tab. ' +
+        'One student per line, with a tab between the ID and the name. ' +
         'Names keep their commas.')),
     confirmLabel: 'Finish',
     cancelLabel: 'Skip this step',
@@ -2031,11 +2193,11 @@ async function runSetupWizard() {
     subtitle: `${course.code} is ready.`,
     body: el('div', {},
       el('p', { class: 'guidep' },
-        'Pick an assessment from the dropdown and type scores straight down the column. ' +
-        'Press Enter to drop to the next student.'),
+        'Pick an assessment from the list at the top and type scores down the column. ' +
+        'Press Enter to move to the next student.'),
       el('p', { class: 'guidep' },
-        'The full guide is always available from the Guide button at the bottom of the ' +
-        'left rail.')),
+        'The guide is always there under the Guide button at the bottom of the ' +
+        'left panel.')),
     confirmLabel: 'Start entering scores',
     cancelLabel: null,
     onConfirm: () => true,

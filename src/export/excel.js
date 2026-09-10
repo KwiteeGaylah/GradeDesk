@@ -30,13 +30,21 @@ const BORDER_LIGHT = { top: HAIR, left: HAIR, bottom: HAIR, right: HAIR };
 
 const fill = (argb) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 
-const FILL_HEADER = fill('FF20293A');       // dark header band, white text
-const FILL_TRANSMUTED = fill('FFF7F9FC');
-const FILL_TOTAL = fill('FFEDF1F7');
-const FILL_MIDTERM = fill('FFE7F1EB');
-const FILL_FINALTERM = fill('FFFBF1E2');
-const FILL_BAND = fill('FFFAFBFD');         // every other student row
-const FILL_FINALCOL = fill('FFEFF4F0');     // the final grade column
+/*
+ * The palette follows the instructor's own workbook, so the exported sheet
+ * looks like the one they already submit:
+ *   blue banner across each term, a percentage weight row under it,
+ *   orange for every transmuted column, green for class standing and totals,
+ *   pink for the exam column.
+ */
+const FILL_HEADER = fill('FFFFFFFF');       // header cells are white with a rule
+const FILL_TERMBAND = fill('FF2F75B5');     // the blue "Mid-Term" / "Final-Term" bar
+const FILL_TRANSMUTED = fill('FFFFC000');   // orange, as in the workbook
+const FILL_STANDING = fill('FFC6EFCE');     // green: class standing and totals
+const FILL_EXAM = fill('FFFFC7CE');         // pink: the exam column
+const FILL_WEIGHT = fill('FFFFFFFF');
+const FILL_BAND = fill('FFF2F2F2');         // every other student row
+const FILL_FLAGGED = fill('FFFFF2CC');      // a student not on the official roster
 const FILL_TITLE = fill('FF2F6D4F');        // brand green title bar
 
 /** Letter grades are tinted the same way they are on screen. */
@@ -73,7 +81,7 @@ function courseLabel(course, separator = ' Sec. ') {
 }
 
 function styleHeaderCell(cell) {
-  cell.font = { bold: true, size: 10, color: { argb: 'FFFFFFFF' } };
+  cell.font = { bold: true, size: 10, color: { argb: 'FF1B2230' } };
   cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
   cell.fill = FILL_HEADER;
   cell.border = { top: THIN, left: THIN, bottom: MEDIUM, right: THIN };
@@ -169,41 +177,68 @@ function buildGradeRecord(workbook, result) {
   ws.getRow(2).height = 18;
   ws.getRow(3).height = 18;
 
-  // --- term banner ---
+  // --- term banner: a blue bar across each term, as in the workbook ---
   const bannerRow = 4;
-  if (midEnd >= midStart) {
-    ws.mergeCells(bannerRow, midStart, bannerRow, midEnd);
-    const c = ws.getCell(bannerRow, midStart);
-    c.value = 'Mid-Term';
-    c.font = { bold: true, size: 11 };
-    c.alignment = { horizontal: 'center' };
-    c.fill = FILL_MIDTERM;
+  const banner = (from, to, label) => {
+    if (to < from) return;
+    ws.mergeCells(bannerRow, from, bannerRow, to);
+    const c = ws.getCell(bannerRow, from);
+    c.value = label;
+    c.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+    c.alignment = { horizontal: 'center', vertical: 'middle' };
+    c.fill = FILL_TERMBAND;
     c.border = BORDER;
+  };
+  banner(midStart, midEnd, 'Mid-Term');
+  banner(finStart, finEnd, 'Final-Term');
+  banner(lastCol - 1, lastCol, 'Final Grade');
+  ws.getRow(bannerRow).height = 20;
+
+  // --- weight row: the share each column carries, as percentages ---
+  // The instructor's sheet shows these under the banner, so the reader can see
+  // at a glance that class standing is 60% and the exam 40%.
+  const weightRow = 5;
+  const weight = (col, text, tint) => {
+    const c = ws.getCell(weightRow, col);
+    c.value = text;
+    c.font = { bold: true, size: 10 };
+    c.alignment = { horizontal: 'center' };
+    if (tint) c.fill = tint;
+    c.border = BORDER;
+  };
+  const csShare = (n) => (n ? `${Math.round((60 / n) * 100) / 100}%` : '');
+  midAssessments.forEach((a, i) => {
+    weight(midStart + i * 2, csShare(midAssessments.length));
+  });
+  finAssessments.forEach((a, i) => {
+    weight(finStart + i * 2, csShare(finAssessments.length));
+  });
+  if (midEnd >= midStart) {
+    weight(midEnd - 3, '60%', FILL_STANDING);   // class standing
+    weight(midEnd - 2, '40%', FILL_EXAM);       // exam
+    weight(midEnd, '100%', FILL_STANDING);      // term total
   }
   if (finEnd >= finStart) {
-    ws.mergeCells(bannerRow, finStart, bannerRow, finEnd);
-    const c = ws.getCell(bannerRow, finStart);
-    c.value = 'Final-Term';
-    c.font = { bold: true, size: 11 };
-    c.alignment = { horizontal: 'center' };
-    c.fill = FILL_FINALTERM;
-    c.border = BORDER;
+    weight(finEnd - 3, '60%', FILL_STANDING);
+    weight(finEnd - 2, '40%', FILL_EXAM);
+    weight(finEnd, '100%', FILL_STANDING);
   }
-  ws.mergeCells(bannerRow, lastCol - 1, bannerRow, lastCol);
-  const fgBanner = ws.getCell(bannerRow, lastCol - 1);
-  fgBanner.value = 'Final Grade';
-  fgBanner.font = { bold: true, size: 11 };
-  fgBanner.alignment = { horizontal: 'center' };
-  fgBanner.border = BORDER;
+  weight(lastCol - 1, '100%', FILL_STANDING);
+  ws.getRow(weightRow).height = 18;
 
   // --- header row ---
-  const headerRow = 5;
+  const headerRow = 6;
   columns.forEach((c, i) => {
     const cell = ws.getCell(headerRow, i + 1);
     cell.value = c.header;
     styleHeaderCell(cell);
+    // Tint the header to match the column beneath it.
+    if (/_t_|_exam_t$/.test(c.key)) cell.fill = FILL_TRANSMUTED;
+    else if (/^(m|f)_(cs|total)$/.test(c.key)) cell.fill = FILL_STANDING;
+    else if (/^(m|f)_exam$/.test(c.key)) cell.fill = FILL_EXAM;
+    else if (c.key === 'final_grade' || c.key === 'letter') cell.fill = FILL_STANDING;
   });
-  ws.getRow(headerRow).height = 30;
+  ws.getRow(headerRow).height = 34;
 
   // --- students ---
   let r = headerRow + 1;
@@ -237,6 +272,7 @@ function buildGradeRecord(workbook, result) {
 
     const excelRow = ws.addRow(values);
     const banded = (r - headerRow) % 2 === 0;
+    const flagged = !!row.student.unofficial;
     excelRow.height = 17;
     excelRow.eachCell({ includeEmpty: true }, (cell, col) => {
       cell.border = BORDER_LIGHT;
@@ -248,13 +284,31 @@ function buildGradeRecord(workbook, result) {
     ws.getCell(excelRow.number, 2).alignment = { horizontal: 'left' };
     ws.getCell(excelRow.number, 3).alignment = { horizontal: 'left' };
 
-    // Shade the computed columns so the typed ones stand out, as in the original.
+    // A student sitting in without being on the official roster is highlighted
+    // across their identifying cells, the way it would be done by hand.
+    if (flagged) {
+      for (const col of [1, 2, 3]) {
+        const cell = ws.getCell(excelRow.number, col);
+        cell.fill = FILL_FLAGGED;
+        cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
+      }
+      const nameCell = ws.getCell(excelRow.number, 3);
+      nameCell.note = row.student.note
+        ? `Not on the official roster yet. ${row.student.note}`
+        : 'Not on the official roster yet.';
+    }
+
+    // Colour the computed columns the way the workbook does.
     columns.forEach((c, i) => {
       const cell = ws.getCell(excelRow.number, i + 1);
       if (/_t_|_exam_t$/.test(c.key)) cell.fill = FILL_TRANSMUTED;
-      if (/^(m|f)_(cs|total)$/.test(c.key)) cell.fill = FILL_TOTAL;
+      if (/^(m|f)_(cs|total)$/.test(c.key)) {
+        cell.fill = FILL_STANDING;
+        cell.font = { size: 10, bold: true };
+      }
+      if (/^(m|f)_exam$/.test(c.key)) cell.fill = FILL_EXAM;
       if (c.key === 'final_grade') {
-        cell.fill = FILL_FINALCOL;
+        cell.fill = FILL_STANDING;
         cell.font = { size: 11, bold: true };
         cell.border = { ...BORDER_LIGHT, left: THIN };
       }
@@ -364,10 +418,21 @@ function buildSummary(workbook, result) {
       if (col === 4) {
         cell.alignment = { horizontal: 'center' };
         cell.font = { size: 11, bold: true };
-        cell.fill = FILL_FINALCOL;
+        cell.fill = FILL_STANDING;
       }
     });
     styleLetterCell(ws.getCell(excelRow.number, 5), row.letter);
+    // Flag a student who is not on the official roster, as on the full record.
+    if (row.student.unofficial) {
+      for (const col of [1, 2, 3]) {
+        const cell = ws.getCell(excelRow.number, col);
+        cell.fill = FILL_FLAGGED;
+        cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
+      }
+      ws.getCell(excelRow.number, 3).note = row.student.note
+        ? `Not on the official roster yet. ${row.student.note}`
+        : 'Not on the official roster yet.';
+    }
   });
 
   // A short tally under the list, which is what a department asks for first.

@@ -39,13 +39,19 @@ CREATE TABLE IF NOT EXISTS courses (
 
 CREATE INDEX IF NOT EXISTS idx_courses_semester ON courses (semester_id);
 
+-- `unofficial` marks a student who is sitting the class but is not yet on the
+-- official roster, pending an addendum list from the university. It is a flag
+-- the instructor clears once the student is added properly, and `note` carries
+-- whatever they want to remember about the case.
 CREATE TABLE IF NOT EXISTS students (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
   number     INTEGER,
   student_id TEXT    NOT NULL DEFAULT '',
   full_name  TEXT    NOT NULL DEFAULT '',
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  unofficial INTEGER NOT NULL DEFAULT 0 CHECK (unofficial IN (0, 1)),
+  note       TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_students_course ON students (course_id, sort_order);

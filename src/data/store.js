@@ -41,9 +41,33 @@ class Store {
     this.db.pragma('synchronous = FULL');
     this.db.pragma('foreign_keys = ON');
     this.db.exec(fs.readFileSync(SCHEMA_PATH, 'utf8'));
+    this._migrate();
     this.db
       .prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)')
       .run('schema_version', SCHEMA_VERSION);
+  }
+
+  /**
+   * Bring an older database up to the current shape.
+   *
+   * The schema is written with CREATE TABLE IF NOT EXISTS, so a table that
+   * already exists is left exactly as it was. Columns added after a release
+   * therefore have to be applied here, or an instructor who upgrades keeps the
+   * old shape and the app breaks on the missing column.
+   */
+  _migrate() {
+    const columns = (table) =>
+      this.db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+
+    const studentCols = columns('students');
+    if (!studentCols.includes('unofficial')) {
+      this.db.exec(
+        "ALTER TABLE students ADD COLUMN unofficial INTEGER NOT NULL DEFAULT 0"
+      );
+    }
+    if (!studentCols.includes('note')) {
+      this.db.exec("ALTER TABLE students ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+    }
   }
 
   close() {
@@ -202,17 +226,17 @@ class Store {
 
   // --------------------------------------------------------------- students
 
-  addStudent(courseId, { number = null, studentId = '', fullName = '' } = {}) {
+  addStudent(courseId, { number = null, studentId = '', fullName = '', unofficial = 0, note = '' } = {}) {
     const order = this.db
       .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM students WHERE course_id = ?')
       .get(courseId).n;
     const resolvedNumber = number === null || number === undefined ? order + 1 : number;
     const info = this.db
       .prepare(
-        `INSERT INTO students (course_id, number, student_id, full_name, sort_order)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO students (course_id, number, student_id, full_name, sort_order, unofficial, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(courseId, resolvedNumber, studentId, fullName, order);
+      .run(courseId, resolvedNumber, studentId, fullName, order, unofficial ? 1 : 0, note);
     return this.getStudent(info.lastInsertRowid);
   }
 
@@ -232,11 +256,19 @@ class Store {
   }
 
   updateStudent(id, fields) {
-    const map = { number: 'number', studentId: 'student_id', fullName: 'full_name', sortOrder: 'sort_order' };
+    const map = {
+      number: 'number',
+      studentId: 'student_id',
+      fullName: 'full_name',
+      sortOrder: 'sort_order',
+      unofficial: 'unofficial',
+      note: 'note',
+    };
     const keys = Object.keys(fields).filter((k) => map[k]);
     if (!keys.length) return this.getStudent(id);
     const set = keys.map((k) => `${map[k]} = ?`).join(', ');
-    this.db.prepare(`UPDATE students SET ${set} WHERE id = ?`).run(...keys.map((k) => fields[k]), id);
+    const values = keys.map((k) => (k === 'unofficial' ? (fields[k] ? 1 : 0) : fields[k]));
+    this.db.prepare(`UPDATE students SET ${set} WHERE id = ?`).run(...values, id);
     return this.getStudent(id);
   }
 

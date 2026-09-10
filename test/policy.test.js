@@ -49,7 +49,8 @@ test('50% and 60% are offered as structurally verified, not grade-verified', () 
   for (const p of ['50', '60']) {
     assert.equal(policyStatus(p).confidence, CONFIDENCE.STRUCTURAL, `${p}% confidence`);
     assert.equal(policyStatus(p).isDefault, false);
-    assert.match(policyStatus(p).note, /not cross-checked against a real/i);
+    // Wording is humanised over time; assert the meaning, not the phrasing.
+    assert.match(policyStatus(p).note, /not been tried against a finished grade sheet/i);
   }
 });
 
@@ -72,7 +73,7 @@ test('point maximums are validated against real table columns', () => {
 
 test('an invalid maximum names the values that would work', () => {
   const r = validateMaxPoints(20, '70', tables);
-  assert.match(r.message, /no 20-point column/);
+  assert.match(r.message, /no column for 20 points/);
   assert.deepEqual(r.supported, [5, 10, 15, 25, 30, 35, 40, 45, 50]);
 });
 

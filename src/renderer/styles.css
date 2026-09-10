@@ -19,6 +19,8 @@
   --red-tint: #f7e3e0;
   --read: #f4f6fa;
   --focus: #2f6d4f;
+  --entry-bg: #eef7f1;      /* the editable column's well */
+  --entry-line: #b9cfc2;    /* the outline around an editable cell */
 }
 
 * { box-sizing: border-box; }
@@ -148,6 +150,8 @@ nav a.active .sub { color: #d3e6da; }
 .btn.small { padding: 4px 9px; font-size: 12px; }
 
 .content { padding: 18px 24px 40px; overflow: auto; flex: 1; }
+/* The guide manages its own scrolling so the contents list can stay put. */
+.content:has(.guidepage) { overflow: hidden; padding-bottom: 18px; }
 
 /* ---------------- assessment tabs ---------------- */
 /* One scrollable row rather than three wrapped ones: vertical space is scarcer
@@ -233,18 +237,45 @@ td.idx { color: var(--ink-soft); width: 40px; text-align: right; padding-right: 
 td.sid { color: var(--ink-soft); font-variant-numeric: tabular-nums; width: 100px; }
 /* The name column absorbs the slack so the numeric columns keep their widths.
    Long names ellipsize rather than forcing the grid wider than the window. */
+/* The name column absorbs slack so the numeric columns keep their widths, and
+   a very long name ellipsizes rather than forcing the grid wider than the
+   window. No max-width: that stopped wide tables short of the right edge. */
 td.name {
-  font-weight: 500; min-width: 120px; max-width: 340px;
+  font-weight: 500; min-width: 120px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-td.entry { width: 84px; background: #fff; padding: 0; }
+/* An editable cell has to look editable. With no border it was identical to a
+   read-only computed cell, and there was nothing to tell the instructor where
+   to click. It now sits in a tinted well with its own outline, lifts on hover,
+   and shows a strong ring plus a caret bar when it has focus. */
+td.entry { width: 90px; padding: 3px 5px; background: var(--entry-bg); }
 td.entry input {
-  width: 100%; height: 36px; border: none; text-align: center; font-size: 14px;
-  color: var(--ink); background: transparent; font-variant-numeric: tabular-nums;
-  outline: none; font-family: inherit;
+  width: 100%; height: 30px; text-align: center; font-size: 14px;
+  color: var(--ink); font-variant-numeric: tabular-nums; font-family: inherit;
+  background: #fff; border: 1px solid var(--entry-line); border-radius: 6px;
+  outline: none; cursor: text; transition: border-color .12s, box-shadow .12s;
 }
-td.entry input:focus { background: #eaf3ee; box-shadow: inset 0 0 0 2px var(--focus); }
-td.entry input.over { background: var(--red-tint); color: var(--red); font-weight: 600; }
+td.entry input:hover:not([readonly]) { border-color: var(--brand); }
+td.entry input:focus {
+  border-color: var(--focus); background: #f4fbf7;
+  box-shadow: 0 0 0 3px rgba(47, 109, 79, .18);
+  font-weight: 600;
+}
+/* The whole row lifts while a cell in it is being edited, so the eye keeps its
+   place when typing down a long class list. */
+tbody tr:focus-within td { background: #f3f8f5; }
+tbody tr:focus-within td.entry { background: #e4efe8; }
+td.entry input.over {
+  background: var(--red-tint); color: var(--red); font-weight: 600;
+  border-color: var(--red);
+}
+/* A computed cell must not look clickable: no border, no white field. */
+td.entry input[readonly] {
+  background: transparent; border-color: transparent; color: var(--ink-soft);
+  cursor: default; font-weight: 500;
+}
+/* The column being typed into is tinted in the header too. */
+th.th-entry { position: relative; }
 td.read { background: var(--read); color: var(--ink-soft); text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px; }
 td.total { background: #eef2f7; color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
 /* The final grade and letter are the point of this screen, so they are pinned
@@ -407,8 +438,12 @@ th.session .del:hover { color: var(--red); }
 .mb-16 { margin-bottom: 16px; }
 /* Roster cells are text, not scores: they read left like a class list. The
    score grid centres its inputs, so these need the higher specificity to win. */
-td.entry input.name-input { text-align: left; padding-left: 12px; }
-td.entry input.id-input { text-align: left; padding-left: 12px; }
+/* Roster cells are text, not scores: they read left like a class list, and the
+   well is neutral rather than the green of the score column. */
+.rostertable td.entry { background: #fbfcfd; }
+td.entry input.name-input,
+td.entry input.id-input { text-align: left; padding-left: 10px; border-color: var(--line-strong); }
+td.entry input.name-input:hover, td.entry input.id-input:hover { border-color: #9aa6b6; }
 .paste-area {
   width: 100%; font-family: inherit; font-size: 13px; padding: 8px;
   border: 1px solid var(--line-strong); border-radius: 6px; resize: vertical;
@@ -417,42 +452,6 @@ td.entry input.id-input { text-align: left; padding-left: 12px; }
 .k-read { background: var(--read); border: 1px solid var(--line); }
 .k-total { background: #eef2f7; border: 1px solid var(--line); }
 
-
-/* ---------------- guide ---------------- */
-.guidewrap { display: grid; grid-template-columns: 190px 1fr; gap: 18px; min-height: 340px; }
-.guidenav { display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--line); padding-right: 12px; }
-.guidelink {
-  text-align: left; background: transparent; border: none; font: inherit; font-size: 13px;
-  color: var(--ink-soft); padding: 7px 10px; border-radius: 7px; cursor: pointer;
-}
-.guidelink:hover { background: #f2f5f9; color: var(--ink); }
-.guidelink.active { background: var(--brand-tint); color: var(--brand-ink); font-weight: 600; }
-.guidepane { min-width: 0; }
-.guidetitle { margin: 0 0 10px; font-size: 15px; }
-.guidep { margin: 0 0 10px; font-size: 13.5px; line-height: 1.55; color: var(--ink); }
-.guidesteps { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
-.guidestep {
-  display: grid; grid-template-columns: 168px 1fr; gap: 10px; align-items: baseline;
-  font-size: 13px; padding: 7px 10px; background: #f6f8fb; border-radius: 7px;
-}
-.guidestep b { color: var(--ink); }
-.guidestep span { color: var(--ink-soft); }
-.guideformula {
-  margin: 12px 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden;
-}
-.formularow {
-  display: grid; grid-template-columns: 150px 1fr; gap: 10px;
-  padding: 9px 12px; font-size: 13px; border-bottom: 1px solid var(--line);
-}
-.formularow:last-child { border-bottom: none; }
-.fname { font-weight: 600; }
-.fbody { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-
-@media (max-width: 900px) {
-  .guidewrap { grid-template-columns: 1fr; }
-  .guidenav { flex-direction: row; flex-wrap: wrap; border-right: none; border-bottom: 1px solid var(--line); padding: 0 0 10px; }
-  .guidestep { grid-template-columns: 1fr; gap: 2px; }
-}
 
 /* ---------------- wizard ---------------- */
 .wizhero { display: grid; grid-template-columns: 56px 1fr; gap: 14px; margin-bottom: 14px; }
@@ -486,9 +485,129 @@ tbody tr.rowpartial td.entry { background: #fffdf6; }
 .kpi.warn .v { color: var(--amber); }
 .kpi.warn .l { color: var(--amber); }
 td.entry input::placeholder { color: #c3cad4; }
-/* The roster is three narrow columns, not a wide grid: keeping the name beside
-   the ID reads as a list rather than two columns separated by empty space. */
-.rostercard { max-width: 760px; }
+/* The roster fills the window like every other grid. Its columns are given
+   proportions instead of a hard cap on the card, which had left the table
+   stopping short of the right edge on a wide screen. */
 .rostertable { width: 100%; }
-.rostertable td.entry.w-auto, .rostertable th.namecol { width: auto; }
-.rostertable td.entry.w-id, .rostertable th.w-id { width: 150px; }
+.rostertable th:first-child, .rostertable td.idx { width: 52px; }
+.rostertable th.w-id, .rostertable td.entry.w-id { width: 170px; }
+.rostertable th.namecol, .rostertable td.entry.w-auto { width: auto; }
+.rostertable th.w-status, .rostertable td.w-status { width: 100px; }
+.rostertable th.w-action, .rostertable td.ta-center { width: 56px; }
+
+
+/* ------------- students not yet on the official roster -------------
+   The university sometimes lets a student sit the class before the addendum
+   list arrives. They are graded exactly like everyone else, so the flag is a
+   reminder rather than a state that changes any arithmetic. */
+.w-status { width: 96px; }
+.statustoggle {
+  border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink-soft);
+  border-radius: 20px; padding: 3px 11px; font: inherit; font-size: 11.5px;
+  cursor: pointer; white-space: nowrap;
+}
+.statustoggle:hover { border-color: #9aa6b6; }
+.statustoggle.off {
+  background: var(--amber-tint); border-color: #e0be8c; color: var(--amber); font-weight: 600;
+}
+tbody tr.rowunofficial td { background: #fffaf0; }
+tbody tr.rowunofficial td.idx { color: var(--amber); font-weight: 600; }
+td.name .offroster {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 4px;
+  background: var(--amber-tint); color: var(--amber); font-size: 10.5px;
+  font-weight: 700; text-transform: uppercase; letter-spacing: .3px; vertical-align: 1px;
+}
+.kpi.flagged { border-color: #e0be8c; background: var(--amber-tint); }
+.kpi.flagged .v, .kpi.flagged .l { color: var(--amber); }
+
+
+/* ---------------- guide, read as a page ----------------
+   A document rather than a dialog: contents down one side, generous measure
+   for the text, and headings you scroll past. */
+.guidepage {
+  display: grid; grid-template-columns: 220px minmax(0, 1fr);
+  gap: 28px; height: 100%; min-height: 0;
+}
+.guidetoc {
+  position: sticky; top: 0; align-self: start;
+  display: flex; flex-direction: column; gap: 1px; padding-top: 4px;
+}
+.tochead {
+  font-size: 11px; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--ink-soft); padding: 0 10px 8px;
+}
+.tocitem {
+  text-align: left; background: transparent; border: none; font: inherit;
+  font-size: 13px; color: var(--ink-soft); padding: 7px 10px; border-radius: 7px;
+  cursor: pointer; border-left: 2px solid transparent;
+}
+.tocitem:hover { background: #eef1f6; color: var(--ink); }
+.tocitem.active {
+  background: var(--brand-tint); color: var(--brand-ink);
+  font-weight: 600; border-left-color: var(--brand);
+}
+.guidescroll { overflow-y: auto; min-height: 0; padding-right: 8px; padding-bottom: 40px; }
+.guidedoc { max-width: 720px; }
+.gsection {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
+  padding: 22px 26px; margin-bottom: 16px; scroll-margin-top: 8px;
+}
+.gtitle { margin: 0 0 6px; font-size: 19px; font-weight: 650; letter-spacing: -.2px; }
+.glead { margin: 0 0 16px; font-size: 14.5px; color: var(--ink-soft); line-height: 1.6; }
+.gp { margin: 0 0 13px; font-size: 14px; line-height: 1.68; color: var(--ink); }
+.gp:last-child { margin-bottom: 0; }
+.gblock { margin: 16px 0; }
+.gsub {
+  margin: 0 0 8px; font-size: 12px; font-weight: 700; color: var(--ink-soft);
+  text-transform: uppercase; letter-spacing: .5px;
+}
+.glist { display: flex; flex-direction: column; gap: 1px; border-radius: 8px; overflow: hidden; }
+.glistrow {
+  display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 14px;
+  padding: 10px 14px; background: #f6f8fb; font-size: 13.5px; align-items: baseline;
+}
+.gk { font-weight: 600; color: var(--ink); }
+.gv { color: var(--ink-soft); line-height: 1.55; }
+.gkeys { display: flex; flex-direction: column; gap: 6px; }
+.gkeyrow { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 14px; align-items: center; font-size: 13.5px; }
+.gkbd {
+  display: inline-block; font: inherit; font-size: 12px; font-weight: 600;
+  background: #fff; border: 1px solid var(--line-strong); border-bottom-width: 2px;
+  border-radius: 6px; padding: 4px 9px; text-align: center; color: var(--ink);
+}
+.gformula { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.gformularow {
+  display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 14px;
+  padding: 11px 14px; font-size: 13.5px; border-bottom: 1px solid var(--line);
+}
+.gformularow:last-child { border-bottom: none; }
+.gfname { font-weight: 600; }
+.gfbody { color: var(--ink-soft); }
+.gexample {
+  margin: 0; padding: 14px 16px; background: #20293a; color: #dbe4f0;
+  border-radius: 8px; font-family: Consolas, "Courier New", monospace;
+  font-size: 12.5px; line-height: 1.8; overflow-x: auto; white-space: pre;
+}
+.gcallout {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px;
+  align-items: start; padding: 13px 16px; border-radius: 8px;
+  font-size: 13.5px; line-height: 1.6; margin: 14px 0;
+}
+.gcallout .gclabel {
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
+  white-space: nowrap; padding-top: 2px;
+}
+.gcallout.tip { background: var(--brand-tint); color: var(--brand-ink); }
+.gcallout.tip .gclabel { color: var(--brand); }
+.gcallout.warn { background: var(--amber-tint); color: var(--amber); }
+.gcallout.warn .gclabel { color: var(--amber); }
+
+.railbtn.active { background: var(--brand); color: #fff; }
+
+@media (max-width: 1000px) {
+  .guidepage { grid-template-columns: 1fr; gap: 12px; }
+  .guidetoc { position: static; flex-direction: row; flex-wrap: wrap; }
+  .tocitem { border-left: none; border-bottom: 2px solid transparent; }
+  .tocitem.active { border-left-color: transparent; border-bottom-color: var(--brand); }
+  .glistrow, .gkeyrow, .gformularow { grid-template-columns: 1fr; gap: 3px; }
+}

@@ -77,6 +77,21 @@ async function readBack(filePath) {
   return wb;
 }
 
+/**
+ * Locate the header row by looking for the "FullName" cell, rather than
+ * hardcoding a row number that shifts whenever the title block changes.
+ */
+function headerRowOf(ws) {
+  for (let r = 1; r <= 12; r++) {
+    let found = false;
+    ws.getRow(r).eachCell((cell) => {
+      if (String(cell.value ?? '').trim() === 'FullName') found = true;
+    });
+    if (found) return r;
+  }
+  throw new Error('could not find the header row in the exported sheet');
+}
+
 /** Find the row holding a student's name, and return values by header. */
 function rowFor(ws, headerRow, name) {
   const headers = {};
@@ -133,7 +148,7 @@ test('the exported final grade is exactly two decimals and never rounded up', as
 
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
-  const row = rowFor(ws, 5, 'Allison, Elizabeth Y.');
+  const row = rowFor(ws, headerRowOf(ws), 'Allison, Elizabeth Y.');
   assert.ok(row, 'the student should appear in the export');
 
   const exported = String(row['Final Grade']);
@@ -151,7 +166,7 @@ test('a blank exam exports the letter I', async () => {
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
 
   const wb = await readBack(file);
-  const row = rowFor(wb.worksheets[0], 5, 'Dogbeh, Princess');
+  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Dogbeh, Princess');
   assert.equal(row['Letter Grade'], 'I');
   store.close();
 });
@@ -162,7 +177,7 @@ test('a blank raw score exports as blank, not as zero', async () => {
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
 
   const wb = await readBack(file);
-  const row = rowFor(wb.worksheets[0], 5, 'Dogbeh, Princess');
+  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Dogbeh, Princess');
   // Bob's Project was never entered.
   assert.ok(
     row['Project'] === null || row['Project'] === undefined || row['Project'] === '',
@@ -181,7 +196,7 @@ test('every assessment appears with its own transmuted column', async () => {
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
   const headers = [];
-  ws.getRow(5).eachCell((cell) => headers.push(String(cell.value ?? '')));
+  ws.getRow(headerRowOf(ws)).eachCell((cell) => headers.push(String(cell.value ?? '')));
 
   for (const name of ['Assign 1', 'Quiz 1', 'Midterm Exam', 'Quiz 3', 'Project', 'Final Exam']) {
     assert.ok(headers.includes(name), `missing column "${name}"`);
@@ -218,10 +233,10 @@ test('the summary export holds ID, name, final grade and letter only', async () 
   const ws = wb.worksheets[0];
 
   const headers = [];
-  ws.getRow(5).eachCell((cell) => headers.push(String(cell.value ?? '')));
+  ws.getRow(headerRowOf(ws)).eachCell((cell) => headers.push(String(cell.value ?? '')));
   assert.deepEqual(headers, ['No.', 'ID', 'FullName', 'Final Grade', 'Letter Grade']);
 
-  const row = rowFor(ws, 5, 'Allison, Elizabeth Y.');
+  const row = rowFor(ws, headerRowOf(ws), 'Allison, Elizabeth Y.');
   assert.equal(row.ID, '44305');
   assert.equal(
     row['Final Grade'],
@@ -239,7 +254,7 @@ test('an archived semester still exports', async () => {
   const file = path.join(tmpDir, 'archived.xlsx');
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
   const wb = await readBack(file);
-  assert.ok(rowFor(wb.worksheets[0], 5, 'Allison, Elizabeth Y.'));
+  assert.ok(rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Allison, Elizabeth Y.'));
   store.close();
 });
 
@@ -283,5 +298,54 @@ test('a course with no students still produces a valid file', async () => {
 
   const wb = await readBack(file);
   assert.match(String(wb.worksheets[0].getCell(1, 1).value), /Tubman University/);
+  store.close();
+});
+
+test('the export follows the workbook layout: banner, weights, coloured columns', async () => {
+  const { store, course } = seed();
+  const file = path.join(tmpDir, 'record-design.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const argb = (r, c) => {
+    const f = ws.getCell(r, c).fill;
+    return (f && f.fgColor && f.fgColor.argb) || null;
+  };
+  const hr = headerRowOf(ws);
+  const cols = {};
+  ws.getRow(hr).eachCell((cell, col) => { cols[String(cell.value ?? '')] = col; });
+
+  // The blue term banner sits two rows above the headers, the weights one above.
+  assert.equal(argb(hr - 2, 4), 'FF2F75B5', 'term banner should be blue');
+  assert.match(String(ws.getCell(hr - 2, 4).value), /Mid-Term/);
+  assert.match(String(ws.getCell(hr - 1, cols['Class Standing']).value), /%$/, 'weight row shows a percentage');
+
+  // Column colours match the instructor's own sheet.
+  assert.equal(argb(hr, cols.Transmuted), 'FFFFC000', 'transmuted columns are orange');
+  assert.equal(argb(hr, cols['Class Standing']), 'FFC6EFCE', 'class standing is green');
+  assert.equal(argb(hr, cols['Midterm Exam']), 'FFFFC7CE', 'the exam column is pink');
+  assert.equal(argb(hr + 1, cols['Final Grade']), 'FFC6EFCE', 'the final grade is green');
+  store.close();
+});
+
+test('a student not on the official roster is highlighted in the export', async () => {
+  const { store, course, students } = seed();
+  store.updateStudent(students.alice.id, { unofficial: 1, note: 'addendum expected' });
+
+  const file = path.join(tmpDir, 'record-flagged.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const hr = headerRowOf(ws);
+  let row = null;
+  for (let r = hr + 1; r <= ws.rowCount; r++) {
+    if (String(ws.getRow(r).getCell(3).value ?? '').trim() === 'Allison, Elizabeth Y.') { row = r; break; }
+  }
+  assert.ok(row, 'the flagged student should be in the sheet');
+  const fill = ws.getCell(row, 3).fill;
+  assert.equal(fill && fill.fgColor && fill.fgColor.argb, 'FFFFF2CC', 'their name cell is highlighted');
+  assert.match(String(ws.getCell(row, 3).note || ''), /addendum expected/, 'the note is attached');
   store.close();
 });

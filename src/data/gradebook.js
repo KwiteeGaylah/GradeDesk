@@ -239,6 +239,23 @@ function reviewIssues(store, courseId, tables) {
     }
   }
 
+  // Students sitting in without being on the official roster. This is the
+  // reminder the instructor asked for: it appears every time they check the
+  // course, until the addendum arrives and they clear the flag.
+  const offRoster = result.students.filter((r) => r.student.unofficial);
+  for (const row of offRoster) {
+    const who = row.student.full_name || `Student ${row.student.number ?? row.student.id}`;
+    issues.push({
+      severity: 'warning',
+      kind: 'not_on_roster',
+      student: row.student,
+      message:
+        `${who} is not on the official roster yet` +
+        `${row.student.note ? ` (${row.student.note})` : ''}. ` +
+        'Chase the addendum, then clear the flag on the Roster screen.',
+    });
+  }
+
   // One line for all the empty roster rows, rather than one line each.
   if (blankRows.length) {
     issues.push({

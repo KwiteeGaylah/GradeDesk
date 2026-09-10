@@ -213,6 +213,59 @@ async function drive(win, app) {
     check('all three policies are offered', ['50', '60', '70'].every((p) => config.policies.includes(p)), JSON.stringify(config.policies));
     check('the exam is shown as fixed at 40', config.examBadge);
 
+    // ---- search and sort actually reorder the class list ----
+    const sorting = await run(win, `(async () => {
+      const api = window.gradedesk;
+      const studs = await api.students.list(state.courseId);
+      const ids = ['44305', '9812', 'TU-03265'];
+      for (let i = 0; i < studs.length && i < ids.length; i++) {
+        await api.students.update(studs[i].id, { studentId: ids[i] });
+      }
+      state.screen = 'grades';
+      const all = [...state.assessments.midterm, ...state.assessments.final];
+      const q1 = all.find(a => a.name === 'Quiz 1') || all[0];
+      state.selectedAssessmentId = q1.id;
+      state.selectedTermKind = 'midterm';
+      await loadCourseDetail(); renderRail(); await renderScreen();
+      await new Promise(r => setTimeout(r, 400));
+
+      const names = () => [...document.querySelectorAll('#content tbody tr td.name')]
+        .map(t => t.textContent.replace('not on roster', '').trim());
+      const sids = () => [...document.querySelectorAll('#content tbody tr td.sid')]
+        .map(t => t.textContent.trim());
+      const pick = (v) => { const s = document.querySelector('.sortbox');
+        s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
+
+      const out = {};
+      pick('roster'); await new Promise(r => setTimeout(r, 250));
+      out.roster = names();
+      pick('name'); await new Promise(r => setTimeout(r, 250));
+      out.byName = names();
+      pick('id'); await new Promise(r => setTimeout(r, 250));
+      out.byId = sids();
+      // Search narrows to one student.
+      const box = document.querySelector('.searchbox');
+      box.value = names()[0].split(',')[0];
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 250));
+      out.searchCount = document.querySelectorAll('#content tbody tr').length;
+      out.countLabel = document.querySelector('.rowcount').textContent;
+      box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 250));
+      pick('roster');
+      return out;
+    })()`);
+
+    const sortedCopy = [...sorting.byName].sort((a, b) => a.localeCompare(b));
+    check('sorting by name really reorders the list',
+      JSON.stringify(sorting.byName) === JSON.stringify(sortedCopy), JSON.stringify(sorting.byName));
+    check('sorting by student ID puts numbers in numeric order',
+      sorting.byId.indexOf('9812') < sorting.byId.indexOf('44305'), JSON.stringify(sorting.byId));
+    check('searching narrows the list to the match', sorting.searchCount >= 1 &&
+      sorting.searchCount < sorting.roster.length, JSON.stringify(sorting));
+    check('the row count says how many are showing',
+      /of/.test(sorting.countLabel), sorting.countLabel);
+
     // ---- responsive layout: the essentials survive a narrow window ----
     const setSize = async (w, h) => {
       if (win.isMaximized()) win.unmaximize();

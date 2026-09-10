@@ -28,9 +28,9 @@ const CONFIDENCE = {
 };
 
 const STRUCTURAL_NOTE =
-  'Transcribed from the university source and structurally checked (every column rises ' +
-  'from 50 to 100 without dipping). Not cross-checked against a real completed grade ' +
-  'sheet, because the verification workbook uses the 70% policy only.';
+  'Copied from the university tables and checked over: every column climbs steadily from ' +
+  '50 to 100. It has not been tried against a finished grade sheet yet, because the one ' +
+  'we checked against used the 70% table throughout.';
 
 /**
  * Per-policy status. `selectable` drives whether the UI offers it at all.
@@ -44,7 +44,7 @@ const POLICY_STATUS = {
     isDefault: true,
     // User-facing wording stays general: the person reading it is the
     // instructor, so "the instructor's workbook" reads as someone else's.
-    note: 'Verified against 167 real student grades across 6 course sections, with zero mismatches.',
+    note: 'Checked against 167 real student grades across 6 sections. Every one matched.',
   },
   60: {
     policy: '60',
@@ -115,7 +115,7 @@ function validateMaxPoints(maxPoints, policy, tables) {
     return {
       ok: false,
       level: 'error',
-      message: 'Point value must be a positive number.',
+      message: 'The point value has to be a number above zero.',
       supported,
     };
   }
@@ -124,8 +124,8 @@ function validateMaxPoints(maxPoints, policy, tables) {
       ok: false,
       level: 'error',
       message:
-        `The ${policy}% table has no ${n}-point column, so a ${n}-point score cannot be ` +
-        `transmuted. Supported values: ${supported.join(', ')}.`,
+        `The ${policy}% table has no column for ${n} points, so a score out of ${n} ` +
+        `cannot be looked up. You can use: ${supported.join(', ')}.`,
       supported,
     };
   }

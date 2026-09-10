@@ -128,8 +128,16 @@ test('the exported workbook carries the same grades as the original', async () =
     await wb.xlsx.readFile(file);
     const ws = wb.worksheets[0];
 
-    // Map header -> column from the export's header row.
-    const headerRow = 5;
+    // Find the header row rather than assuming its position: the title block
+    // above it has changed shape more than once.
+    let headerRow = 5;
+    for (let r = 1; r <= 12; r++) {
+      let found = false;
+      ws.getRow(r).eachCell((cell) => {
+        if (String(cell.value ?? '').trim() === 'FullName') found = true;
+      });
+      if (found) { headerRow = r; break; }
+    }
     const cols = {};
     ws.getRow(headerRow).eachCell((cell, col) => {
       cols[String(cell.value ?? '')] = col;

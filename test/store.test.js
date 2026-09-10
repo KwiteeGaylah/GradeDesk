@@ -626,3 +626,84 @@ test('a session needs a date', () => {
   assert.throws(() => store.addSession(course.id, terms.midterm.id, '   '), /needs a date/);
   store.close();
 });
+
+// ------------------------------------------- students not on the roster
+
+test('a student can be flagged as not on the official roster, and cleared', () => {
+  const store = newStore();
+  const { course } = seedCourse(store);
+  const [s] = store.addStudents(course.id, [{ studentId: '44305', fullName: 'Guest, One' }]);
+  assert.equal(store.getStudent(s.id).unofficial, 0, 'students start on the roster');
+
+  store.updateStudent(s.id, { unofficial: 1, note: 'Sent by the dean' });
+  assert.equal(store.getStudent(s.id).unofficial, 1);
+  assert.equal(store.getStudent(s.id).note, 'Sent by the dean');
+
+  store.updateStudent(s.id, { unofficial: 0 });
+  assert.equal(store.getStudent(s.id).unofficial, 0, 'the flag clears once they are added');
+  store.close();
+});
+
+test('the flag changes nothing about a student grade', () => {
+  // It is a reminder for the instructor, not part of the marking.
+  const store = newStore();
+  const { course, a } = seedCourse(store);
+  const [s] = store.addStudents(course.id, [{ fullName: 'Guest, One' }]);
+  store.setScore(s.id, a.midQuiz1.id, 12);
+  store.setScore(s.id, a.midExam.id, 30);
+  store.setScore(s.id, a.finQuiz3.id, 12);
+  store.setScore(s.id, a.finExam.id, 30);
+
+  const before = computeCourse(store, course.id, tables).students[0];
+  store.updateStudent(s.id, { unofficial: 1, note: 'pending' });
+  const after = computeCourse(store, course.id, tables).students[0];
+
+  assert.equal(after.finalGradeDisplay, before.finalGradeDisplay);
+  assert.equal(after.letter, before.letter);
+  assert.equal(after.student.unofficial, 1, 'but the flag travels with the student');
+  store.close();
+});
+
+test('issue review reminds the instructor about every flagged student', () => {
+  const store = newStore();
+  const { course, a } = seedCourse(store);
+  const [one, two] = store.addStudents(course.id, [
+    { studentId: '1', fullName: 'Guest, One' },
+    { studentId: '2', fullName: 'Regular, Two' },
+  ]);
+  for (const s of [one, two]) {
+    store.setScore(s.id, a.midExam.id, 30);
+    store.setScore(s.id, a.finExam.id, 30);
+  }
+  store.updateStudent(one.id, { unofficial: 1, note: 'addendum expected' });
+
+  const issues = reviewIssues(store, course.id, tables);
+  const flagged = issues.filter((i) => i.kind === 'not_on_roster');
+  assert.equal(flagged.length, 1, 'one reminder, for the one flagged student');
+  assert.match(flagged[0].message, /Guest, One/);
+  assert.match(flagged[0].message, /addendum expected/);
+  assert.equal(flagged[0].severity, 'warning');
+
+  store.updateStudent(one.id, { unofficial: 0 });
+  assert.equal(
+    reviewIssues(store, course.id, tables).filter((i) => i.kind === 'not_on_roster').length,
+    0,
+    'the reminder stops once the flag is cleared'
+  );
+  store.close();
+});
+
+test('the flag survives a backup and restore', () => {
+  const store = newStore();
+  const { course } = seedCourse(store);
+  const [s] = store.addStudents(course.id, [{ studentId: '9', fullName: 'Guest, One' }]);
+  store.updateStudent(s.id, { unofficial: 1, note: 'waiting on paperwork' });
+
+  const restored = newStore();
+  importData(restored, exportData(store));
+  const back = restored.listStudents(course.id)[0];
+  assert.equal(back.unofficial, 1);
+  assert.equal(back.note, 'waiting on paperwork');
+  store.close();
+  restored.close();
+});
