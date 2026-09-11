@@ -59,7 +59,7 @@ Two things the video must **not** do:
 
 | | |
 |---|---|
-| **On screen** | Screen recording of the actual installer: double-click `GradeDesk-Setup-1.0.0.exe` → welcome page with the green sidebar → the About page → install location → progress bar → finish. Speed up the progress bar to about 3 seconds. |
+| **On screen** | Screen recording of the actual installer: double-click `GradeDesk-Setup-1.1.0.exe` → welcome page with the green sidebar → the About page → install location → progress bar → finish. Speed up the progress bar to about 3 seconds. |
 | **Narration** | "Installing takes about a minute. Copy the setup file onto the computer, from a flash drive is fine, and double-click it. Windows may show a blue 'Windows protected your PC' box, because the file is not signed with a paid certificate. Click 'More info', then 'Run anyway'. That box appears for any program without a commercial signature. After that, click through the wizard and it installs for you alone, so you do not need an administrator password." |
 | **Note** | Show the SmartScreen box for real. Instructors will hit it, and a video that hides it will lose their trust the first time they see it. |
 
