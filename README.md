@@ -17,7 +17,6 @@ weighting and the letter grades, then exports the sheet you submit.
 ## Table of Contents
 
 - [Overview](#overview)
-- [🎬 Walkthrough video](#-walkthrough-video)
 - [📸 Screenshots](#-screenshots)
 - [Features](#features)
 - [Install on another PC](#install-on-another-pc)
@@ -49,36 +48,6 @@ saves as you type.
 
 It is built for real conditions: unreliable power, poor connectivity, and
 ordinary low-spec Windows laptops.
-
----
-
-## 🎬 Walkthrough video
-
-A 5 minute 44 second walkthrough: installing it, setting up a course, typing
-marks, taking attendance, checking for mistakes, and exporting the sheet.
-Captions are burnt in, so it works with the sound off.
-
-<!-- To make this play inline on GitHub: open a new issue on this repository,
-     drag docs/video/GradeDesk-walkthrough-captioned.mp4 into the comment box,
-     wait for it to finish uploading, then copy the generated
-     https://github.com/user-attachments/... URL and replace BOTH the src below
-     and the download link. Do not submit the issue; the upload is enough.
-     GitHub will not play a video from a repository path, only from its own
-     CDN, which is why this is a poster image until that URL exists. -->
-
-<div align="center">
-
-<a href="https://github.com/KwiteeGaylah/GradeDesk/releases/latest">
-  <img src="docs/images/grade-entry.png" alt="Watch the GradeDesk walkthrough" width="700">
-</a>
-
-**[▶ Download the walkthrough video](https://github.com/KwiteeGaylah/GradeDesk/releases/latest)** &nbsp;·&nbsp; 5m 44s &nbsp;·&nbsp; 1366×768 &nbsp;·&nbsp; 23 MB
-
-</div>
-
-The video file is not stored in this repository, to keep the clone small. It is
-published as a release asset instead. The script and the working files behind
-it are in [docs/video/](docs/video/).
 
 ---
 

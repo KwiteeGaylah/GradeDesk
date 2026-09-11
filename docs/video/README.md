@@ -16,19 +16,16 @@ The video is 23 MB and its working files are another 84 MB, against a git
 history of 2 MB. They are listed in `.gitignore` and live only on the machine
 that made them, so **keep your own copy** — a fresh clone will not have them.
 
-To publish the video, attach it to a GitHub release. To make it *play inline*
-in the README, you need a URL on GitHub's own CDN: open a new issue on the
-repository, drag the MP4 into the comment box, wait for the upload to finish,
-and copy the `https://github.com/user-attachments/...` URL it generates. You do
-not have to submit the issue. Then replace the poster image block in the main
-[README](../../README.md#-walkthrough-video) with:
+To publish the video, attach it to a GitHub release. The main README does not
+link to it: GitHub will not play a video from a repository path, and a link to
+an asset that may not exist yet is worse than no link at all. Add one to the
+release notes instead, where the file actually lives.
 
-```html
-<video src="PASTE_THE_URL_HERE" controls width="700"></video>
-```
-
-GitHub will not play a video from a repository path, which is why the README
-currently shows a clickable poster image instead.
+If you ever do want it playing inline somewhere on GitHub, you need a URL on
+GitHub's own CDN: open a new issue, drag the MP4 into the comment box, wait for
+the upload to finish, and copy the `https://github.com/user-attachments/...`
+URL it generates. You do not have to submit the issue. That URL works in any
+Markdown on GitHub, inside a `<video src="..." controls></video>` tag.
 
 ## The source files
 
