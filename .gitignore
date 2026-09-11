@@ -6,3 +6,17 @@ dist/
 # the instructor's own workbook from data/, but the file itself stays on their
 # machine. Anyone cloning this repo supplies their own.
 data/*.xlsx
+
+# Video. The finished walkthrough is 24 MB and the working files behind it are
+# another 84 MB, which does not belong in a repo whose history is 2 MB.
+#
+# GitHub will not play a video from a path in the README anyway: inline
+# playback only works for files on GitHub's own CDN, which you get by dragging
+# the file into a release, issue or PR on the website. So the video is
+# published as a release asset and the README links to that URL.
+docs/video/*.mp4
+docs/video/source/
+
+# Scratch folder from the video work: an older duplicate caption file and the
+# Excel prop built for scene 1. Neither is a source file.
+Claude outputs/
