@@ -839,3 +839,105 @@ test('duplicating a missing course fails instead of making an empty one', () => 
   assert.throws(() => store.duplicateCourse(9999), /not found/i);
   store.close();
 });
+
+// ------------------------------------------------------------ saved presets
+
+test('a term can be saved as a preset, without its exam', () => {
+  const store = newStore();
+  const { terms } = seedCourse(store);
+  const items = store.listAssessments(terms.midterm.id);
+
+  const preset = store.savePreset('My usual set', items);
+  assert.equal(preset.name, 'My usual set');
+  assert.deepEqual(
+    preset.items.map((i) => i.name),
+    ['Attendance', 'Assign 1', 'Quiz 1', 'Quiz 2', 'ClassWork'],
+    'order is kept and the exam is left out'
+  );
+  assert.equal(preset.items.filter((i) => i.kind === 'exam').length, 0);
+  assert.equal(preset.items.find((i) => i.name === 'Attendance').kind, 'attendance');
+  assert.equal(preset.items.find((i) => i.name === 'Quiz 1').max_points, 15);
+  store.close();
+});
+
+test('saving over an existing name replaces it rather than duplicating', () => {
+  const store = newStore();
+  const { terms } = seedCourse(store);
+  store.savePreset('Set A', store.listAssessments(terms.midterm.id));
+  store.savePreset('Set A', [{ name: 'Only this', maxPoints: 10 }]);
+
+  const all = store.listPresets();
+  assert.equal(all.length, 1, 'still one preset');
+  assert.deepEqual(all[0].items.map((i) => i.name), ['Only this']);
+  store.close();
+});
+
+test('a preset with no usable rows is refused', () => {
+  const store = newStore();
+  assert.throws(() => store.savePreset('Empty', []), /no assessments/i);
+  // An exam on its own is not a preset either.
+  assert.throws(
+    () => store.savePreset('Exam only', [{ name: 'Final Exam', maxPoints: 40, kind: 'exam' }]),
+    /no assessments/i
+  );
+  assert.throws(() => store.savePreset('   ', [{ name: 'Quiz', maxPoints: 10 }]), /needs a name/i);
+  store.close();
+});
+
+test('renaming a preset refuses a name that is taken', () => {
+  const store = newStore();
+  store.savePreset('First', [{ name: 'Quiz', maxPoints: 10 }]);
+  const second = store.savePreset('Second', [{ name: 'Quiz', maxPoints: 10 }]);
+
+  assert.throws(() => store.renamePreset(second.id, 'First'), /already a preset/i);
+  // Renaming to its own name is fine, not a false clash.
+  const same = store.renamePreset(second.id, 'Second');
+  assert.equal(same.name, 'Second');
+  store.close();
+});
+
+test('deleting a preset takes its rows with it', () => {
+  const store = newStore();
+  const preset = store.savePreset('Doomed', [
+    { name: 'Quiz 1', maxPoints: 15 },
+    { name: 'Quiz 2', maxPoints: 15 },
+  ]);
+  const before = store.db.prepare('SELECT COUNT(*) AS n FROM preset_items').get().n;
+  assert.equal(before, 2);
+
+  store.deletePreset(preset.id);
+  assert.equal(store.getPreset(preset.id), null);
+  assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM preset_items').get().n, 0, 'cascade');
+  store.close();
+});
+
+test('deleting a course leaves saved presets alone', () => {
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  store.savePreset('Kept', store.listAssessments(terms.midterm.id));
+
+  store.deleteCourse(course.id);
+  const all = store.listPresets();
+  assert.equal(all.length, 1, 'the preset outlives the course it came from');
+  assert.equal(all[0].items.length, 5);
+  store.close();
+});
+
+test('saved presets survive a backup and restore', () => {
+  const store = newStore();
+  const { terms } = seedCourse(store);
+  store.savePreset('Carried over', store.listAssessments(terms.midterm.id));
+
+  const restored = newStore();
+  importData(restored, exportData(store));
+
+  const all = restored.listPresets();
+  assert.equal(all.length, 1, 'a new table must be in backup.js TABLES or it vanishes silently');
+  assert.equal(all[0].name, 'Carried over');
+  assert.deepEqual(
+    all[0].items.map((i) => i.name),
+    ['Attendance', 'Assign 1', 'Quiz 1', 'Quiz 2', 'ClassWork']
+  );
+  store.close();
+  restored.close();
+});

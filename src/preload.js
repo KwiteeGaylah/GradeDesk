@@ -57,6 +57,14 @@ contextBridge.exposeInMainWorld('gradedesk', {
     reorder: (termId, orderedIds) => call('assessments:reorder', termId, orderedIds),
     copyToTerm: (fromTermId, toTermId) => call('assessments:copyToTerm', fromTermId, toTermId),
   },
+  // The instructor's own saved sets. The built-in ones are a separate list,
+  // reached in the renderer as GradeDeskPresets, so these are named apart.
+  savedPresets: {
+    list: () => call('savedPresets:list'),
+    save: (name, items) => call('savedPresets:save', name, items),
+    rename: (id, name) => call('savedPresets:rename', id, name),
+    remove: (id) => call('savedPresets:delete', id),
+  },
   scores: {
     set: (studentId, assessmentId, rawValue) => call('scores:set', studentId, assessmentId, rawValue),
     setMany: (entries) => call('scores:setMany', entries),

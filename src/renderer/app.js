@@ -256,8 +256,12 @@ function currentCourse() {
  * Positioned against the viewport and nudged back inside it, so a menu opened
  * on the last course in a long list does not hang off the bottom.
  */
+/** Tears down the open menu's dismissal listeners. Null when none is open. */
+let menuTeardown = null;
+
 function contextMenu(event, { title, subtitle, items }) {
   event.preventDefault();
+  event.stopPropagation();
   closeContextMenu();
 
   const menu = el('div', { class: 'ctxmenu' });
@@ -291,16 +295,42 @@ function contextMenu(event, { title, subtitle, items }) {
   menu.style.left = `${Math.max(pad, x)}px`;
   menu.style.top = `${Math.max(pad, y)}px`;
 
-  // A timeout so the click that opened the menu does not immediately close it.
+  // Dismissal listeners are torn down together, by whichever path closes the
+  // menu first.
+  //
+  // They used to be registered with {once: true} and never removed, which left
+  // spent-but-live listeners behind whenever the menu closed some other way
+  // (Escape, or picking an item). The next right-click then hit a stale
+  // contextmenu listener that consumed itself closing nothing, so the menu
+  // opened on some clicks and not others. That is the "works unexpectedly"
+  // behaviour.
+  const dismiss = (e) => {
+    // A right-click inside the menu is meaningless; a right-click anywhere
+    // else should close this menu and let the new target open its own.
+    if (e && e.type === 'contextmenu' && menu.contains(e.target)) return;
+    closeContextMenu();
+  };
+  menuTeardown = () => {
+    document.removeEventListener('mousedown', dismiss, true);
+    document.removeEventListener('contextmenu', dismiss, true);
+    window.removeEventListener('scroll', dismiss, true);
+    window.removeEventListener('resize', dismiss);
+    menuTeardown = null;
+  };
+
+  // Capture phase, and on the NEXT frame so the click that opened this menu
+  // cannot immediately close it.
   setTimeout(() => {
-    document.addEventListener('click', closeContextMenu, { once: true });
-    document.addEventListener('contextmenu', closeContextMenu, { once: true });
-    window.addEventListener('scroll', closeContextMenu, { once: true, capture: true });
-    window.addEventListener('resize', closeContextMenu, { once: true });
+    if (!document.body.contains(menu)) return; // already closed
+    document.addEventListener('mousedown', dismiss, true);
+    document.addEventListener('contextmenu', dismiss, true);
+    window.addEventListener('scroll', dismiss, true);
+    window.addEventListener('resize', dismiss);
   }, 0);
 }
 
 function closeContextMenu() {
+  if (menuTeardown) menuTeardown();
   document.querySelectorAll('.ctxmenu').forEach((m) => m.remove());
 }
 
@@ -579,7 +609,17 @@ async function openManage() {
           onclick: async () => { setChildren($('modalRoot')); await restoreNow(); },
         }, 'Load a backup')),
       el('div', { class: 'hint' },
-        'Restoring wipes what is here now and puts the backup in its place. We will ask you first.')),
+        'Restoring wipes what is here now and puts the backup in its place. We will ask you first.'),
+
+      el('h4', { class: 'mansec', text: 'Assessment presets' }),
+      el('div', { class: 'note' },
+        'A preset is a set of assessments you can drop into any course, so setting ',
+        'up the next one does not mean typing the same rows again.'),
+      el('div', { class: 'manactions' },
+        el('button', {
+          class: 'btn',
+          onclick: async () => { setChildren($('modalRoot')); await managePresets(); },
+        }, 'Manage presets'))),
   });
 }
 
@@ -1984,8 +2024,130 @@ function termPanel(kind, title, course, maximums) {
             title: 'Copy the assessments from the ' + otherLabel + ' term into this one',
             onclick: () => copyFromTerm(other, kind),
           }, '⧉ Copy from ' + otherLabel)
+        : null,
+      classStanding.length
+        ? el('button', {
+            class: 'btn ghost',
+            title: 'Keep this set of assessments to reuse in another course',
+            onclick: () => saveAsPreset(kind),
+          }, '★ Save as preset')
         : null)
   );
+}
+
+/**
+ * Keep a term's assessments as a reusable preset.
+ *
+ * The whole point of presets is not retyping the same rows for a second
+ * course, so the useful ones are the instructor's own, not the four built in.
+ */
+async function saveAsPreset(kind) {
+  const items = state.assessments[kind].filter((a) => a.kind !== 'exam');
+  if (!items.length) {
+    toast('There are no assessments to save yet');
+    return;
+  }
+
+  const course = state.courses.find((c) => c.id === state.courseId);
+  const suggested = course ? course.code + ' set' : 'My set';
+  const nameInput = el('input', { type: 'text', required: true, value: suggested });
+  const existing = (await guard(() => api.savedPresets.list())) || [];
+
+  const result = await modal({
+    title: 'Save as preset',
+    subtitle: 'Reuse this set of assessments when you set up another course.',
+    body: el('div', {},
+      el('div', { class: 'field' }, el('label', { text: 'Preset name' }), nameInput),
+      el('div', { class: 'note' },
+        'Saving ', el('b', {}, String(items.length)), ' assessment' + (items.length === 1 ? '' : 's') + ': ',
+        items.map((a) => a.name + ' (' + a.max_points + ')').join(', '), '. ',
+        'Names and point values only, never any scores.'),
+      existing.length
+        ? el('div', { class: 'hint' },
+            'You already have: ' + existing.map((p) => p.name).join(', ')
+            + '. Using one of those names replaces it.')
+        : null),
+    confirmLabel: 'Save preset',
+    onConfirm: () => (nameInput.value.trim() ? nameInput.value.trim() : false),
+  });
+  if (!result) return;
+
+  const saved_ = await guard(
+    () => api.savedPresets.save(result, items.map((a) => ({
+      name: a.name, maxPoints: a.max_points, kind: a.kind,
+    }))),
+    'Saving preset'
+  );
+  if (saved_) saved('Preset saved');
+}
+
+/**
+ * Rename and delete saved presets.
+ *
+ * Reached from the Manage dialog, because a preset is not tied to any one
+ * course and managing it from inside one would be the wrong place.
+ */
+async function managePresets() {
+  const presets = (await guard(() => api.savedPresets.list())) || [];
+
+  const render = (list) => el('div', { class: 'managelist' },
+    ...(list.length
+      ? list.map((preset) =>
+          el('div', { class: 'manrow' },
+            el('div', { class: 'manname' },
+              el('div', { text: preset.name }),
+              el('div', { class: 'mansub',
+                text: preset.items.map((i) => i.name + ' (' + i.max_points + ')').join(', ') })),
+            el('button', {
+              class: 'btn small',
+              onclick: async () => {
+                const input = el('input', { type: 'text', value: preset.name, required: true });
+                const next = await modal({
+                  title: 'Rename preset',
+                  body: el('div', { class: 'field' }, el('label', { text: 'Name' }), input),
+                  confirmLabel: 'Rename',
+                  onConfirm: () => (input.value.trim() ? input.value.trim() : false),
+                });
+                if (!next) return;
+                const ok = await guard(() => api.savedPresets.rename(preset.id, next), 'Renaming preset');
+                if (ok) { saved('Preset renamed'); await managePresets(); }
+              },
+            }, 'Rename'),
+            el('button', {
+              class: 'btn small danger',
+              onclick: async () => {
+                const ok = await confirmDialog({
+                  title: 'Delete "' + preset.name + '"?',
+                  subtitle: 'The preset only. No course or grade is touched.',
+                  confirmLabel: 'Delete preset',
+                });
+                if (!ok) return;
+                await guard(() => api.savedPresets.remove(preset.id), 'Deleting preset');
+                saved('Preset deleted');
+                await managePresets();
+              },
+            }, 'Delete'))
+        )
+      : [el('div', { class: 'manrow' },
+          el('div', { class: 'manname' },
+            el('div', { text: 'No saved presets yet' }),
+            el('div', { class: 'mansub',
+              text: 'Set up a term, then use "Save as preset" on the assessments screen.' })))]),
+  );
+
+  await modal({
+    title: 'Assessment presets',
+    subtitle: 'Sets you saved, to reuse when setting up a course.',
+    wide: true,
+    confirmLabel: 'Done',
+    cancelLabel: null,
+    onConfirm: () => true,
+    body: el('div', {},
+      render(presets),
+      el('div', { class: 'hint' },
+        'GradeDesk also has a few built-in sets. Both appear together under '
+        + '"Use a preset" on the assessments screen.')),
+  });
 }
 
 /**
@@ -2078,11 +2240,27 @@ async function copyFromTerm(fromKind, toKind) {
  * rather than added broken, and the dialog says so before anything happens.
  */
 async function applyPreset(term, kind, course) {
-  const presets = GradeDeskPresets.listPresets();
+  const builtIn = GradeDeskPresets.listPresets();
   const maximums = await api.policies.maximums(course.policy);
 
+  // Saved sets are the instructor's own and are far likelier to be wanted, so
+  // they come first. Their values carry a "saved:" prefix, because a saved
+  // preset's numeric id could otherwise collide with a built-in string id.
+  const savedSets = ((await guard(() => api.savedPresets.list())) || []).map((p) => ({
+    id: 'saved:' + p.id,
+    label: p.name,
+    summary: p.items.map((i) => i.name).join(', '),
+    assessments: p.items.map((i) => ({ name: i.name, maxPoints: i.max_points, kind: i.kind })),
+  }));
+  const presets = [...savedSets, ...builtIn];
+
+  const option = (p) => el('option', { value: p.id }, p.label + ': ' + p.summary);
   const picker = el('select', {},
-    ...presets.map((p) => el('option', { value: p.id }, p.label + ': ' + p.summary)));
+    ...(savedSets.length
+      ? [el('optgroup', { label: 'Your saved presets' }, ...savedSets.map(option)),
+         el('optgroup', { label: 'Built in' }, ...builtIn.map(option))]
+      : builtIn.map(option)));
+
   const detail = el('div', { class: 'hint' });
   const describe = () => {
     const chosen = presets.find((p) => p.id === picker.value);
@@ -2108,7 +2286,7 @@ async function applyPreset(term, kind, course) {
   });
   if (!chosenId) return;
 
-  const preset = GradeDeskPresets.getPreset(chosenId);
+  const preset = presets.find((p) => p.id === chosenId);
   if (!preset) return;
 
   const existing = state.assessments[kind].filter((a) => a.kind !== 'exam');

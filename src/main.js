@@ -247,6 +247,10 @@ function registerHandlers() {
   handle('assessments:countScores', (id) => store.countScores(id));
   handle('assessments:reorder', (termId, orderedIds) => store.reorderAssessments(termId, orderedIds));
   handle('assessments:copyToTerm', (fromTermId, toTermId) => store.copyAssessmentsToTerm(fromTermId, toTermId));
+  handle('savedPresets:list', () => store.listPresets());
+  handle('savedPresets:save', (name, items) => store.savePreset(name, items));
+  handle('savedPresets:rename', (id, name) => store.renamePreset(id, name));
+  handle('savedPresets:delete', (id) => store.deletePreset(id));
 
   // ---- scores ----
   handle('scores:set', (studentId, assessmentId, rawValue) => {

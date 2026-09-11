@@ -25,6 +25,10 @@ const TABLES = [
   'scores',
   'sessions',
   'marks',
+  // Presets last: preset_items points at presets, and nothing points at
+  // either, so forward-insert and reverse-delete both stay valid.
+  'presets',
+  'preset_items',
 ];
 
 /**

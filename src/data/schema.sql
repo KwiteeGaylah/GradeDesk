@@ -110,6 +110,33 @@ CREATE TABLE IF NOT EXISTS marks (
 
 CREATE INDEX IF NOT EXISTS idx_marks_session ON marks (session_id);
 
+-- Saved assessment presets.
+--
+-- The built-in presets live in src/engine/presets.js as plain data. These are
+-- the instructor's own, saved from a term they already set up, so building the
+-- same course again does not mean retyping the same rows.
+--
+-- Kept deliberately separate from assessments: a preset is a template, not a
+-- thing any grade is computed from. Deleting a course must never disturb one,
+-- which is why there is no foreign key back to courses or terms.
+CREATE TABLE IF NOT EXISTS presets (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL UNIQUE,
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS preset_items (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  preset_id  INTEGER NOT NULL REFERENCES presets(id) ON DELETE CASCADE,
+  name       TEXT    NOT NULL,
+  max_points INTEGER NOT NULL,
+  kind       TEXT    NOT NULL DEFAULT 'class_standing'
+             CHECK (kind IN ('class_standing', 'attendance')),
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_preset_items ON preset_items (preset_id, sort_order);
+
 -- Schema version, for future migrations.
 CREATE TABLE IF NOT EXISTS meta (
   key   TEXT PRIMARY KEY,

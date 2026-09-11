@@ -351,6 +351,92 @@ class Store {
     this.db.prepare('DELETE FROM assessments WHERE id = ?').run(id);
   }
 
+  // -------------------------------------------------------------- presets
+
+  /**
+   * Save a term's assessments as a reusable preset.
+   *
+   * Structure only: names, point values and order. Never scores, and never the
+   * exam, which every term already has and which is fixed at 40.
+   *
+   * A preset is a template rather than something grades are computed from, so
+   * it deliberately holds no link back to the course it came from. Deleting
+   * that course later must not disturb it.
+   *
+   * Names are unique. Saving over an existing name replaces its contents
+   * rather than creating a second preset that looks identical in the picker.
+   */
+  savePreset(name, items) {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('A preset needs a name.');
+
+    const rows = (Array.isArray(items) ? items : [])
+      .filter((a) => a && a.kind !== 'exam')
+      .map((a) => ({
+        name: String(a.name || '').trim(),
+        maxPoints: Number(a.maxPoints ?? a.max_points),
+        kind: a.kind === 'attendance' ? 'attendance' : 'class_standing',
+      }))
+      .filter((a) => a.name && Number.isFinite(a.maxPoints));
+
+    if (!rows.length) throw new Error('There are no assessments to save.');
+
+    return this.transaction(() => {
+      const existing = this.db.prepare('SELECT id FROM presets WHERE name = ?').get(clean);
+      let presetId;
+      if (existing) {
+        presetId = existing.id;
+        this.db.prepare('DELETE FROM preset_items WHERE preset_id = ?').run(presetId);
+      } else {
+        presetId = this.db.prepare('INSERT INTO presets (name) VALUES (?)').run(clean).lastInsertRowid;
+      }
+      const insert = this.db.prepare(
+        `INSERT INTO preset_items (preset_id, name, max_points, kind, sort_order)
+         VALUES (?, ?, ?, ?, ?)`
+      );
+      rows.forEach((a, i) => insert.run(presetId, a.name, a.maxPoints, a.kind, i));
+      return this.getPreset(presetId);
+    });
+  }
+
+  /** One saved preset with its rows, or null. */
+  getPreset(id) {
+    const preset = this.db.prepare('SELECT * FROM presets WHERE id = ?').get(id);
+    if (!preset) return null;
+    return { ...preset, items: this._presetItems(id) };
+  }
+
+  _presetItems(presetId) {
+    return this.db
+      .prepare('SELECT * FROM preset_items WHERE preset_id = ? ORDER BY sort_order, id')
+      .all(presetId);
+  }
+
+  /** Every saved preset, each with its rows, newest name order. */
+  listPresets() {
+    return this.db
+      .prepare('SELECT * FROM presets ORDER BY name COLLATE NOCASE')
+      .all()
+      .map((p) => ({ ...p, items: this._presetItems(p.id) }));
+  }
+
+  /** Rename a saved preset. Throws if the new name is taken. */
+  renamePreset(id, name) {
+    const clean = String(name || '').trim();
+    if (!clean) throw new Error('A preset needs a name.');
+    const clash = this.db
+      .prepare('SELECT id FROM presets WHERE name = ? AND id != ?')
+      .get(clean, id);
+    if (clash) throw new Error(`There is already a preset called "${clean}".`);
+    this.db.prepare('UPDATE presets SET name = ? WHERE id = ?').run(clean, id);
+    return this.getPreset(id);
+  }
+
+  /** Delete a saved preset. Its rows go with it, by cascade. */
+  deletePreset(id) {
+    this.db.prepare('DELETE FROM presets WHERE id = ?').run(id);
+  }
+
   /**
    * Put a term's class-standing assessments in the given order.
    *
