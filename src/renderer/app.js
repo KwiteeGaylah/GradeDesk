@@ -245,6 +245,186 @@ function currentCourse() {
 
 // --------------------------------------------------------------- left rail
 
+/**
+ * A right-click menu.
+ *
+ * The course rail only has room for a code and a section, so the things you
+ * might want to do with a course had to be reachable some other way. Items are
+ * {label, icon, onClick, danger} objects; a null entry draws a separator.
+ *
+ * Closes on the next click, scroll, resize or Escape, whichever comes first.
+ * Positioned against the viewport and nudged back inside it, so a menu opened
+ * on the last course in a long list does not hang off the bottom.
+ */
+function contextMenu(event, { title, subtitle, items }) {
+  event.preventDefault();
+  closeContextMenu();
+
+  const menu = el('div', { class: 'ctxmenu' });
+  if (title) {
+    menu.append(el('div', { class: 'ctxhead' },
+      el('div', { class: 'ctxtitle', text: title }),
+      subtitle ? el('div', { class: 'ctxsub', text: subtitle }) : null));
+  }
+  for (const item of items) {
+    if (!item) {
+      menu.append(el('div', { class: 'ctxsep' }));
+      continue;
+    }
+    menu.append(el('button', {
+      type: 'button',
+      class: item.danger ? 'danger' : '',
+      onclick: async () => {
+        closeContextMenu();
+        await item.onClick();
+      },
+    }, el('span', { class: 'ico', text: item.icon || '' }), item.label));
+  }
+
+  document.body.append(menu);
+
+  // Measure after mounting, then keep it on screen.
+  const pad = 8;
+  const box = menu.getBoundingClientRect();
+  const x = Math.min(event.clientX, window.innerWidth - box.width - pad);
+  const y = Math.min(event.clientY, window.innerHeight - box.height - pad);
+  menu.style.left = `${Math.max(pad, x)}px`;
+  menu.style.top = `${Math.max(pad, y)}px`;
+
+  // A timeout so the click that opened the menu does not immediately close it.
+  setTimeout(() => {
+    document.addEventListener('click', closeContextMenu, { once: true });
+    document.addEventListener('contextmenu', closeContextMenu, { once: true });
+    window.addEventListener('scroll', closeContextMenu, { once: true, capture: true });
+    window.addEventListener('resize', closeContextMenu, { once: true });
+  }, 0);
+}
+
+function closeContextMenu() {
+  document.querySelectorAll('.ctxmenu').forEach((m) => m.remove());
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeContextMenu();
+});
+
+/** Everything the right-click menu on a course offers. */
+function courseMenu(event, course) {
+  const go = async (screen) => {
+    state.courseId = course.id;
+    state.screen = screen;
+    await loadCourseDetail();
+    renderRail();
+    await renderScreen();
+  };
+  const full = [course.name, course.section ? `Section ${course.section}` : '']
+    .filter(Boolean).join(' · ');
+  contextMenu(event, {
+    title: course.code,
+    subtitle: full || `${course.policy}% table`,
+    items: [
+      { label: 'Grade entry', icon: '✎', onClick: () => go('grades') },
+      { label: 'Attendance', icon: '◷', onClick: () => go('attendance') },
+      { label: 'Roster', icon: '☰', onClick: () => go('roster') },
+      { label: 'Assessments & policy', icon: '⚙', onClick: () => go('config') },
+      null,
+      { label: 'Duplicate course…', icon: '⧉', onClick: () => duplicateCourse(course) },
+      { label: 'Course details…', icon: 'ⓘ', onClick: () => go('config') },
+      null,
+      { label: 'Delete course…', icon: '✕', danger: true, onClick: () => deleteCourse(course) },
+    ],
+  });
+}
+
+/**
+ * Copy a course's shape into a new one.
+ *
+ * Carries the assessments and nothing else. A second section of the same
+ * course wants the same quizzes, not the same people or the same marks, and
+ * copying grades across would invent results nobody entered.
+ */
+async function duplicateCourse(course) {
+  const code = el('input', { type: 'text', required: true, value: course.code });
+  const section = el('input', { type: 'text', value: '', placeholder: 'e.g. 2' });
+  const name = el('input', { type: 'text', value: course.name || '' });
+
+  const counts = [
+    ...state.assessments.midterm.filter((a) => a.kind !== 'exam'),
+    ...state.assessments.final.filter((a) => a.kind !== 'exam'),
+  ].length;
+
+  const result = await modal({
+    title: `Duplicate ${course.code}`,
+    subtitle: 'Makes a new course with the same assessments. Useful for another section.',
+    body: el('div', {},
+      el('div', { class: 'fieldrow' },
+        el('div', { class: 'field' }, el('label', { text: 'Course code' }), code),
+        el('div', { class: 'field' }, el('label', { text: 'Section' }), section)),
+      el('div', { class: 'field' }, el('label', { text: 'Course name' }), name),
+      el('div', { class: 'note' },
+        // state.assessments holds the loaded course only, so the count is
+        // shown when it is about this course and left out otherwise.
+        course.id === state.courseId
+          ? ['Copies all ', el('b', {}, String(counts)), ' assessments and the ']
+          : ['Copies its assessments and the '],
+        el('b', {}, `${course.policy}%`), ' table. ',
+        'Your class list, scores and attendance are ', el('b', {}, 'not'), ' copied.')),
+    confirmLabel: 'Create duplicate',
+    onConfirm: () => (code.value.trim()
+      ? { code: code.value.trim(), section: section.value.trim(), name: name.value.trim() }
+      : false),
+  });
+  if (!result) return;
+
+  const created = await guard(() => api.courses.duplicate(course.id, result), 'Duplicating course');
+  if (!created) return;
+  await loadCourses();
+  state.courseId = created.id;
+  state.screen = 'config';
+  await loadCourseDetail();
+  renderRail();
+  await renderScreen();
+  saved('Course duplicated');
+}
+
+/**
+ * Delete a course and everything in it.
+ *
+ * The confirmation counts the students first, because "delete this course" and
+ * "delete these 43 students' marks" are different sentences and only the
+ * second one is true.
+ */
+async function deleteCourse(course) {
+  const students = (await guard(() => api.students.list(course.id))) || [];
+  const label = [course.code, course.section].filter(Boolean).join(' · ');
+
+  const ok = await confirmDialog({
+    title: `Delete ${label}?`,
+    subtitle: course.name || undefined,
+    body: el('div', {},
+      el('div', { class: 'note warn' },
+        students.length
+          ? [
+              'This removes ', el('b', {}, `${students.length} student${students.length === 1 ? '' : 's'}`),
+              ' along with every mark and attendance record in this course.',
+            ]
+          : ['This course has no students yet. Its assessments will be removed.']),
+      el('div', { class: 'hint' },
+        'This cannot be undone. If you might want it back, use Manage, then Back up, first.')),
+    confirmLabel: 'Delete course',
+  });
+  if (!ok) return;
+
+  await guard(() => api.courses.remove(course.id), 'Deleting course');
+  if (state.courseId === course.id) state.courseId = null;
+  await loadCourses();
+  state.courseId = state.courses[0] ? state.courses[0].id : null;
+  await loadCourseDetail();
+  renderRail();
+  await renderScreen();
+  saved('Course deleted');
+}
+
 function renderRail() {
   const select = $('semesterSelect');
   setChildren(select,
@@ -259,6 +439,11 @@ function renderRail() {
     ...state.courses.map((c) =>
       el('a', {
         class: c.id === state.courseId ? 'active' : '',
+        // The rail shows the code; the full name is what people actually
+        // remember a course by, so it is the hover text.
+        title: [c.name, c.section ? `Section ${c.section}` : '', `${c.policy}% table`]
+          .filter(Boolean).join(' · ') || c.code,
+        oncontextmenu: (e) => courseMenu(e, c),
         onclick: async () => {
           state.courseId = c.id;
           await loadCourseDetail();
@@ -1693,7 +1878,7 @@ function termPanel(kind, title, course, maximums) {
   const exam = list.find((a) => a.kind === 'exam');
   const classStanding = list.filter((a) => a.kind !== 'exam');
 
-  const rows = classStanding.map((a) => {
+  const rows = classStanding.map((a, i) => {
     const nameInput = el('input', { type: 'text', value: a.name, 'aria-label': 'Assessment name' });
     const commitName = async () => {
       const v = nameInput.value.trim();
@@ -1727,29 +1912,227 @@ function termPanel(kind, title, course, maximums) {
       saved();
     });
 
+    const moves = el('span', { class: 'moves' },
+      el('button', {
+        type: 'button', title: 'Move up', disabled: i === 0,
+        onclick: () => moveAssessment(kind, a.id, -1),
+      }, '▲'),
+      el('button', {
+        type: 'button', title: 'Move down', disabled: i === classStanding.length - 1,
+        onclick: () => moveAssessment(kind, a.id, 1),
+      }, '▼'));
+
     return el('div', { class: 'arow' },
+      moves,
       el('span', { class: 'aname' }, nameInput),
-      a.kind === 'attendance' ? el('span', { class: 'badge', text: 'auto' }) : null,
+      a.kind === 'attendance'
+        ? el('span', { class: 'badge', title: 'Scores itself from the attendance register', text: 'auto' })
+        : null,
       maxSelect,
       el('button', { type: 'button', class: 'x', title: 'Remove', onclick: () => removeAssessment(a) }, '✕')
     );
   });
 
+  const points = classStanding.reduce((sum, a) => sum + a.max_points, 0);
+  const other = kind === 'midterm' ? 'final' : 'midterm';
+  const otherLabel = other === 'midterm' ? 'midterm' : 'final';
+
   return el('div', { class: 'panel' },
-    el('h3', { text: title }),
+    el('h3', {}, title, helpDot(
+      'Each score is looked up in the transmutation table first, which turns it into a '
+      + 'value between 50 and 100. Those are averaged, and the average is 60% of the term. '
+      + 'The exam is the other 40%.')),
     el('div', { class: 'sub', text: 'Everything averaged equally, plus one exam worth 40%' }),
     ...rows,
     exam
       ? el('div', { class: 'arow' },
           el('span', { class: 'aname' }, exam.name),
-          el('span', { class: 'badge exam', text: 'exam · 40 · fixed' }))
+          el('span', {
+            class: 'badge exam',
+            title: 'Every term has exactly one exam, always worth 40 points',
+            text: 'exam · 40 · fixed',
+          }))
+      : null,
+    // A plain count, deliberately not measured against a target. Point values
+    // do not have to add up to anything: each raw score becomes a 50-100 value
+    // before averaging, so three assessments at full marks give exactly the
+    // same class standing as five.
+    classStanding.length
+      ? el('div', { class: 'atotal' },
+          el('span', {},
+            el('b', {}, String(classStanding.length)),
+            ' assessment' + (classStanding.length === 1 ? '' : 's') + ' · ',
+            el('b', {}, String(points)), ' points'),
+          el('span', {}, 'averaged equally', helpDot(
+            'The points do not have to add up to any particular number. Every score is '
+            + 'converted to a 50-100 value before being averaged, so three assessments at '
+            + 'full marks give exactly the same class standing as five.')))
       : null,
     el('div', { class: 'addrow' },
       el('button', { class: 'btn ghost', onclick: () => addAssessment(term, kind, course) }, '＋ Add assessment'),
       classStanding.some((a) => a.kind === 'attendance')
         ? null
-        : el('button', { class: 'btn ghost', onclick: () => addAssessment(term, kind, course, true) }, '＋ Add attendance'))
+        : el('button', { class: 'btn ghost', onclick: () => addAssessment(term, kind, course, true) }, '＋ Add attendance'),
+      el('button', {
+        class: 'btn ghost',
+        title: 'Add a ready-made set of assessments',
+        onclick: () => applyPreset(term, kind, course),
+      }, '☰ Use a preset'),
+      state.assessments[other].filter((a) => a.kind !== 'exam').length
+        ? el('button', {
+            class: 'btn ghost',
+            title: 'Copy the assessments from the ' + otherLabel + ' term into this one',
+            onclick: () => copyFromTerm(other, kind),
+          }, '⧉ Copy from ' + otherLabel)
+        : null)
   );
+}
+
+/**
+ * A small question mark that explains something in place.
+ *
+ * Native title text rather than a custom tooltip: it works with the keyboard,
+ * it is read by screen readers, and it cannot end up positioned off screen.
+ * Clicking shows the same text as a toast, for touch screens and for anyone
+ * who does not hover long enough for the native tooltip to appear.
+ */
+function helpDot(text) {
+  return el('button', {
+    type: 'button',
+    class: 'helpdot',
+    title: text,
+    'aria-label': text,
+    onclick: (e) => {
+      e.preventDefault();
+      toast(text);
+    },
+  }, '?');
+}
+
+/** Move one assessment up or down, then persist the whole new order. */
+async function moveAssessment(kind, assessmentId, delta) {
+  const list = state.assessments[kind].filter((a) => a.kind !== 'exam');
+  const from = list.findIndex((a) => a.id === assessmentId);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= list.length) return;
+
+  const reordered = [...list];
+  const [moved] = reordered.splice(from, 1);
+  reordered.splice(to, 0, moved);
+
+  const term = state.terms[kind];
+  await guard(() => api.assessments.reorder(term.id, reordered.map((a) => a.id)), 'Reordering');
+  await loadCourseDetail();
+  await renderScreen();
+  saved();
+}
+
+/**
+ * Copy the other term's assessments into this one.
+ *
+ * Names and point values only. Copying scores across terms would invent
+ * results nobody entered.
+ */
+async function copyFromTerm(fromKind, toKind) {
+  const from = state.terms[fromKind];
+  const to = state.terms[toKind];
+  const incoming = state.assessments[fromKind].filter((a) => a.kind !== 'exam');
+  const existing = state.assessments[toKind].filter((a) => a.kind !== 'exam');
+  const taken = new Set(existing.map((a) => a.name.trim().toLowerCase()));
+  const willAdd = incoming.filter((a) => !taken.has(a.name.trim().toLowerCase()));
+
+  if (!willAdd.length) {
+    toast('The ' + toKind + ' term already has all of those');
+    return;
+  }
+
+  const ok = await confirmDialog({
+    title: 'Copy ' + willAdd.length + ' assessment' + (willAdd.length === 1 ? '' : 's')
+      + ' from the ' + fromKind + ' term?',
+    subtitle: willAdd.map((a) => a.name + ' (' + a.max_points + ')').join(', '),
+    body: el('div', {},
+      el('div', { class: 'note' },
+        'Only the names and point values are copied. ',
+        el('b', {}, 'No scores'), ' come across, and anything already here is left alone.'),
+      existing.length
+        ? el('div', { class: 'hint' },
+            'The ' + toKind + ' term keeps its ' + existing.length + ' existing assessment'
+            + (existing.length === 1 ? '' : 's') + '.')
+        : null),
+    confirmLabel: 'Copy assessments',
+    danger: false,
+  });
+  if (!ok) return;
+
+  const result = await guard(() => api.assessments.copyToTerm(from.id, to.id), 'Copying assessments');
+  if (!result) return;
+  await loadCourseDetail();
+  await renderScreen();
+  saved('Copied ' + result.copied + ' assessment' + (result.copied === 1 ? '' : 's'));
+}
+
+/**
+ * Add a ready-made set of assessments to a term.
+ *
+ * Rows whose point value has no column in this course's table are skipped
+ * rather than added broken, and the dialog says so before anything happens.
+ */
+async function applyPreset(term, kind, course) {
+  const presets = GradeDeskPresets.listPresets();
+  const maximums = await api.policies.maximums(course.policy);
+
+  const picker = el('select', {},
+    ...presets.map((p) => el('option', { value: p.id }, p.label + ': ' + p.summary)));
+  const detail = el('div', { class: 'hint' });
+  const describe = () => {
+    const chosen = presets.find((p) => p.id === picker.value);
+    if (!chosen) return;
+    const usable = chosen.assessments.filter((a) => maximums.includes(a.maxPoints));
+    const skipped = chosen.assessments.length - usable.length;
+    detail.textContent = usable.map((a) => a.name + ' (' + a.maxPoints + ')').join(', ')
+      + (skipped ? ' — ' + skipped + ' skipped, no column in the ' + course.policy + '% table' : '');
+  };
+  picker.addEventListener('change', describe);
+  describe();
+
+  const chosenId = await modal({
+    title: 'Add a preset to the ' + kind + ' term',
+    subtitle: 'A starting set. Rename, repoint or remove any of them afterwards.',
+    body: el('div', {},
+      el('div', { class: 'field' }, el('label', { text: 'Preset' }), picker, detail),
+      el('div', { class: 'note' },
+        'Anything already in this term stays. A name that is already here is skipped, ',
+        'so you will not end up with two rows called Quiz 1.')),
+    confirmLabel: 'Add these',
+    onConfirm: () => picker.value,
+  });
+  if (!chosenId) return;
+
+  const preset = GradeDeskPresets.getPreset(chosenId);
+  if (!preset) return;
+
+  const existing = state.assessments[kind].filter((a) => a.kind !== 'exam');
+  const taken = new Set(existing.map((a) => a.name.trim().toLowerCase()));
+  let hasAttendance = existing.some((a) => a.kind === 'attendance');
+
+  let added = 0;
+  for (const a of preset.assessments) {
+    if (taken.has(a.name.trim().toLowerCase())) continue;
+    if (!maximums.includes(a.maxPoints)) continue;
+    if (a.kind === 'attendance') {
+      if (hasAttendance) continue;
+      hasAttendance = true;
+    }
+    const ok = await guard(() => api.assessments.add(term.id, a), 'Adding assessment');
+    if (ok) {
+      taken.add(a.name.trim().toLowerCase());
+      added += 1;
+    }
+  }
+
+  await loadCourseDetail();
+  await renderScreen();
+  saved(added ? 'Added ' + added + ' assessment' + (added === 1 ? '' : 's') : 'Nothing to add');
 }
 
 async function addAssessment(term, kind, course, isAttendance = false) {
@@ -2149,10 +2532,10 @@ async function runSetupWizard() {
   await loadCourseDetail();
 
   // ---- step 3: assessments ----
+  // The same list the assessments screen offers, so the two cannot drift.
   const preset = el('select', {},
-    el('option', { value: 'typical', selected: true },
-      'Typical: attendance, assignment, two quizzes, class work'),
-    el('option', { value: 'minimal' }, 'Minimal: attendance and one assignment'),
+    ...GradeDeskPresets.listPresets().map((p, i) =>
+      el('option', { value: p.id, selected: i === 0 }, p.label + ': ' + p.summary)),
     el('option', { value: 'none' }, 'None, I will add my own'));
 
   const chosen = await modal({
@@ -2171,22 +2554,12 @@ async function runSetupWizard() {
 
   if (chosen !== 'none') {
     const terms = await api.courses.terms(course.id);
-    const sets = {
-      typical: [
-        { name: 'Attendance', maxPoints: 10, kind: 'attendance' },
-        { name: 'Assign 1', maxPoints: 10 },
-        { name: 'Quiz 1', maxPoints: 15 },
-        { name: 'Quiz 2', maxPoints: 15 },
-        { name: 'ClassWork', maxPoints: 10 },
-      ],
-      minimal: [
-        { name: 'Attendance', maxPoints: 10, kind: 'attendance' },
-        { name: 'Assign 1', maxPoints: 10 },
-      ],
-    };
-    for (const kind of ['midterm', 'final']) {
-      for (const a of sets[chosen]) {
-        await guard(() => api.assessments.add(terms.byKind[kind].id, a), 'Adding assessment');
+    const picked = GradeDeskPresets.getPreset(chosen);
+    if (picked) {
+      for (const kind of ['midterm', 'final']) {
+        for (const a of picked.assessments) {
+          await guard(() => api.assessments.add(terms.byKind[kind].id, a), 'Adding assessment');
+        }
       }
     }
     await loadCourseDetail();

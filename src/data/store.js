@@ -351,6 +351,102 @@ class Store {
     this.db.prepare('DELETE FROM assessments WHERE id = ?').run(id);
   }
 
+  /**
+   * Put a term's class-standing assessments in the given order.
+   *
+   * Takes the full ordered list of ids rather than a move-one-step call, so a
+   * drag that lands three rows down is still one write.
+   *
+   * The exam is never included: listAssessments always sorts it last by kind,
+   * so its sort_order is not meaningful. Ids that do not belong to this term
+   * are ignored rather than trusted, since this arrives from the renderer.
+   */
+  reorderAssessments(termId, orderedIds) {
+    return this.transaction(() => {
+      const mine = new Set(
+        this.db
+          .prepare("SELECT id FROM assessments WHERE term_id = ? AND kind != 'exam'")
+          .all(termId)
+          .map((r) => r.id)
+      );
+      const update = this.db.prepare('UPDATE assessments SET sort_order = ? WHERE id = ?');
+      let order = 0;
+      for (const id of orderedIds) {
+        if (!mine.has(id)) continue;
+        update.run(order, id);
+        order += 1;
+      }
+      return this.listAssessments(termId);
+    });
+  }
+
+  /**
+   * Copy the class-standing assessments of one term into another.
+   *
+   * Structure only: names and point values, never scores. Copying marks across
+   * terms would invent grades nobody entered.
+   *
+   * Skips any assessment whose name already exists in the target, so running it
+   * twice does not double everything. Attendance is copied at most once,
+   * because a term with two attendance rows would count it twice in the
+   * average. The exam is never copied; every term already has exactly one and
+   * a second would break the one-exam index.
+   */
+  copyAssessmentsToTerm(fromTermId, toTermId) {
+    return this.transaction(() => {
+      const existing = this.listAssessments(toTermId);
+      const taken = new Set(existing.map((a) => a.name.trim().toLowerCase()));
+      let attendanceUsed = existing.some((a) => a.kind === 'attendance');
+
+      let copied = 0;
+      for (const a of this.listClassStandingAssessments(fromTermId)) {
+        if (taken.has(a.name.trim().toLowerCase())) continue;
+        if (a.kind === 'attendance') {
+          if (attendanceUsed) continue;
+          attendanceUsed = true;
+        }
+        this.addAssessment(toTermId, { name: a.name, maxPoints: a.max_points, kind: a.kind });
+        taken.add(a.name.trim().toLowerCase());
+        copied += 1;
+      }
+      return { copied, assessments: this.listAssessments(toTermId) };
+    });
+  }
+
+  /**
+   * Create a new course carrying another's assessment structure.
+   *
+   * Deliberately copies NOTHING else. No students, no scores, no attendance
+   * sessions or marks: those belong to the class that sat the course, not to
+   * its shape. Someone duplicating "CSE 102 section 1" to make section 2 wants
+   * the same quizzes, not the same people or the same marks.
+   *
+   * createCourse already makes both terms and both exams, so only the
+   * class-standing rows are copied in.
+   */
+  duplicateCourse(sourceId, overrides = {}) {
+    return this.transaction(() => {
+      const source = this.getCourse(sourceId);
+      if (!source) throw new Error('Course not found');
+
+      const course = this.createCourse({
+        semesterId: overrides.semesterId ?? source.semester_id,
+        code: overrides.code ?? source.code,
+        name: overrides.name ?? source.name,
+        section: overrides.section ?? source.section,
+        instructor: overrides.instructor ?? source.instructor,
+        policy: overrides.policy ?? source.policy,
+      });
+
+      const from = this.getTerms(sourceId).byKind;
+      const to = this.getTerms(course.id).byKind;
+      for (const kind of TERM_KINDS) {
+        if (from[kind] && to[kind]) this.copyAssessmentsToTerm(from[kind].id, to[kind].id);
+      }
+      return course;
+    });
+  }
+
   // -------------------------------------------------------------------scores
 
   /**

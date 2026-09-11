@@ -16,7 +16,8 @@
     "screenshot": "node scripts/screenshot.js",
     "icon": "node scripts/makeicon.js && node scripts/build-ico.js",
     "build:dates": "node scripts/build-dates.js",
-    "check:refs": "node scripts/check-references.js"
+    "check:refs": "node scripts/check-references.js",
+    "build:presets": "node scripts/build-presets.js"
   },
   "devDependencies": {
     "electron": "^44.3.0",

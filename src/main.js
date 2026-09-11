@@ -229,6 +229,7 @@ function registerHandlers() {
   handle('courses:update', (id, fields) => store.updateCourse(id, fields));
   handle('courses:delete', (id) => store.deleteCourse(id));
   handle('courses:terms', (courseId) => store.getTerms(courseId));
+  handle('courses:duplicate', (id, overrides) => store.duplicateCourse(id, overrides));
 
   // ---- roster ----
   handle('students:list', (courseId) => store.listStudents(courseId));
@@ -244,6 +245,8 @@ function registerHandlers() {
   handle('assessments:update', (id, fields) => store.updateAssessment(id, fields));
   handle('assessments:delete', (id) => store.deleteAssessment(id));
   handle('assessments:countScores', (id) => store.countScores(id));
+  handle('assessments:reorder', (termId, orderedIds) => store.reorderAssessments(termId, orderedIds));
+  handle('assessments:copyToTerm', (fromTermId, toTermId) => store.copyAssessmentsToTerm(fromTermId, toTermId));
 
   // ---- scores ----
   handle('scores:set', (studentId, assessmentId, rawValue) => {

@@ -707,3 +707,135 @@ test('the flag survives a backup and restore', () => {
   store.close();
   restored.close();
 });
+
+// ------------------------------------------- reordering, copying, duplicating
+
+test('reordering rewrites sort_order and survives a reload', () => {
+  const store = newStore();
+  const { terms, a } = seedCourse(store);
+  const before = store.listClassStandingAssessments(terms.midterm.id).map((x) => x.name);
+  assert.deepEqual(before, ['Attendance', 'Assign 1', 'Quiz 1', 'Quiz 2', 'ClassWork']);
+
+  // Put ClassWork first and Attendance last.
+  store.reorderAssessments(terms.midterm.id, [
+    a.midClassWork.id, a.midAssign.id, a.midQuiz1.id, a.midQuiz2.id, a.midAttendance.id,
+  ]);
+  const after = store.listClassStandingAssessments(terms.midterm.id).map((x) => x.name);
+  assert.deepEqual(after, ['ClassWork', 'Assign 1', 'Quiz 1', 'Quiz 2', 'Attendance']);
+  store.close();
+});
+
+test('reordering never moves the exam out of last place', () => {
+  const store = newStore();
+  const { terms, a } = seedCourse(store);
+  // Try to drag the exam to the front. It must be ignored.
+  store.reorderAssessments(terms.midterm.id, [a.midExam.id, a.midQuiz1.id]);
+  const all = store.listAssessments(terms.midterm.id);
+  assert.equal(all[all.length - 1].kind, 'exam', 'the exam stays last');
+  store.close();
+});
+
+test('reordering ignores ids from another term', () => {
+  const store = newStore();
+  const { terms, a } = seedCourse(store);
+  const before = store.listClassStandingAssessments(terms.midterm.id).map((x) => x.id);
+  // finQuiz3 belongs to the final term and must not be pulled in.
+  store.reorderAssessments(terms.midterm.id, [a.finQuiz3.id, ...before]);
+  const after = store.listClassStandingAssessments(terms.midterm.id).map((x) => x.id);
+  assert.deepEqual(after, before, 'the foreign id changed nothing');
+  assert.equal(store.getAssessment(a.finQuiz3.id).term_id, terms.final.id, 'and it stayed put');
+  store.close();
+});
+
+test('copying a term brings names and points but never scores', () => {
+  const store = newStore();
+  const { course, terms, a } = seedCourse(store);
+  const [student] = store.addStudents(course.id, [{ studentId: '1', fullName: 'Test, One' }]);
+  store.setScore(student.id, a.midQuiz1.id, 12);
+
+  // Copy midterm into a brand new course's empty midterm.
+  const target = store.createCourse({ semesterId: course.semester_id, code: 'NEW 101' });
+  const targetTerms = store.getTerms(target.id).byKind;
+  const { copied } = store.copyAssessmentsToTerm(terms.midterm.id, targetTerms.midterm.id);
+
+  assert.equal(copied, 5, 'all five class-standing rows copied');
+  const names = store.listClassStandingAssessments(targetTerms.midterm.id).map((x) => x.name);
+  assert.deepEqual(names, ['Attendance', 'Assign 1', 'Quiz 1', 'Quiz 2', 'ClassWork']);
+
+  const copiedQuiz = store.listClassStandingAssessments(targetTerms.midterm.id).find((x) => x.name === 'Quiz 1');
+  assert.equal(copiedQuiz.max_points, 15, 'point value came across');
+  assert.equal(store.getScore(student.id, copiedQuiz.id), null, 'no score came across');
+  store.close();
+});
+
+test('copying twice does not double the assessments', () => {
+  const store = newStore();
+  const { course, terms } = seedCourse(store);
+  const target = store.createCourse({ semesterId: course.semester_id, code: 'NEW 101' });
+  const targetTerms = store.getTerms(target.id).byKind;
+
+  store.copyAssessmentsToTerm(terms.midterm.id, targetTerms.midterm.id);
+  const second = store.copyAssessmentsToTerm(terms.midterm.id, targetTerms.midterm.id);
+
+  assert.equal(second.copied, 0, 'nothing copied the second time');
+  assert.equal(store.listClassStandingAssessments(targetTerms.midterm.id).length, 5);
+  store.close();
+});
+
+test('copying never gives a term a second attendance or a second exam', () => {
+  const store = newStore();
+  const { terms } = seedCourse(store);
+  // The final term already has its own Attendance and its own exam.
+  store.copyAssessmentsToTerm(terms.midterm.id, terms.final.id);
+
+  const all = store.listAssessments(terms.final.id);
+  assert.equal(all.filter((x) => x.kind === 'attendance').length, 1, 'still one attendance');
+  assert.equal(all.filter((x) => x.kind === 'exam').length, 1, 'still one exam');
+  store.close();
+});
+
+test('duplicating a course carries the assessments and nothing else', () => {
+  const store = newStore();
+  const { course, terms, a } = seedCourse(store);
+
+  // Give the source a roster, a score, and a marked attendance session.
+  const [student] = store.addStudents(course.id, [{ studentId: '1', fullName: 'Test, One' }]);
+  store.setScore(student.id, a.midQuiz1.id, 12);
+  const session = store.addSession(course.id, terms.midterm.id, '2026-09-01');
+  store.setMark(student.id, session.id, 'P');
+
+  const copy = store.duplicateCourse(course.id, { code: 'CSE 102', section: '3' });
+
+  assert.notEqual(copy.id, course.id);
+  assert.equal(copy.section, '3', 'the override applied');
+  assert.equal(copy.policy, course.policy, 'policy carried over');
+  assert.equal(copy.name, course.name, 'name carried over');
+
+  const copyTerms = store.getTerms(copy.id).byKind;
+  assert.deepEqual(
+    store.listClassStandingAssessments(copyTerms.midterm.id).map((x) => x.name),
+    ['Attendance', 'Assign 1', 'Quiz 1', 'Quiz 2', 'ClassWork'],
+    'midterm structure carried over'
+  );
+  assert.deepEqual(
+    store.listClassStandingAssessments(copyTerms.final.id).map((x) => x.name),
+    ['Attendance', 'Assign 2', 'Quiz 3', 'Project'],
+    'final structure carried over'
+  );
+  assert.equal(store.getExam(copyTerms.midterm.id).max_points, EXAM_MAX_POINTS, 'exam present and fixed');
+
+  // The point of the feature: the people and their marks do NOT come along.
+  assert.equal(store.listStudents(copy.id).length, 0, 'no students copied');
+  assert.equal(store.listSessions(copyTerms.midterm.id).length, 0, 'no attendance sessions copied');
+
+  // And the source is untouched.
+  assert.equal(store.listStudents(course.id).length, 1, 'source roster intact');
+  assert.equal(store.getScore(student.id, a.midQuiz1.id), 12, 'source score intact');
+  store.close();
+});
+
+test('duplicating a missing course fails instead of making an empty one', () => {
+  const store = newStore();
+  assert.throws(() => store.duplicateCourse(9999), /not found/i);
+  store.close();
+});

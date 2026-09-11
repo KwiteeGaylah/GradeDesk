@@ -732,3 +732,70 @@ td.name .offroster {
     gap: 2px;
   }
 }
+
+/* ---------------- right-click menu ---------------- */
+/* The course rail shows a code and a section, which is all that fits. The full
+   name, the policy and the things you might want to do with the course live
+   here instead of forcing a trip through the assessments screen. */
+.ctxmenu {
+  position: fixed; z-index: 70; min-width: 208px; padding: 5px;
+  background: var(--paper); border: 1px solid var(--line-strong);
+  border-radius: 9px; box-shadow: 0 10px 30px rgba(16, 22, 34, .18);
+  font-size: 13px;
+}
+.ctxmenu .ctxhead {
+  padding: 7px 10px 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px;
+}
+.ctxmenu .ctxtitle { font-weight: 600; color: var(--ink); }
+.ctxmenu .ctxsub { font-size: 11.5px; color: var(--ink-soft); margin-top: 2px; }
+.ctxmenu button {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 7px 10px; border: none; background: none; border-radius: 6px;
+  font: inherit; color: var(--ink); text-align: left; cursor: pointer;
+}
+.ctxmenu button:hover { background: var(--rail-hover); }
+.ctxmenu button .ico { width: 15px; text-align: center; color: var(--ink-faint); flex: none; }
+.ctxmenu button.danger { color: var(--red); }
+.ctxmenu button.danger:hover { background: var(--red-tint); }
+.ctxmenu .ctxsep { height: 1px; background: var(--line); margin: 4px 0; }
+
+/* ---------------- assessment list extras ---------------- */
+/* A running count of what the term holds. Deliberately NOT shown against a
+   target: point values do not have to add up to anything, because each score
+   is transmuted to 50-100 before being averaged. Three assessments at full
+   marks give exactly 60, and so do five. */
+.atotal {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; padding: 9px 0 2px; margin-top: 6px;
+  border-top: 1px solid var(--line); font-size: 12px; color: var(--ink-soft);
+}
+.atotal b { color: var(--ink); font-weight: 600; }
+
+/* Reorder arrows sit left of the name and stay quiet until the row is hovered,
+   so a list that is already in the right order does not look like a control
+   panel. */
+.arow .moves { display: flex; flex-direction: column; gap: 1px; flex: none; width: 16px; }
+.arow .moves button {
+  border: none; background: none; cursor: pointer; padding: 0; line-height: 1;
+  font-size: 9px; color: var(--line-strong);
+}
+.arow:hover .moves button { color: var(--ink-faint); }
+.arow .moves button:hover:not(:disabled) { color: var(--brand); }
+.arow .moves button:disabled { opacity: .25; cursor: default; }
+
+/* The row of actions under each term panel wraps on a narrow window rather
+   than pushing the panel wide. */
+.addrow { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------------- inline help ---------------- */
+/* A question mark that explains a thing in place. Used on the headings people
+   ask about most: what class standing means, why points need not total 60,
+   what a transmutation table does. */
+.helpdot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 6px; border-radius: 50%;
+  background: var(--line); color: var(--ink-soft);
+  font-size: 10px; font-weight: 700; cursor: help; vertical-align: middle;
+  border: none; padding: 0;
+}
+.helpdot:hover { background: var(--brand); color: #fff; }

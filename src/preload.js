@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('gradedesk', {
     update: (id, fields) => call('courses:update', id, fields),
     remove: (id) => call('courses:delete', id),
     terms: (courseId) => call('courses:terms', courseId),
+    duplicate: (id, overrides) => call('courses:duplicate', id, overrides),
   },
   students: {
     list: (courseId) => call('students:list', courseId),
@@ -53,6 +54,8 @@ contextBridge.exposeInMainWorld('gradedesk', {
     update: (id, fields) => call('assessments:update', id, fields),
     remove: (id) => call('assessments:delete', id),
     countScores: (id) => call('assessments:countScores', id),
+    reorder: (termId, orderedIds) => call('assessments:reorder', termId, orderedIds),
+    copyToTerm: (fromTermId, toTermId) => call('assessments:copyToTerm', fromTermId, toTermId),
   },
   scores: {
     set: (studentId, assessmentId, rawValue) => call('scores:set', studentId, assessmentId, rawValue),
