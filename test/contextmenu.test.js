@@ -104,10 +104,31 @@ test('listeners are attached in the capture phase', () => {
   }
 });
 
-test('a right-click inside the menu does not dismiss it', () => {
+test('no event inside the menu dismisses it', () => {
+  // Not just right-clicks. The guard once read
+  //   if (e.type === 'contextmenu' && menu.contains(e.target)) return;
+  // so a left mousedown on an item fell through to closeContextMenu. mousedown
+  // precedes click, so the node was gone before the button's own handler ran:
+  // every menu item silently did nothing.
   const src = menuSource();
   assert.ok(
     /menu\.contains\(\s*e\.target\s*\)/.test(src),
-    'the dismiss handler must ignore right-clicks inside the menu itself'
+    'the dismiss handler must ignore events inside the menu itself'
+  );
+  const guard = src.slice(src.indexOf('const dismiss'), src.indexOf('menuTeardown ='));
+  assert.ok(
+    !/e\.type\s*===\s*'contextmenu'\s*&&/.test(guard),
+    'the in-menu guard must not be limited to contextmenu events'
+  );
+});
+
+test('menu items close the menu themselves', () => {
+  // Since dismissal ignores in-menu events, each item is responsible for
+  // closing before it acts, or the menu would stay open after being used.
+  const src = menuSource();
+  const item = src.slice(src.indexOf('onclick:'), src.indexOf('document.body.append'));
+  assert.ok(
+    item.indexOf('closeContextMenu()') < item.indexOf('item.onClick()'),
+    'an item closes the menu before running its action'
   );
 });

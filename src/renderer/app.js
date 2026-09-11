@@ -305,9 +305,15 @@ function contextMenu(event, { title, subtitle, items }) {
   // opened on some clicks and not others. That is the "works unexpectedly"
   // behaviour.
   const dismiss = (e) => {
-    // A right-click inside the menu is meaningless; a right-click anywhere
-    // else should close this menu and let the new target open its own.
-    if (e && e.type === 'contextmenu' && menu.contains(e.target)) return;
+    // Anything that happens INSIDE the menu is the menu being used, not a
+    // reason to close it.
+    //
+    // This guard used to apply only to contextmenu, which broke every item:
+    // mousedown fires before click, so pressing a button ran closeContextMenu,
+    // the node was removed mid-gesture, and the click never reached its
+    // handler. The menu appeared to work and did nothing. Items close the menu
+    // themselves in their own onclick.
+    if (e && e.target && menu.contains(e.target)) return;
     closeContextMenu();
   };
   menuTeardown = () => {
