@@ -1975,6 +1975,16 @@ function termPanel(kind, title, course, maximums) {
         ? el('span', { class: 'badge', title: 'Scores itself from the attendance register', text: 'auto' })
         : null,
       maxSelect,
+      // Attendance is excluded: a term can only hold one, because two would
+      // both read the same register and count it twice in the average.
+      a.kind === 'attendance'
+        ? null
+        : el('button', {
+            type: 'button',
+            class: 'dup',
+            title: 'Add another like this one',
+            onclick: () => duplicateAssessment(kind, a),
+          }, '⧉'),
       el('button', { type: 'button', class: 'x', title: 'Remove', onclick: () => removeAssessment(a) }, '✕')
     );
   });
@@ -2177,6 +2187,41 @@ function helpDot(text) {
   }, '?');
 }
 
+/**
+ * Add another assessment just like this one, directly beneath it.
+ *
+ * Quicker than the Add dialog for the common case of a second quiz, and it
+ * keeps the new row next to its sibling rather than at the bottom of the list.
+ *
+ * The name is reused as-is. Two assessments called "Quiz" are perfectly legal:
+ * nothing keys off the name, and the export numbers the columns anyway.
+ */
+async function duplicateAssessment(kind, assessment) {
+  const term = state.terms[kind];
+  const created = await guard(
+    () => api.assessments.add(term.id, {
+      name: assessment.name,
+      maxPoints: assessment.max_points,
+      kind: assessment.kind,
+    }),
+    'Duplicating assessment'
+  );
+  if (!created) return;
+
+  // addAssessment puts it last. Move it to sit right under the row it copies.
+  const list = state.assessments[kind].filter((a) => a.kind !== 'exam');
+  const at = list.findIndex((a) => a.id === assessment.id);
+  if (at > -1) {
+    const order = list.map((a) => a.id);
+    order.splice(at + 1, 0, created.id);
+    await guard(() => api.assessments.reorder(term.id, order), 'Reordering');
+  }
+
+  await loadCourseDetail();
+  await renderScreen();
+  saved('Assessment added');
+}
+
 /** Move one assessment up or down, then persist the whole new order. */
 async function moveAssessment(kind, assessmentId, delta) {
   const list = state.assessments[kind].filter((a) => a.kind !== 'exam');
@@ -2296,6 +2341,9 @@ async function applyPreset(term, kind, course) {
   if (!preset) return;
 
   const existing = state.assessments[kind].filter((a) => a.kind !== 'exam');
+  // Only what is ALREADY in the term is a collision. Names are not added to
+  // this set as the preset is applied: a preset holding two rows called "Quiz"
+  // means two quizzes, and collapsing them silently dropped one.
   const taken = new Set(existing.map((a) => a.name.trim().toLowerCase()));
   let hasAttendance = existing.some((a) => a.kind === 'attendance');
 
@@ -2303,15 +2351,14 @@ async function applyPreset(term, kind, course) {
   for (const a of preset.assessments) {
     if (taken.has(a.name.trim().toLowerCase())) continue;
     if (!maximums.includes(a.maxPoints)) continue;
+    // Attendance is the one thing a term can hold only once: two rows would
+    // both read the same register and count it twice in the average.
     if (a.kind === 'attendance') {
       if (hasAttendance) continue;
       hasAttendance = true;
     }
     const ok = await guard(() => api.assessments.add(term.id, a), 'Adding assessment');
-    if (ok) {
-      taken.add(a.name.trim().toLowerCase());
-      added += 1;
-    }
+    if (ok) added += 1;
   }
 
   await loadCourseDetail();

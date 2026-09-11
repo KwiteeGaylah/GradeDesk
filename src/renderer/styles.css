@@ -799,3 +799,12 @@ td.name .offroster {
   border: none; padding: 0;
 }
 .helpdot:hover { background: var(--brand); color: #fff; }
+
+/* Duplicate an assessment. Sits beside the remove cross, quiet until the row
+   is hovered, so a settled list does not look like a control panel. */
+.arow .dup {
+  border: none; background: none; cursor: pointer; padding: 0 2px;
+  font-size: 13px; color: #b0b8c4; line-height: 1;
+}
+.arow:hover .dup { color: var(--ink-faint); }
+.arow .dup:hover { color: var(--brand); }

@@ -941,3 +941,39 @@ test('saved presets survive a backup and restore', () => {
   store.close();
   restored.close();
 });
+
+test('copying a term carries assessments that share a name', () => {
+  // Two quizzes both called "Quiz" is a normal way to set a term up. An
+  // earlier version added each copied name to the skip set as it went, so the
+  // second one was treated as a duplicate of the first and silently dropped.
+  const store = newStore();
+  const semester = store.createSemester('2026-2027 Semester 1');
+  const course = store.createCourse({ semesterId: semester.id, code: 'SRC 101' });
+  const { byKind } = store.getTerms(course.id);
+
+  store.addAssessment(byKind.midterm.id, { name: 'Quiz', maxPoints: 15 });
+  store.addAssessment(byKind.midterm.id, { name: 'Quiz', maxPoints: 15 });
+  store.addAssessment(byKind.midterm.id, { name: 'Assign 1', maxPoints: 10 });
+
+  const target = store.createCourse({ semesterId: semester.id, code: 'DST 101' });
+  const targetTerms = store.getTerms(target.id).byKind;
+  const { copied } = store.copyAssessmentsToTerm(byKind.midterm.id, targetTerms.midterm.id);
+
+  assert.equal(copied, 3, 'both quizzes and the assignment come across');
+  assert.deepEqual(
+    store.listClassStandingAssessments(targetTerms.midterm.id).map((a) => a.name),
+    ['Quiz', 'Quiz', 'Assign 1']
+  );
+  store.close();
+});
+
+test('a preset keeps rows that share a name', () => {
+  const store = newStore();
+  const preset = store.savePreset('Two quizzes', [
+    { name: 'Quiz', maxPoints: 15 },
+    { name: 'Quiz', maxPoints: 15 },
+    { name: 'Assign 1', maxPoints: 10 },
+  ]);
+  assert.deepEqual(preset.items.map((i) => i.name), ['Quiz', 'Quiz', 'Assign 1']);
+  store.close();
+});

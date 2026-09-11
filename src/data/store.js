@@ -492,7 +492,9 @@ class Store {
           attendanceUsed = true;
         }
         this.addAssessment(toTermId, { name: a.name, maxPoints: a.max_points, kind: a.kind });
-        taken.add(a.name.trim().toLowerCase());
+        // Deliberately NOT added to `taken`: a term holding two assessments
+        // with the same name is legitimate, and adding it here copied only the
+        // first of them.
         copied += 1;
       }
       return { copied, assessments: this.listAssessments(toTermId) };
