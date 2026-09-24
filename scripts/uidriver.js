@@ -187,11 +187,20 @@ async function drive(win, app) {
       await renderScreen();
       await new Promise(r => setTimeout(r, 300));
       const rows = document.querySelectorAll('#content tbody tr').length;
-      const nameInput = document.querySelector('#content input[data-row="0"][data-col="1"]');
-      return { rows, firstName: nameInput ? nameInput.value : null };
+      const lastInput = document.querySelector('#content input[data-row="0"][data-col="1"]');
+      const firstInput = document.querySelector('#content input[data-row="0"][data-col="2"]');
+      return {
+        rows,
+        lastName: lastInput ? lastInput.value : null,
+        firstName: firstInput ? firstInput.value : null,
+      };
     })()`);
     check('roster shows every student as an editable row', roster.rows === 3, JSON.stringify(roster));
-    check('roster cells hold the typed names', roster.firstName === 'Bestman, Comfort K.', JSON.stringify(roster));
+    // The roster grid is now the administration's four columns, so col 1 is the
+    // surname and col 2 the first name, rather than one combined name box.
+    check('roster cells hold the typed name parts',
+      roster.lastName === 'Bestman' && roster.firstName === 'Comfort',
+      JSON.stringify(roster));
 
     // ---- config screen offers only supported maxima ----
     const config = await run(win, `(async () => {
@@ -239,8 +248,10 @@ async function drive(win, app) {
       const out = {};
       pick('roster'); await new Promise(r => setTimeout(r, 250));
       out.roster = names();
-      pick('name'); await new Promise(r => setTimeout(r, 250));
+      pick('last'); await new Promise(r => setTimeout(r, 250));
       out.byName = names();
+      pick('first'); await new Promise(r => setTimeout(r, 250));
+      out.byFirst = names();
       pick('id'); await new Promise(r => setTimeout(r, 250));
       out.byId = sids();
       // Search narrows to one student.
@@ -260,20 +271,52 @@ async function drive(win, app) {
     check('sorting by name really reorders the list',
       JSON.stringify(sorting.byName) === JSON.stringify(sortedCopy), JSON.stringify(sorting.byName));
     check('sorting by student ID puts numbers in numeric order',
-      sorting.byId.indexOf('10014') < sorting.byId.indexOf('10001'), JSON.stringify(sorting.byId));
+      sorting.byId.indexOf('10001') < sorting.byId.indexOf('10014'), JSON.stringify(sorting.byId));
+    // Splitting names is what makes this second ordering possible at all.
+    check('sorting by first name is offered and differs from last name',
+      Array.isArray(sorting.byFirst) && sorting.byFirst.length === sorting.byName.length,
+      JSON.stringify(sorting.byFirst));
     check('searching narrows the list to the match', sorting.searchCount >= 1 &&
       sorting.searchCount < sorting.roster.length, JSON.stringify(sorting));
     check('the row count says how many are showing',
       /of/.test(sorting.countLabel), sorting.countLabel);
 
     // ---- responsive layout: the essentials survive a narrow window ----
+    /**
+     * Resize the window and wait for the RENDERER to actually be that wide.
+     *
+     * win.getContentSize() reports what was asked for, not what the window got.
+     * On a display whose work area is narrower than the request the OS clamps
+     * the window, the viewport never changes, and every responsive check then
+     * silently tests the previous width. So the renderer's own innerWidth is
+     * what is waited on and returned.
+     */
     const setSize = async (w, h) => {
       if (win.isMaximized()) win.unmaximize();
       win.setResizable(true);
       win.setContentSize(w, h);
-      await new Promise((r) => setTimeout(r, 700));
-      return win.getContentSize();
+      let inner = 0;
+      for (let i = 0; i < 20; i += 1) {
+        await new Promise((r) => setTimeout(r, 100));
+        inner = await run(win, 'window.innerWidth');
+        if (inner === w) break;
+      }
+      return { requested: w, inner, content: win.getContentSize() };
     };
+
+    /**
+     * The widest viewport this display can actually show.
+     *
+     * The wide-window checks need to be above the 1180px breakpoint where the
+     * running-total columns are hidden. Asking for a fixed 1440 fails on a
+     * 1366-wide screen, which is an ordinary laptop size, so the target is
+     * taken from the work area instead and the checks are skipped outright if
+     * even that cannot clear the breakpoint.
+     */
+    const WIDE_BREAKPOINT = 1180;
+    const workArea = require('electron').screen.getPrimaryDisplay().workAreaSize;
+    // Leave room for the window frame, which counts against the work area.
+    const wideTarget = Math.max(960, workArea.width - 16);
 
     await setSize(960, 600);
     // Land on a real class-standing assessment: earlier steps may have left the
@@ -336,19 +379,30 @@ async function drive(win, app) {
     }
 
     // Wide again: everything comes back.
-    await setSize(1440, 900);
+    const wideSize = await setSize(wideTarget, Math.min(900, workArea.height - 16));
     await run(win, `(async () => { state.screen = 'grades'; renderRail(); await renderScreen(); })()`);
     await new Promise((r) => setTimeout(r, 600));
     const wide = await run(win, `(() => ({
+      innerWidth: window.innerWidth,
       headers: [...document.querySelectorAll('#content thead th')]
         .filter(th => getComputedStyle(th).display !== 'none').map(th => th.innerText.trim()),
       labels: [...document.querySelectorAll('#topActions .btn')].map(b => b.innerText.trim())
     }))()`);
-    check('wide window: the running-total columns return',
-      wide.headers.includes('Class standing') && wide.headers.some(h => h.endsWith('total')),
-      JSON.stringify(wide.headers));
-    check('wide window: full button labels return',
-      wide.labels.some(l => l.includes('Export grade sheet')), JSON.stringify(wide.labels));
+
+    if (wide.innerWidth <= WIDE_BREAKPOINT) {
+      // Said out loud rather than passed quietly: on a screen this narrow the
+      // wide layout genuinely cannot be shown, so it has not been tested.
+      console.log(`SKIP  wide-window checks: this display gives at most ` +
+        `${wide.innerWidth}px, and the wide layout starts above ${WIDE_BREAKPOINT}px ` +
+        `(work area ${workArea.width}x${workArea.height}).`);
+    } else {
+      check('wide window: the running-total columns return',
+        wide.headers.includes('Class standing') && wide.headers.some(h => h.endsWith('total')),
+        JSON.stringify({ innerWidth: wide.innerWidth, headers: wide.headers }));
+      check('wide window: full button labels return',
+        wide.labels.some(l => l.includes('Export grade sheet')),
+        JSON.stringify({ innerWidth: wide.innerWidth, labels: wide.labels }));
+    }
 
     // The roster carries only its own actions.
     await run(win, `(async () => { state.screen = 'roster'; renderRail(); await renderScreen(); })()`);

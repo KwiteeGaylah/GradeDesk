@@ -43,15 +43,31 @@ CREATE INDEX IF NOT EXISTS idx_courses_semester ON courses (semester_id);
 -- official roster, pending an addendum list from the university. It is a flag
 -- the instructor clears once the student is added properly, and `note` carries
 -- whatever they want to remember about the case.
+--
+-- Names are stored in the four columns the administration's official class
+-- list is printed in — Student ID, Last Name, First Name, Middle Name — so a
+-- list can be pasted straight in, and so the roster can be sorted by surname
+-- (the order every submitted document uses) or by given name.
+--
+-- `full_name` is kept alongside the parts and is DERIVED: it always holds
+-- joinName(last, first, middle) = "Last, First Middle". It is not redundant
+-- storage for its own sake. It is what every screen and all three exported
+-- sheets display, so the name cannot read one way on screen and another in the
+-- workbook, and it is the original string for a database written by version 1,
+-- where the parts did not exist and had to be guessed by splitting. Keeping it
+-- means a bad guess is always recoverable — see Store._migrate.
 CREATE TABLE IF NOT EXISTS students (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  number     INTEGER,
-  student_id TEXT    NOT NULL DEFAULT '',
-  full_name  TEXT    NOT NULL DEFAULT '',
-  sort_order INTEGER NOT NULL DEFAULT 0,
-  unofficial INTEGER NOT NULL DEFAULT 0 CHECK (unofficial IN (0, 1)),
-  note       TEXT    NOT NULL DEFAULT ''
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  course_id   INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  number      INTEGER,
+  student_id  TEXT    NOT NULL DEFAULT '',
+  last_name   TEXT    NOT NULL DEFAULT '',
+  first_name  TEXT    NOT NULL DEFAULT '',
+  middle_name TEXT    NOT NULL DEFAULT '',
+  full_name   TEXT    NOT NULL DEFAULT '',
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  unofficial  INTEGER NOT NULL DEFAULT 0 CHECK (unofficial IN (0, 1)),
+  note        TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE INDEX IF NOT EXISTS idx_students_course ON students (course_id, sort_order);

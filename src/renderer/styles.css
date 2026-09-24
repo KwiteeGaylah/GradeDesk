@@ -514,9 +514,40 @@ td.entry input.id-input:focus {
   box-shadow: 0 0 0 3px rgba(15, 107, 79, .18); font-weight: 500;
 }
 .paste-area {
-  width: 100%; font-family: inherit; font-size: 13px; padding: 8px;
+  width: 100%; font-size: 13px; padding: 8px;
   border: 1px solid var(--line-strong); border-radius: 6px; resize: vertical;
+  /* Pasted columns are tab-separated, so a monospaced box lines them up and
+     makes a row that has slipped into the wrong column visible immediately. */
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  tab-size: 14;
 }
+
+/* The row offering the sample workbook, above the paste box. */
+.samplerow {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 10px 0 12px;
+}
+.samplerow .hint { margin: 0; flex: 1 1 220px; }
+
+/* A preview of how the pasted text was read, shown while it can still be
+   fixed. It is the format warning made concrete. */
+.pastepreview { margin-top: 12px; }
+.previewhead {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px;
+}
+.previewwarn { color: var(--amber); font-weight: 600; }
+.previewtable {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+  border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+}
+.previewtable th {
+  text-align: left; padding: 5px 8px; background: var(--read);
+  color: var(--ink-soft); font-weight: 600; border-bottom: 1px solid var(--line);
+}
+.previewtable td { padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.previewtable tr:last-child td { border-bottom: 0; }
+/* A row with no surname: the columns did not line up. */
+.previewtable tr.previewbad td { background: #fdf1ef; color: #993229; }
 .k-entry { background: #eef7f1; border: 1px solid #bfdfd0; }
 .k-read { background: var(--read); border: 1px solid var(--line); }
 .k-total { background: var(--read); border: 1px solid var(--line); }
@@ -559,7 +590,9 @@ td.entry input::placeholder { color: #c3cad4; }
    stopping short of the right edge on a wide screen. */
 .rostertable { width: 100%; }
 .rostertable th:first-child, .rostertable td.idx { width: 52px; }
-.rostertable th.w-id, .rostertable td.entry.w-id { width: 170px; }
+.rostertable th.w-id, .rostertable td.entry.w-id { width: 150px; }
+/* The three name columns share what is left, evenly, so none of them is a
+   slot too narrow to read a surname in. */
 .rostertable th.namecol, .rostertable td.entry.w-auto { width: auto; }
 .rostertable th.w-status, .rostertable td.w-status { width: 100px; }
 .rostertable th.w-action, .rostertable td.ta-center { width: 56px; }

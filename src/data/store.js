@@ -16,15 +16,37 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { joinName, splitName } = require('../engine/roster');
 
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
-const SCHEMA_VERSION = '1';
+const SCHEMA_VERSION = '2';
 
 /** Terms every course has, in display order. */
 const TERM_KINDS = ['midterm', 'final'];
 
 /** The exam is fixed at 40 points by university policy. */
 const EXAM_MAX_POINTS = 40;
+
+/**
+ * Settle a student's name from whatever the caller supplied.
+ *
+ * A pasted official list gives the parts; a single typed box gives a written
+ * name. Either is enough, and the result always carries both, with `full_name`
+ * derived from the parts so the two can never disagree.
+ */
+function resolveNameParts({ lastName, firstName, middleName, fullName } = {}) {
+  const gaveParts = [lastName, firstName, middleName].some(
+    (v) => v !== null && v !== undefined && String(v).trim() !== ''
+  );
+  const parts = gaveParts
+    ? {
+        lastName: String(lastName || '').trim(),
+        firstName: String(firstName || '').trim(),
+        middleName: String(middleName || '').trim(),
+      }
+    : splitName(fullName || '');
+  return { ...parts, fullName: joinName(parts) };
+}
 
 class Store {
   /**
@@ -42,8 +64,14 @@ class Store {
     this.db.pragma('foreign_keys = ON');
     this.db.exec(fs.readFileSync(SCHEMA_PATH, 'utf8'));
     this._migrate();
+    // Recorded after migrating, and OVERWRITTEN rather than ignored: a database
+    // written by version 1 has just been brought up to the current shape, so
+    // leaving the old number behind would misreport what is actually on disk.
     this.db
-      .prepare('INSERT OR IGNORE INTO meta (key, value) VALUES (?, ?)')
+      .prepare(
+        `INSERT INTO meta (key, value) VALUES (?, ?)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+      )
       .run('schema_version', SCHEMA_VERSION);
   }
 
@@ -68,6 +96,80 @@ class Store {
     if (!studentCols.includes('note')) {
       this.db.exec("ALTER TABLE students ADD COLUMN note TEXT NOT NULL DEFAULT ''");
     }
+    this._migrateNameParts(studentCols);
+  }
+
+  /**
+   * Version 1 -> version 2: split stored names into last/first/middle.
+   *
+   * Version 1 stored only `full_name`, written "Surname, Given M.". Version 2
+   * stores the four columns of the administration's official list, so a class
+   * list pastes straight in and the roster can be sorted by surname or by
+   * given name. An instructor upgrading has a database full of real grades
+   * that must come across untouched, so this runs once, automatically, on the
+   * first launch after the upgrade. There is nothing for them to do.
+   *
+   * What makes it safe to do without asking:
+   *
+   *  * It is ADDITIVE. Three new columns are added; nothing is dropped or
+   *    rewritten. Scores, attendance, assessments and every id are untouched,
+   *    so the split cannot disturb a single grade.
+   *  * `full_name` is KEPT, exactly as it was. The parts are derived from it,
+   *    not a replacement for it, so a name the splitter reads wrongly is still
+   *    there in full and can be corrected on the Roster screen.
+   *  * It only fills rows whose parts are still empty, so it is idempotent:
+   *    running it again, or restoring an older backup into a newer build,
+   *    cannot overwrite a correction the instructor has already made by hand.
+   *
+   * The one judgement call is a name with no comma, where the first word is
+   * taken as the surname (see splitName). That matches the column order of the
+   * official list, and it is exactly why the original string is preserved.
+   */
+  _migrateNameParts(studentCols) {
+    const existing = studentCols.length ? studentCols : null;
+    const has = (name) => (existing ? existing.includes(name) : true);
+
+    // A fresh database is created from schema.sql and already has the columns.
+    if (!has('last_name')) {
+      this.db.exec("ALTER TABLE students ADD COLUMN last_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has('first_name')) {
+      this.db.exec("ALTER TABLE students ADD COLUMN first_name TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has('middle_name')) {
+      this.db.exec("ALTER TABLE students ADD COLUMN middle_name TEXT NOT NULL DEFAULT ''");
+    }
+
+    // Indexed for the surname sort every screen defaults to. Created here
+    // rather than in schema.sql, because on a version 1 database schema.sql
+    // runs before the columns above exist.
+    this.db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_students_lastname
+         ON students (course_id, last_name, first_name)`
+    );
+
+    // Fill in the parts for any row that has a name but no parts yet. A row
+    // with an empty full_name has nothing to split and is left alone.
+    const pending = this.db
+      .prepare(
+        `SELECT id, full_name FROM students
+          WHERE TRIM(COALESCE(full_name, '')) != ''
+            AND TRIM(COALESCE(last_name, '')) = ''
+            AND TRIM(COALESCE(first_name, '')) = ''
+            AND TRIM(COALESCE(middle_name, '')) = ''`
+      )
+      .all();
+    if (!pending.length) return;
+
+    const update = this.db.prepare(
+      'UPDATE students SET last_name = ?, first_name = ?, middle_name = ? WHERE id = ?'
+    );
+    this.transaction(() => {
+      for (const row of pending) {
+        const parts = splitName(row.full_name);
+        update.run(parts.lastName, parts.firstName, parts.middleName, row.id);
+      }
+    });
   }
 
   close() {
@@ -226,17 +328,41 @@ class Store {
 
   // --------------------------------------------------------------- students
 
-  addStudent(courseId, { number = null, studentId = '', fullName = '', unofficial = 0, note = '' } = {}) {
+  /**
+   * Add a student.
+   *
+   * Accepts either the name parts (what a pasted official list gives) or a
+   * written `fullName` (what version 1 gave, and what a single typed box
+   * gives). Whichever arrives, both are stored: the parts drive sorting, and
+   * `full_name` is derived from them so screens and exports agree.
+   */
+  addStudent(courseId, {
+    number = null,
+    studentId = '',
+    lastName = null,
+    firstName = null,
+    middleName = null,
+    fullName = '',
+    unofficial = 0,
+    note = '',
+  } = {}) {
+    const parts = resolveNameParts({ lastName, firstName, middleName, fullName });
     const order = this.db
       .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM students WHERE course_id = ?')
       .get(courseId).n;
     const resolvedNumber = number === null || number === undefined ? order + 1 : number;
     const info = this.db
       .prepare(
-        `INSERT INTO students (course_id, number, student_id, full_name, sort_order, unofficial, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO students
+           (course_id, number, student_id, last_name, first_name, middle_name,
+            full_name, sort_order, unofficial, note)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(courseId, resolvedNumber, studentId, fullName, order, unofficial ? 1 : 0, note);
+      .run(
+        courseId, resolvedNumber, studentId,
+        parts.lastName, parts.firstName, parts.middleName, parts.fullName,
+        order, unofficial ? 1 : 0, note
+      );
     return this.getStudent(info.lastInsertRowid);
   }
 
@@ -255,19 +381,54 @@ class Store {
       .all(courseId);
   }
 
+  /**
+   * Update a student.
+   *
+   * Editing any name part rewrites `full_name` to match, and editing
+   * `fullName` on its own re-splits it into parts. The two representations are
+   * never allowed to drift apart, whichever one the caller happened to touch —
+   * otherwise a roster sorted by surname would disagree with the name printed
+   * beside it.
+   */
   updateStudent(id, fields) {
     const map = {
       number: 'number',
       studentId: 'student_id',
+      lastName: 'last_name',
+      firstName: 'first_name',
+      middleName: 'middle_name',
       fullName: 'full_name',
       sortOrder: 'sort_order',
       unofficial: 'unofficial',
       note: 'note',
     };
-    const keys = Object.keys(fields).filter((k) => map[k]);
+
+    const patch = { ...fields };
+    const touchedPart = ['lastName', 'firstName', 'middleName'].some((k) => k in patch);
+    if (touchedPart) {
+      // A part changed: rebuild the written name from the current row plus
+      // whatever was just edited.
+      const current = this.getStudent(id);
+      if (!current) return null;
+      const next = {
+        lastName: 'lastName' in patch ? patch.lastName : current.last_name,
+        firstName: 'firstName' in patch ? patch.firstName : current.first_name,
+        middleName: 'middleName' in patch ? patch.middleName : current.middle_name,
+      };
+      patch.fullName = joinName(next);
+    } else if ('fullName' in patch) {
+      // Only the written name changed: re-split so sorting follows the edit.
+      const split = splitName(patch.fullName);
+      patch.lastName = split.lastName;
+      patch.firstName = split.firstName;
+      patch.middleName = split.middleName;
+      patch.fullName = joinName(split);
+    }
+
+    const keys = Object.keys(patch).filter((k) => map[k]);
     if (!keys.length) return this.getStudent(id);
     const set = keys.map((k) => `${map[k]} = ?`).join(', ');
-    const values = keys.map((k) => (k === 'unofficial' ? (fields[k] ? 1 : 0) : fields[k]));
+    const values = keys.map((k) => (k === 'unofficial' ? (patch[k] ? 1 : 0) : patch[k]));
     this.db.prepare(`UPDATE students SET ${set} WHERE id = ?`).run(...values, id);
     return this.getStudent(id);
   }

@@ -24,10 +24,17 @@ const state = {
   selectedTermKind: 'midterm',
   computed: null,
   policies: [],
-  /** Search and sort applied to the grade entry list. Not persisted. */
-  gradeFilter: { query: '', sort: 'roster' },
-  /** Search and sort applied to the roster grid. Not persisted. */
-  rosterFilter: { query: '', sort: 'roster' },
+  // Search and sort, one per screen. Not persisted: a filter is a way of
+  // looking at the list right now, not a setting. All three default to surname
+  // order, which is how the official list arrives and how every submitted
+  // document reads. The options themselves live in sorting.js so the three
+  // screens cannot drift apart.
+  /** Search and sort applied to the grade entry list. */
+  gradeFilter: { query: '', sort: GradeDeskSorting.DEFAULT_SORT },
+  /** Search and sort applied to the roster grid. */
+  rosterFilter: { query: '', sort: GradeDeskSorting.DEFAULT_SORT },
+  /** Search and sort applied to the attendance grid. */
+  attendanceFilter: { query: '', sort: GradeDeskSorting.DEFAULT_SORT },
 };
 
 const $ = (id) => document.getElementById(id);
@@ -846,6 +853,70 @@ function emptyState({ icon, title, text, actionLabel, onAction }) {
   );
 }
 
+/**
+ * The search box, sort menu and row count that sit at the right of every
+ * screen's toolbar.
+ *
+ * Built once here so the three screens cannot drift apart in wording, option
+ * order or default. `features` says which extra sorts this screen can support
+ * (see sorting.js); everything else is common to all of them.
+ *
+ * @param {object} filter      the state slice holding {query, sort}
+ * @param {Function} onChange  re-render the rows only, never the whole screen,
+ *                             so the caret stays where the instructor put it
+ * @param {object} features    {score, grade, roster}
+ */
+function filterGroup(filter, onChange, features = {}) {
+  const search = el('input', {
+    type: 'search',
+    class: 'searchbox',
+    placeholder: 'Search name or ID',
+    value: filter.query,
+    'aria-label': 'Filter the class list',
+    oninput: (e) => {
+      filter.query = e.target.value;
+      onChange();
+    },
+  });
+
+  const sort = el('select', {
+    class: 'sortbox',
+    'aria-label': 'Sort the class list',
+    onchange: (e) => {
+      filter.sort = e.target.value;
+      onChange();
+    },
+  },
+    ...GradeDeskSorting.sortOptions(features).map(([value, label]) =>
+      el('option', { value, selected: filter.sort === value }, label))
+  );
+
+  const countLabel = el('span', { class: 'rowcount' });
+  const group = el('div', { class: 'filtergroup' }, search, sort, countLabel);
+  return { group, search, sort, countLabel };
+}
+
+/** Does this student match what is typed in the search box? */
+function matchesQuery(student, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  const fields = [
+    student.full_name,
+    student.last_name,
+    student.first_name,
+    student.middle_name,
+    student.student_id,
+  ];
+  return fields.some((f) => String(f || '').toLowerCase().includes(q));
+}
+
+/** "12 students", or "4 of 12" when a search is narrowing the list. */
+function countText(visible, total) {
+  return visible === total
+    ? `${total} student${total === 1 ? '' : 's'}`
+    : `${visible} of ${total}`;
+}
+
 // ------------------------------------------------------------ grade entry
 
 async function renderGradeEntry(content, course, policyInfo) {
@@ -921,41 +992,12 @@ async function renderGradeEntry(content, course, policyInfo) {
   };
   const index = all.findIndex((a) => a.id === selected.id);
 
-  const search = el('input', {
-    type: 'search',
-    class: 'searchbox',
-    placeholder: 'Search name or ID',
-    value: state.gradeFilter.query,
-    'aria-label': 'Filter the class list',
-    oninput: (e) => {
-      state.gradeFilter.query = e.target.value;
-      // Re-render only the rows, so the caret stays in the search box.
-      renderGradeRows();
-    },
-  });
-
-  const sort = el('select', {
-    class: 'sortbox',
-    'aria-label': 'Sort the class list',
-    onchange: (e) => {
-      state.gradeFilter.sort = e.target.value;
-      renderGradeRows();
-    },
-  },
-    ...[
-      ['roster', 'Roster order'],
-      ['name', 'Name (A–Z)'],
-      ['id', 'Student ID'],
-      ['raw-desc', 'This score, high to low'],
-      ['raw-asc', 'This score, low to high'],
-      ['grade-desc', 'Final grade, high to low'],
-      ['grade-asc', 'Final grade, low to high'],
-      ['letter', 'Letter grade'],
-      ['blank', 'Blanks first'],
-    ].map(([v, label]) => el('option', { value: v, selected: state.gradeFilter.sort === v }, label))
+  // Re-renders only the rows, so the caret stays in the search box.
+  const { group: filterBar, countLabel } = filterGroup(
+    state.gradeFilter,
+    () => renderGradeRows(),
+    { score: true, grade: true }
   );
-
-  const countLabel = el('span', { class: 'rowcount' });
 
   const bar = el('div', { class: 'entrybar' },
     el('div', { class: 'pickgroup' },
@@ -970,7 +1012,7 @@ async function renderGradeEntry(content, course, policyInfo) {
         disabled: index >= all.length - 1, onclick: () => step(1),
       }, '›')),
     el('div', { class: 'spacer' }),
-    el('div', { class: 'filtergroup' }, search, sort, countLabel)
+    filterBar
   );
 
   const isAttendance = selected.kind === 'attendance';
@@ -1017,43 +1059,28 @@ async function renderGradeEntry(content, course, policyInfo) {
    * matches what is actually on screen.
    */
   function renderGradeRows() {
-    const q = state.gradeFilter.query.trim().toLowerCase();
+    const q = state.gradeFilter.query;
     const cellOf = (row) => {
       const term = row[selected.termKind];
       if (selected.kind === 'exam') return { raw: term.examRaw, transmuted: term.examTransmuted };
       return term.assessments.find((a) => a.assessment.id === selected.id) || { raw: null, transmuted: 50 };
     };
 
-    let visible = students.filter((row) => {
-      if (!q) return true;
-      const name = String(row.student.full_name || '').toLowerCase();
-      const id = String(row.student.student_id || '').toLowerCase();
-      return name.includes(q) || id.includes(q);
-    });
-
-    const rawOf = (r) => { const v = cellOf(r).raw; return v === null || v === undefined ? null : Number(v); };
-    const byNumber = (a, b) => (a.student.number ?? 0) - (b.student.number ?? 0);
-    const nullsLast = (a, b, dir) => {
-      if (a === null && b === null) return 0;
-      if (a === null) return 1;
-      if (b === null) return -1;
-      return dir * (a - b);
+    const rawOf = (r) => {
+      const v = cellOf(r).raw;
+      return v === null || v === undefined ? null : Number(v);
     };
-    const LETTERS = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'];
 
-    const sorters = {
-      roster: byNumber,
-      name: (a, b) => String(a.student.full_name || '').localeCompare(String(b.student.full_name || '')),
-      id: (a, b) => String(a.student.student_id || '').localeCompare(
-        String(b.student.student_id || ''), undefined, { numeric: true }),
-      'raw-desc': (a, b) => nullsLast(rawOf(a), rawOf(b), -1),
-      'raw-asc': (a, b) => nullsLast(rawOf(a), rawOf(b), 1),
-      'grade-desc': (a, b) => nullsLast(a.finalGrade, b.finalGrade, -1),
-      'grade-asc': (a, b) => nullsLast(a.finalGrade, b.finalGrade, 1),
-      letter: (a, b) => LETTERS.indexOf(a.letter) - LETTERS.indexOf(b.letter) || byNumber(a, b),
-      blank: (a, b) => (rawOf(a) === null ? 0 : 1) - (rawOf(b) === null ? 0 : 1) || byNumber(a, b),
-    };
-    visible = [...visible].sort(sorters[state.gradeFilter.sort] || byNumber);
+    const visible = GradeDeskSorting.sortRows(
+      students.filter((row) => matchesQuery(row.student, q)),
+      state.gradeFilter.sort,
+      {
+        student: (r) => r.student,
+        raw: rawOf,
+        grade: (r) => r.finalGrade,
+        letter: (r) => r.letter,
+      }
+    );
 
     const isAtt = selected.kind === 'attendance';
     const rows = visible.map((row, index) => {
@@ -1116,10 +1143,7 @@ async function renderGradeEntry(content, course, policyInfo) {
       setChildren(tbody, ...rows);
     }
 
-    countLabel.textContent =
-      visible.length === students.length
-        ? `${students.length} student${students.length === 1 ? '' : 's'}`
-        : `${visible.length} of ${students.length}`;
+    countLabel.textContent = countText(visible.length, students.length);
   }
 
   renderGradeRows();
@@ -1305,6 +1329,15 @@ async function renderAttendance(content, course) {
     'The result is then treated like any other assessment.'
   );
 
+  // Attendance gets the same search and sort as the other screens. It has no
+  // final grade on screen, but its own attendance score is a "this score"
+  // sort, so the score options are offered.
+  const { group: filterBar, countLabel } = filterGroup(
+    state.attendanceFilter,
+    () => renderAttendanceRows(),
+    { score: true }
+  );
+
   const thead = el('thead', {}, el('tr', {},
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Full name' }),
@@ -1323,7 +1356,51 @@ async function renderAttendance(content, course) {
   ));
 
   const tbody = el('tbody');
-  students.forEach((row, i) => {
+
+  /**
+   * Build the visible rows from the current search and sort.
+   *
+   * Attendance is marked by reading down a column against a printed list, so
+   * being able to put this grid in the same order as that list — and the same
+   * order as the other screens — is what keeps a mark from landing on the
+   * wrong student. Only the rows are rebuilt, so the caret stays in the search
+   * box while typing.
+   */
+  function renderAttendanceRows() {
+    const visible = GradeDeskSorting.sortRows(
+      students.filter((row) => matchesQuery(row.student, state.attendanceFilter.query)),
+      state.attendanceFilter.sort,
+      {
+        student: (r) => r.student,
+        // The "score" on this screen is the attendance score itself, so
+        // "this score, high to low" sorts by how much of the class a student
+        // has actually attended.
+        raw: (r) => {
+          const c = (r[termKind].assessments || []).find(
+            (a) => a.assessment.id === attendanceAssessment.id
+          );
+          const v = c ? c.raw : null;
+          return v === null || v === undefined ? null : Number(v);
+        },
+        grade: (r) => r.finalGrade,
+        letter: (r) => r.letter,
+      }
+    );
+
+    const rows = visible.map((row, i) => makeAttendanceRow(row, i));
+    if (!rows.length) {
+      setChildren(tbody, el('tr', {}, el('td', {
+        class: 'cellpad emptyrow',
+        colspan: String(sessions.length + 4),
+        text: `No student matches “${state.attendanceFilter.query}”.`,
+      })));
+    } else {
+      setChildren(tbody, ...rows);
+    }
+    countLabel.textContent = countText(visible.length, students.length);
+  }
+
+  function makeAttendanceRow(row, i) {
     const studentMarks = marksByStudent.get(row.student.id) || sessions.map(() => null);
     const computedCell = row[termKind].assessments.find(
       (a) => a.assessment.id === attendanceAssessment.id
@@ -1354,7 +1431,7 @@ async function renderAttendance(content, course) {
       return td;
     });
 
-    tbody.append(el('tr', {},
+    return el('tr', {},
       el('td', { class: 'idx', text: row.student.number ?? i + 1 }),
       el('td', {
         class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
@@ -1369,8 +1446,10 @@ async function renderAttendance(content, course) {
       ...cells,
       rawCell,
       transCell
-    ));
-  });
+    );
+  }
+
+  renderAttendanceRows();
 
   setChildren(content,
     termSwitch,
@@ -1382,7 +1461,9 @@ async function renderAttendance(content, course) {
       el('span', { class: 'toolcount' },
         `${sessions.length} ${sessions.length === 1 ? 'class' : 'classes'} marked`),
       el('button', { class: 'btn primary', onclick: () => addSession(course, term) },
-        '＋ Record attendance')
+        '＋ Record attendance'),
+      el('div', { class: 'spacer' }),
+      filterBar
     ),
     el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
     el('div', { class: 'hint' },
@@ -1508,36 +1589,11 @@ async function renderRoster(content, course) {
   );
 
   // ---- toolbar ----
-  const search = el('input', {
-    type: 'search',
-    class: 'searchbox',
-    placeholder: 'Search name or ID',
-    value: state.rosterFilter.query,
-    'aria-label': 'Filter the class list',
-    oninput: (e) => {
-      state.rosterFilter.query = e.target.value;
-      renderRosterRows();
-    },
-  });
-
-  const sort = el('select', {
-    class: 'sortbox',
-    'aria-label': 'Sort the class list',
-    onchange: (e) => {
-      state.rosterFilter.sort = e.target.value;
-      renderRosterRows();
-    },
-  },
-    ...[
-      ['roster', 'Roster order'],
-      ['name', 'Name (A–Z)'],
-      ['name-desc', 'Name (Z–A)'],
-      ['id', 'Student ID'],
-      ['incomplete', 'Incomplete rows first'],
-    ].map(([v, label]) => el('option', { value: v, selected: state.rosterFilter.sort === v }, label))
+  const { group: filterBar, countLabel } = filterGroup(
+    state.rosterFilter,
+    () => renderRosterRows(),
+    { roster: true }
   );
-
-  const countLabel = el('span', { class: 'rowcount' });
 
   const bar = el('div', { class: 'entrybar' },
     el('div', { class: 'pickgroup' },
@@ -1547,18 +1603,22 @@ async function renderRoster(content, course) {
         onclick: () => renumberRoster(course),
       }, 'Renumber')),
     el('div', { class: 'spacer' }),
-    el('div', { class: 'filtergroup' }, search, sort, countLabel)
+    filterBar
   );
 
   const note = el('div', { class: 'note' },
-    'Type your class list like a spreadsheet. Enter or Tab moves along, and a new ',
-    'row appears once you fill the last one. Everything saves as you type.'
+    'The columns match the official class list from administration: ',
+    el('b', {}, 'Student ID, Last Name, First Name, Middle Name'), '. ',
+    'Type it like a spreadsheet — Enter or Tab moves along, and a new row appears ',
+    'once you fill the last one. Everything saves as you type.'
   );
 
   const thead = el('thead', {}, el('tr', {},
     el('th', { text: '#', class: 'ta-right' }),
     el('th', { text: 'Student ID', class: 'w-id' }),
-    el('th', { text: 'Full name', class: 'namecol' }),
+    el('th', { text: 'Last name', class: 'namecol' }),
+    el('th', { text: 'First name', class: 'namecol' }),
+    el('th', { text: 'Middle name', class: 'namecol' }),
     el('th', { text: 'On roster?', class: 'w-status ta-center' }),
     el('th', { text: '', class: 'w-action' })
   ));
@@ -1567,84 +1627,81 @@ async function renderRoster(content, course) {
 
   /** Rebuild only the rows, so the search caret is never disturbed. */
   function renderRosterRows() {
-    const q = state.rosterFilter.query.trim().toLowerCase();
-    const matches = (s) =>
-      !q ||
-      String(s.full_name || '').toLowerCase().includes(q) ||
-      String(s.student_id || '').toLowerCase().includes(q);
-
-    const incomplete = (s) =>
-      !String(s.full_name || '').trim() || !String(s.student_id || '').trim();
-    const byOrder = (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0);
-    const sorters = {
-      roster: byOrder,
-      name: (a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')),
-      'name-desc': (a, b) => String(b.full_name || '').localeCompare(String(a.full_name || '')),
-      id: (a, b) => String(a.student_id || '').localeCompare(
-        String(b.student_id || ''), undefined, { numeric: true }),
-      incomplete: (a, b) => (incomplete(a) ? 0 : 1) - (incomplete(b) ? 0 : 1) || byOrder(a, b),
-    };
-
-    const visible = students.filter(matches)
-      .sort(sorters[state.rosterFilter.sort] || byOrder);
+    // The roster grid holds student records directly, not computed rows, so
+    // the accessor is the identity — the sorting itself is the shared one.
+    const visible = GradeDeskSorting.sortRows(
+      students.filter((student) => matchesQuery(student, state.rosterFilter.query)),
+      state.rosterFilter.sort,
+      { student: (s) => s }
+    );
 
     const rows = visible.map((student, index) => makeRow(student, index, visible.length));
     if (!rows.length) {
       setChildren(tbody, el('tr', {}, el('td', {
-        class: 'cellpad emptyrow', colspan: '4',
+        class: 'cellpad emptyrow', colspan: '7',
         text: `No student matches “${state.rosterFilter.query}”.`,
       })));
     } else {
       setChildren(tbody, ...rows);
     }
 
-    countLabel.textContent =
-      visible.length === students.length
-        ? `${students.length} student${students.length === 1 ? '' : 's'}`
-        : `${visible.length} of ${students.length}`;
+    countLabel.textContent = countText(visible.length, students.length);
   }
 
   const makeRow = (student, index, total) => {
-    const idInput = el('input', {
-      type: 'text',
-      value: student.student_id || '',
-      class: 'id-input',
-      placeholder: 'ID',
-      dataset: { row: String(index), col: '0' },
-      'aria-label': `Student ID, row ${index + 1}`,
-    });
-    const nameInput = el('input', {
-      type: 'text',
-      value: student.full_name || '',
-      class: 'name-input',
-      placeholder: 'Surname, Given name',
-      dataset: { row: String(index), col: '1' },
-      'aria-label': `Full name, row ${index + 1}`,
-    });
+    // One input per column of the official list, in its order. `col` drives the
+    // spreadsheet-style arrow and Tab navigation in onRosterKey.
+    const cell = (field, dbKey, placeholder, label, col, className) =>
+      el('input', {
+        type: 'text',
+        value: student[dbKey] || '',
+        class: className,
+        placeholder,
+        dataset: { row: String(index), col: String(col) },
+        'aria-label': `${label}, row ${index + 1}`,
+      });
 
-    const save = async (field, input) => {
+    const idInput = cell('studentId', 'student_id', 'ID', 'Student ID', 0, 'id-input');
+    const lastInput = cell('lastName', 'last_name', 'Last name', 'Last name', 1, 'name-input');
+    const firstInput = cell('firstName', 'first_name', 'First name', 'First name', 2, 'name-input');
+    const middleInput = cell('middleName', 'middle_name', 'Middle name', 'Middle name', 3, 'name-input');
+
+    const FIELDS = [
+      ['studentId', 'student_id', idInput],
+      ['lastName', 'last_name', lastInput],
+      ['firstName', 'first_name', firstInput],
+      ['middleName', 'middle_name', middleInput],
+    ];
+
+    const save = async (field, dbKey, input) => {
       const value = input.value.trim();
-      const key = field === 'studentId' ? 'student_id' : 'full_name';
-      if ((student[key] || '') === value) return;
-      await guard(() => api.students.update(student.id, { [field]: value }), 'Saving');
-      student[key] = value;
+      if ((student[dbKey] || '') === value) return;
+      // The store rebuilds full_name from the parts, so the updated record is
+      // read back rather than patched by hand — the displayed name and the
+      // stored one can then never disagree.
+      const updated = await guard(
+        () => api.students.update(student.id, { [field]: value }),
+        'Saving'
+      );
+      if (updated) Object.assign(student, updated);
+      else student[dbKey] = value;
       saved();
       await refreshComputed();
       markRowState(tr, student);
     };
-    idInput.addEventListener('change', () => save('studentId', idInput));
-    idInput.addEventListener('blur', () => save('studentId', idInput));
-    nameInput.addEventListener('change', () => save('fullName', nameInput));
-    nameInput.addEventListener('blur', () => save('fullName', nameInput));
 
-    for (const input of [idInput, nameInput]) {
+    for (const [field, dbKey, input] of FIELDS) {
+      input.addEventListener('change', () => save(field, dbKey, input));
+      input.addEventListener('blur', () => save(field, dbKey, input));
       input.addEventListener('keydown', (e) => onRosterKey(e, course, total));
     }
 
     const tr = el('tr', {},
       el('td', { class: 'idx', text: student.number ?? index + 1 }),
       el('td', { class: 'entry w-id' }, idInput),
-      el('td', { class: 'entry w-auto' }, nameInput),
+      el('td', { class: 'entry w-auto' }, lastInput),
+      el('td', { class: 'entry w-auto' }, firstInput),
+      el('td', { class: 'entry w-auto' }, middleInput),
       el('td', { class: 'w-status ta-center' },
         el('button', {
           class: `statustoggle${student.unofficial ? ' off' : ''}`,
@@ -1667,7 +1724,10 @@ async function renderRoster(content, course) {
 
   /** Tint a row that is not yet filled in, so gaps are visible at a glance. */
   function markRowState(tr, student) {
-    const hasName = !!String(student.full_name || '').trim();
+    // A row counts as named once it has a surname, which is the column the
+    // official list is keyed on and the one every sort falls back to.
+    const hasName =
+      !!String(student.last_name || '').trim() || !!String(student.full_name || '').trim();
     const hasId = !!String(student.student_id || '').trim();
     tr.classList.toggle('rowblank', !hasName && !hasId);
     tr.classList.toggle('rowpartial', hasName !== hasId);
@@ -1765,10 +1825,20 @@ function onRosterKey(event, course, rowCount) {
   }
   if (event.key === 'ArrowDown') focus(row + 1, col);
   if (event.key === 'ArrowUp') focus(row - 1, col);
+  // Left and right move between the name columns, but only from the ends of
+  // the text, so arrowing through what you are typing still works normally.
+  if (event.key === 'ArrowRight' && event.target.selectionStart === event.target.value.length) {
+    focus(row, col + 1);
+  }
+  if (event.key === 'ArrowLeft' && event.target.selectionStart === 0) {
+    focus(row, col - 1);
+  }
 }
 
 async function addRosterRows(course, count) {
-  const rows = Array.from({ length: count }, () => ({ studentId: '', fullName: '' }));
+  const rows = Array.from({ length: count }, () => ({
+    studentId: '', lastName: '', firstName: '', middleName: '',
+  }));
   await guard(() => api.students.addMany(course.id, rows), 'Adding rows');
   await refreshComputed();
   await renderScreen();
@@ -1781,7 +1851,10 @@ async function pasteRoster(course) {
   const textarea = el('textarea', {
     rows: '10',
     class: 'paste-area',
-    placeholder: '10001\tBestman, Comfort K.\n10002\tBestman, Daniel T.',
+    placeholder:
+      '10001\tBestman\tComfort\tK.\n' +
+      '10002\tDolo\tPatience\n' +
+      '10003\tKollie\tJames\tT.',
   });
   // Tab normally moves focus to the next button, so the old instruction to put
   // a tab between the ID and the name was impossible to follow by typing.
@@ -1810,15 +1883,85 @@ async function pasteRoster(course) {
     textarea.selectionEnd = from + 1;
   });
 
+  // A live preview of how the pasted text will be read. The format rule is
+  // easy to state and easy to get wrong, so rather than only warning about it
+  // up front, the dialog shows what it is about to create while there is still
+  // time to fix it.
+  const preview = el('div', { class: 'pastepreview' });
+
+  const renderPreview = async () => {
+    const text = textarea.value.trim();
+    if (!text) {
+      setChildren(preview, el('div', { class: 'hint', text: 'Nothing pasted yet.' }));
+      return;
+    }
+    const rows = await guard(() => api.students.parsePaste(text), 'Reading list');
+    if (!rows) return;
+    if (!rows.length) {
+      setChildren(preview, el('div', { class: 'hint', text: 'Nothing to add yet.' }));
+      return;
+    }
+
+    // A row with no surname means the columns did not line up, which is the
+    // one mistake worth pointing at before anything is added.
+    const bad = rows.filter((r) => !r.lastName);
+    const head = rows.slice(0, 5);
+    setChildren(preview,
+      el('div', { class: 'previewhead' },
+        `Reading ${rows.length} student${rows.length === 1 ? '' : 's'}`,
+        bad.length
+          ? el('span', { class: 'previewwarn',
+              text: ` · ${bad.length} row${bad.length === 1 ? '' : 's'} with no last name` })
+          : null),
+      el('table', { class: 'previewtable' },
+        el('thead', {}, el('tr', {},
+          el('th', { text: 'Student ID' }),
+          el('th', { text: 'Last name' }),
+          el('th', { text: 'First name' }),
+          el('th', { text: 'Middle name' })
+        )),
+        el('tbody', {}, ...head.map((r) =>
+          el('tr', { class: r.lastName ? '' : 'previewbad' },
+            el('td', { text: r.studentId || '—' }),
+            el('td', { text: r.lastName || '—' }),
+            el('td', { text: r.firstName || '—' }),
+            el('td', { text: r.middleName || '' })
+          )))),
+      rows.length > head.length
+        ? el('div', { class: 'hint', text: `…and ${rows.length - head.length} more.` })
+        : null
+    );
+  };
+
+  textarea.addEventListener('input', renderPreview);
+
   const result = await modal({
     title: 'Paste a class list',
-    subtitle: 'One student per line, with the ID first and then the name.',
+    subtitle: 'One student per line, in the same four columns as the official list.',
     body: el('div', {},
+      el('div', { class: 'note warn' },
+        el('b', {}, 'Keep the columns in this order: '),
+        el('b', {}, 'Student ID, Last Name, First Name, Middle Name'), '. ',
+        'That is the order administration gives the list in. A list pasted in any ',
+        'other order puts names in the wrong columns. If you are not sure, ',
+        'download the sample file below and type into that.'),
+      el('div', { class: 'samplerow' },
+        el('button', {
+          class: 'btn small',
+          onclick: async () => {
+            const file = await guard(() => api.exports.rosterTemplate(), 'Saving the sample');
+            if (file) toast('Sample class list saved. Open it and type your students in.');
+          },
+        }, '⭳ Download the sample Excel file'),
+        el('span', { class: 'hint' },
+          'Four columns, already laid out. Fill it in, copy from the first student ',
+          'to the last, and paste it here.')),
       textarea,
       el('div', { class: 'hint' },
-        'Separate the ID from the name with a Tab or a couple of spaces. ',
-        'Pressing Tab in this box types a tab instead of jumping to a button. ',
-        'A line with no ID is taken as a name on its own.')),
+        'Copying straight out of Excel already separates the columns correctly. ',
+        'If you are typing by hand, put a Tab between each one — pressing Tab in ',
+        'this box types a tab instead of jumping to a button.'),
+      preview),
     confirmLabel: 'Add students',
     wide: true,
     onConfirm: () => textarea.value.trim() || false,
@@ -2800,16 +2943,33 @@ async function runSetupWizard() {
   const paste = el('textarea', {
     rows: '8',
     class: 'paste-area',
-    placeholder: '10001\tBestman, Comfort K.\n10002\tBestman, Daniel T.',
+    placeholder:
+      '10001\tBestman\tComfort\tK.\n' +
+      '10002\tDolo\tPatience\n' +
+      '10003\tKollie\tJames\tT.',
   });
   const rosterText = await modal({
     title: 'Step 4 of 4 · Class list',
     subtitle: 'Paste your students now, or skip this and type them in later.',
     body: el('div', {},
+      el('div', { class: 'note warn' },
+        el('b', {}, 'Keep the columns in this order: '),
+        el('b', {}, 'Student ID, Last Name, First Name, Middle Name'), '. ',
+        'That is the order administration gives the list in.'),
+      el('div', { class: 'samplerow' },
+        el('button', {
+          class: 'btn small',
+          onclick: async () => {
+            const file = await guard(() => api.exports.rosterTemplate(), 'Saving the sample');
+            if (file) toast('Sample class list saved. Open it and type your students in.');
+          },
+        }, '⭳ Download the sample Excel file'),
+        el('span', { class: 'hint' },
+          'Not got your list ready? Save the sample, fill it in, and paste it here later.')),
       paste,
       el('div', { class: 'hint' },
-        'One student per line, with a tab between the ID and the name. ' +
-        'Names keep their commas.')),
+        'One student per line. Copying straight out of Excel separates the columns ' +
+        'for you; if you are typing, put a Tab between each one.')),
     confirmLabel: 'Finish',
     cancelLabel: 'Skip this step',
     wide: true,

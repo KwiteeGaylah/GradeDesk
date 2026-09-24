@@ -11,6 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { splitName } = require('../engine/roster');
 
 const BACKUP_FORMAT = 'gradedesk-backup';
 const BACKUP_VERSION = 1;
@@ -106,11 +107,44 @@ function importData(store, payload) {
           restored += 1;
         }
       }
+      // A backup written before names were split into columns restores with
+      // empty name parts, which would leave those students unsortable by
+      // surname. Filling them in here means a flash drive from the old version
+      // comes back complete, exactly as an in-place upgrade would.
+      backfillNameParts(store);
       return { restored };
     } finally {
       store.db.pragma('foreign_keys = ON');
     }
   });
+}
+
+/**
+ * Split any restored student who has a written name but no name parts.
+ *
+ * The same rule as the upgrade in Store._migrate, and idempotent for the same
+ * reason: only rows whose parts are all empty are touched, so a backup from the
+ * current version — including one where the instructor corrected a name by
+ * hand — is restored exactly as it was saved.
+ */
+function backfillNameParts(store) {
+  const pending = store.db
+    .prepare(
+      `SELECT id, full_name FROM students
+        WHERE TRIM(COALESCE(full_name, '')) != ''
+          AND TRIM(COALESCE(last_name, '')) = ''
+          AND TRIM(COALESCE(first_name, '')) = ''
+          AND TRIM(COALESCE(middle_name, '')) = ''`
+    )
+    .all();
+  if (!pending.length) return;
+  const update = store.db.prepare(
+    'UPDATE students SET last_name = ?, first_name = ?, middle_name = ? WHERE id = ?'
+  );
+  for (const row of pending) {
+    const parts = splitName(row.full_name);
+    update.run(parts.lastName, parts.firstName, parts.middleName, row.id);
+  }
 }
 
 /** Read and restore a backup from disk. */
