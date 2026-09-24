@@ -71,11 +71,37 @@ any other assessment.
 
 ### Your class list
 
-Type it once or paste it in. Students who are sitting your class but are not on
-the official roster yet can be flagged, so you remember to put them on your
-addendum list.
+The roster uses the same four columns as the official list from administration,
+in the same order:
+
+| Student ID | Last Name | First Name | Middle Name |
+|------------|-----------|------------|-------------|
+| 10001      | Bestman   | Comfort    | K.          |
+
+Type it once, or paste it straight from the list you were given — copying out of
+Excel already separates the columns correctly. If you would rather start from a
+blank form, **Paste list → Download the sample Excel file** gives you the four
+columns laid out, ready to fill in. Keep the columns in that order: a list
+pasted in a different order puts names in the wrong fields.
+
+Before anything is added, the paste box shows you how it read your list, so a
+column that has slipped out of place is obvious while it is still easy to fix.
+
+Students who are sitting your class but are not on the official roster yet can be
+flagged, so you remember to put them on your addendum list.
 
 ![Roster](docs/images/roster.png)
+
+### Sorting
+
+Every screen — grade entry, roster and attendance — offers the same sorting
+options, and all of them open sorted by last name, the order the official list
+arrives in. You can also sort by first name, student ID, or the order you
+arranged the roster in yourself. Grade entry adds sorting by the score you are
+entering, by final grade and by letter.
+
+Keeping every screen in the same order matters most on attendance, where you are
+reading down a column against a list in your hand.
 
 ### Assessments and policy
 
@@ -125,7 +151,7 @@ A four-step wizard on first run, and a full guide you can open at any time.
 
 ## Install on another PC
 
-You need one file: **`GradeDesk-Setup-1.1.0.exe`**.
+You need one file: **`GradeDesk-Setup-1.2.0.exe`**.
 
 1. **Copy the installer** onto a flash drive, or download it from the
    [Releases page](https://github.com/KwiteeGaylah/GradeDesk/releases).
@@ -154,6 +180,35 @@ Everything comes across: semesters, courses, class lists, scores and attendance.
 
 > ⚠️ Loading a backup replaces whatever is currently in GradeDesk on that
 > machine. You are asked to confirm first.
+
+### Upgrading from version 1.1
+
+**If you already use GradeDesk, install the new version over the old one. Your
+work is carried across automatically and there is nothing for you to do.**
+
+Version 1.1 stored each student's name as a single piece of text. Version 1.2
+stores it as the four columns of the official class list — Student ID, Last
+Name, First Name, Middle Name — so a list can be pasted straight in, and so the
+class can be sorted by surname or by given name.
+
+The first time the new version opens your file, it splits the names you already
+have into those columns. What this means in practice:
+
+- **Nothing is deleted or rewritten.** Three columns are added beside what is
+  already there. Every score, mark, assessment and grade is untouched, and the
+  grades come out to the same numbers they did before.
+- **The name you originally typed is kept.** The columns are worked out *from*
+  it, not instead of it.
+- **You can correct anything it gets wrong.** Names written `Surname, Given` are
+  split exactly. A name written without a comma has to be guessed at, and the
+  guess is that the first word is the surname, matching the official list. If
+  one comes out wrong, fix it on the Roster screen — the correction sticks and is
+  never overwritten.
+- **It only happens once**, and a backup you restore from version 1.1 is brought
+  across the same way.
+
+Nothing is required of you before upgrading. If you would like a safety copy
+anyway, **Manage → Save a backup** before you install.
 
 ---
 
@@ -337,7 +392,7 @@ src/engine/       pure calculation, no UI and no I/O
   transmutation.js    snap-down lookup, the one place matching lives
   grades.js           class standing, term totals, final grade, letters
   policy.js           which policies may be offered, point validation
-  roster.js           pasted class-list parsing
+  roster.js           pasted class-list parsing, and name splitting/joining
   dates.js            date formatting, shared with the renderer
 src/data/         SQLite storage and the bridge to the engine
   schema.sql          the data model
@@ -346,6 +401,7 @@ src/data/         SQLite storage and the bridge to the engine
   backup.js           whole-database export and restore
 src/export/       Excel output in the WVSTU layout
 src/renderer/     the UI: left panel, grade entry, attendance, roster, config
+  sorting.js          one definition of class-list sorting, shared by all screens
 src/main.js       Electron main process, owns the database and all IPC
 ```
 

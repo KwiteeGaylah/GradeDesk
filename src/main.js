@@ -27,7 +27,12 @@ const {
   formatDateForFilename,
   todayStored,
 } = require('./engine');
-const { exportGradeRecord, exportSummary, exportAttendance } = require('./export/excel');
+const {
+  exportGradeRecord,
+  exportSummary,
+  exportAttendance,
+  exportRosterTemplate,
+} = require('./export/excel');
 
 const TABLES_JSON = path.join(__dirname, '..', 'data', 'transmutation_tables.json');
 
@@ -301,6 +306,16 @@ function registerHandlers() {
     });
     return canceled ? null : filePath || null;
   };
+
+  // The blank class-list template. It belongs to no course — it is the format
+  // itself — so it takes no courseId and needs nothing to be set up first.
+  handle('export:rosterTemplate', async () => {
+    const filePath = await askWhereToSave(
+      'Save the class list template', 'GradeDesk Class List Template.xlsx');
+    if (!filePath) return null;
+    await exportRosterTemplate(filePath);
+    return filePath;
+  });
 
   handle('export:gradeRecord', async (courseId) => {
     const result = computeCourse(store, courseId, tables);

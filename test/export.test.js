@@ -17,7 +17,11 @@ const ExcelJS = require('exceljs');
 
 const { Store } = require('../src/data/store');
 const { computeCourse } = require('../src/data/gradebook');
-const { exportGradeRecord, exportSummary } = require('../src/export/excel');
+const {
+  exportGradeRecord,
+  exportSummary,
+  exportRosterTemplate,
+} = require('../src/export/excel');
 const { TransmutationTables } = require('../src/engine');
 
 const tables = new TransmutationTables(require('../data/transmutation_tables.json'));
@@ -135,8 +139,20 @@ test('the grade record carries the university title and course details', async (
   assert.equal(ws.getCell(2, 1).value, 'Course Code:');
   assert.match(String(ws.getCell(2, 2).value), /CSE 102/);
   assert.equal(ws.getCell(3, 2).value, 'Computer Literacy');
-  assert.equal(ws.getCell(2, 5).value, 'Instructor:');
-  assert.equal(ws.getCell(3, 6).value, '70% transmutation');
+
+  // The detail pairs are placed relative to the identity block, which widened
+  // when names were split into columns, so they are found by their label
+  // rather than by a fixed position.
+  const labelled = (row, label) => {
+    for (let c = 1; c <= 20; c += 1) {
+      if (String(ws.getCell(row, c).value ?? '').trim() === label) {
+        return ws.getCell(row, c + 1).value;
+      }
+    }
+    return null;
+  };
+  assert.ok(labelled(2, 'Instructor:') !== null, 'the instructor pair is on row 2');
+  assert.equal(labelled(3, 'Policy:'), '70% transmutation');
   store.close();
 });
 
@@ -234,10 +250,18 @@ test('the summary export holds ID, name, final grade and letter only', async () 
 
   const headers = [];
   ws.getRow(headerRowOf(ws)).eachCell((cell) => headers.push(String(cell.value ?? '')));
-  assert.deepEqual(headers, ['No.', 'ID', 'FullName', 'Final Grade', 'Letter Grade']);
+  // The identity block is the administration's four columns, then the joined
+  // name, so the summary can be handed back in the format it was issued in.
+  assert.deepEqual(headers, [
+    'No.', 'Student ID', 'Last Name', 'First Name', 'Middle Name', 'FullName',
+    'Final Grade', 'Letter Grade',
+  ]);
 
   const row = rowFor(ws, headerRowOf(ws), 'Bestman, Comfort K.');
-  assert.equal(row.ID, '10001');
+  assert.equal(row['Student ID'], '10001');
+  assert.equal(row['Last Name'], 'Bestman');
+  assert.equal(row['First Name'], 'Comfort');
+  assert.equal(row['Middle Name'], 'K.');
   assert.equal(
     row['Final Grade'],
     result.students.find((r) => r.student.full_name === 'Bestman, Comfort K.').finalGradeDisplay
@@ -316,9 +340,16 @@ test('the export follows the workbook layout: banner, weights, coloured columns'
   const cols = {};
   ws.getRow(hr).eachCell((cell, col) => { cols[String(cell.value ?? '')] = col; });
 
-  // The blue term banner sits two rows above the headers, the weights one above.
-  assert.equal(argb(hr - 2, 4), 'FF2F75B5', 'term banner should be blue');
-  assert.match(String(ws.getCell(hr - 2, 4).value), /Mid-Term/);
+  // The blue term banner sits two rows above the headers, the weights one
+  // above. It starts at the first score column, wherever the identity block
+  // happens to end.
+  // "Assign 1" is the seed's first midterm assessment, so it is the first
+  // column of the Mid-Term banner. (cols['Class Standing'] appears twice, once
+  // per term, so the later one wins and would point at the final term.)
+  const firstScoreCol = cols['Assign 1'];
+  assert.ok(firstScoreCol, 'the sheet should have the first midterm column');
+  assert.equal(argb(hr - 2, firstScoreCol), 'FF2F75B5', 'term banner should be blue');
+  assert.match(String(ws.getCell(hr - 2, firstScoreCol).value), /Mid-Term/);
   assert.match(String(ws.getCell(hr - 1, cols['Class Standing']).value), /%$/, 'weight row shows a percentage');
 
   // Column colours match the instructor's own sheet.
@@ -339,14 +370,23 @@ test('a student not on the official roster is highlighted in the export', async 
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
   const hr = headerRowOf(ws);
+  let nameCol = null;
+  ws.getRow(hr).eachCell((cell, col) => {
+    if (String(cell.value ?? '').trim() === 'FullName') nameCol = col;
+  });
+  assert.ok(nameCol, 'the sheet should have a FullName column');
+
   let row = null;
   for (let r = hr + 1; r <= ws.rowCount; r++) {
-    if (String(ws.getRow(r).getCell(3).value ?? '').trim() === 'Bestman, Comfort K.') { row = r; break; }
+    if (String(ws.getRow(r).getCell(nameCol).value ?? '').trim() === 'Bestman, Comfort K.') {
+      row = r;
+      break;
+    }
   }
   assert.ok(row, 'the flagged student should be in the sheet');
-  const fill = ws.getCell(row, 3).fill;
+  const fill = ws.getCell(row, nameCol).fill;
   assert.equal(fill && fill.fgColor && fill.fgColor.argb, 'FFFFF2CC', 'their name cell is highlighted');
-  assert.match(String(ws.getCell(row, 3).note || ''), /addendum expected/, 'the note is attached');
+  assert.match(String(ws.getCell(row, nameCol).note || ''), /addendum expected/, 'the note is attached');
   store.close();
 });
 
@@ -397,4 +437,108 @@ test('exporting attendance with no sessions says so rather than writing an empty
     /no attendance sessions/i
   );
   store.close();
+});
+
+// ------------------------------------------------- the class list template
+
+/**
+ * The sample workbook an instructor downloads, fills in, and pastes back.
+ *
+ * Its whole job is to teach one thing — the four columns, in the
+ * administration's order — so the test holds it to exactly that: the headings
+ * are right, the guidance sits ABOVE them (so the block from the header down
+ * can be selected and copied without dragging instructions along), and the
+ * example rows parse back through the real paste parser.
+ */
+test('the class list template offers the four official columns in order', async () => {
+  const file = path.join(tmpDir, 'template.xlsx');
+  await exportRosterTemplate(file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+
+  let headerRow = null;
+  for (let r = 1; r <= 12; r += 1) {
+    if (String(ws.getCell(r, 1).value ?? '').trim() === 'Student ID') {
+      headerRow = r;
+      break;
+    }
+  }
+  assert.ok(headerRow, 'the template should have a Student ID heading');
+
+  const headers = [1, 2, 3, 4].map((c) => String(ws.getCell(headerRow, c).value ?? '').trim());
+  assert.deepEqual(headers, ['Student ID', 'Last Name', 'First Name', 'Middle Name']);
+  assert.equal(String(ws.getCell(headerRow, 5).value ?? ''), '', 'and no fifth column');
+});
+
+test('the template warns, in the file itself, that the order must be kept', async () => {
+  const file = path.join(tmpDir, 'template-warning.xlsx');
+  await exportRosterTemplate(file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+
+  let text = '';
+  for (let r = 1; r <= 5; r += 1) {
+    for (let c = 1; c <= 4; c += 1) text += ` ${ws.getCell(r, c).value ?? ''}`;
+  }
+  assert.match(text, /do not add, remove, rename or reorder/i, 'the rule is stated plainly');
+  assert.match(text, /paste/i, 'and it says what to do with the file');
+});
+
+test('the template guidance sits above the headings, never below them', async () => {
+  const file = path.join(tmpDir, 'template-layout.xlsx');
+  await exportRosterTemplate(file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+
+  let headerRow = null;
+  for (let r = 1; r <= 12; r += 1) {
+    if (String(ws.getCell(r, 1).value ?? '').trim() === 'Student ID') headerRow = r;
+  }
+
+  // Everything from the row under the headings down is data: student rows and
+  // blanks, and nothing that would be pasted in by mistake.
+  for (let r = headerRow + 1; r <= ws.rowCount; r += 1) {
+    const first = String(ws.getCell(r, 1).value ?? '').trim();
+    assert.ok(
+      first === '' || /^[\w-]+$/.test(first),
+      `row ${r} under the headings should be a student row, found "${first}"`
+    );
+  }
+});
+
+test('the template example rows parse back through the real paste parser', async () => {
+  const { parseRosterLine } = require('../src/engine');
+  const file = path.join(tmpDir, 'template-examples.xlsx');
+  await exportRosterTemplate(file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+
+  let headerRow = null;
+  for (let r = 1; r <= 12; r += 1) {
+    if (String(ws.getCell(r, 1).value ?? '').trim() === 'Student ID') headerRow = r;
+  }
+
+  // The first example, read back the way a copy-paste out of Excel would
+  // deliver it: one tab between each column.
+  const cells = [1, 2, 3, 4].map((c) => String(ws.getCell(headerRow + 1, c).value ?? ''));
+  assert.ok(cells[0], 'the first example row should have an ID');
+
+  const parsed = parseRosterLine(cells.join('	'));
+  assert.equal(parsed.studentId, cells[0]);
+  assert.equal(parsed.lastName, cells[1]);
+  assert.equal(parsed.firstName, cells[2]);
+  assert.equal(parsed.middleName, cells[3]);
+});
+
+test('student IDs in the template are text, so leading zeros survive', async () => {
+  const file = path.join(tmpDir, 'template-idformat.xlsx');
+  await exportRosterTemplate(file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  assert.equal(ws.getColumn(1).numFmt, '@', 'the ID column is formatted as text');
 });

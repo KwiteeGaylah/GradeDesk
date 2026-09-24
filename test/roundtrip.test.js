@@ -22,7 +22,7 @@ const ExcelJS = require('exceljs');
 const { Store } = require('../src/data/store');
 const { computeCourse } = require('../src/data/gradebook');
 const { exportGradeRecord } = require('../src/export/excel');
-const { TransmutationTables } = require('../src/engine');
+const { TransmutationTables, joinName, splitName } = require('../src/engine');
 const { loadWorkbook } = require('./workbook-fixture');
 const { exportData, importData } = require('../src/data/backup');
 
@@ -151,8 +151,15 @@ test('the exported workbook carries the same grades as the original', async () =
       const letter = String(row.getCell(cols['Letter Grade']).value ?? '');
       checked += 1;
 
-      if (name !== src.fullName) {
-        mismatches.push(`${section.name} row ${i + 1}: name "${name}" want "${src.fullName}"`);
+      // Names are stored as parts now and the exported name is rebuilt from
+      // them, so the comparison is against the canonical "Last, First Middle"
+      // form rather than the raw workbook string. Two of the 167 names in the
+      // source file were typed without a comma ("Nyema P. Ernest"); splitting
+      // and rejoining those punctuates them consistently with everyone else,
+      // which is the point of storing the parts.
+      const expectedName = joinName(splitName(src.fullName));
+      if (name !== expectedName) {
+        mismatches.push(`${section.name} row ${i + 1}: name "${name}" want "${expectedName}"`);
         return;
       }
       // The export shows two decimals truncated; compare against the same rule.
