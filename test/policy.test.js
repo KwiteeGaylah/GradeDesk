@@ -19,6 +19,7 @@ const {
   isSelectable,
   validateMaxPoints,
   strandedByPolicy,
+  isDerivedMaximum,
 } = require('../src/engine/policy');
 
 const tables = new TransmutationTables(require('../data/transmutation_tables.json'));
@@ -64,26 +65,53 @@ test('every policy carries a note explaining its provenance', () => {
 
 test('point maximums are validated against real table columns', () => {
   assert.equal(validateMaxPoints(15, '70', tables).ok, true);
-  assert.equal(validateMaxPoints(20, '70', tables).ok, false, '70% has no 20-point column');
-  assert.equal(validateMaxPoints(20, '50', tables).ok, true, '50% does have one');
+  assert.equal(validateMaxPoints(20, '70', tables).ok, true, '20 points is now available');
+  assert.equal(validateMaxPoints(20, '50', tables).ok, true);
   assert.equal(validateMaxPoints(100, '70', tables).ok, false);
   assert.equal(validateMaxPoints(0, '70', tables).ok, false);
   assert.equal(validateMaxPoints('abc', '70', tables).ok, false);
 });
 
 test('an invalid maximum names the values that would work', () => {
+  const r = validateMaxPoints(100, '70', tables);
+  assert.equal(r.ok, false);
+  assert.match(r.message, /no column for 100 points/);
+  assert.deepEqual(r.supported, [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]);
+});
+
+test('a reconstructed column is allowed but says so', () => {
+  // 20 points under 70% is usable, and the instructor is told it was worked out
+  // rather than copied from the university table, so they can spot-check it.
   const r = validateMaxPoints(20, '70', tables);
-  assert.match(r.message, /no column for 20 points/);
-  assert.deepEqual(r.supported, [5, 10, 15, 25, 30, 35, 40, 45, 50]);
+  assert.equal(r.ok, true, 'it must not block the assessment');
+  assert.equal(r.level, 'warning', 'but it is not silently ordinary either');
+  assert.equal(r.derived, true);
+  assert.match(r.message, /worked out/i);
+  assert.match(r.message, /check one result/i, 'it asks them to verify');
+});
+
+test('only the reconstructed column is flagged, not its neighbours', () => {
+  assert.equal(isDerivedMaximum(20, '70'), true);
+  assert.equal(isDerivedMaximum(15, '70'), false, 'transcribed from the workbook');
+  assert.equal(isDerivedMaximum(25, '70'), false, 'transcribed from the workbook');
+  // The 50% and 60% tables list 20 points themselves, so theirs is not derived.
+  assert.equal(isDerivedMaximum(20, '50'), false);
+  assert.equal(isDerivedMaximum(20, '60'), false);
+  // An ordinary column reports itself as not derived rather than omitting the flag.
+  assert.equal(validateMaxPoints(15, '70', tables).derived, false);
 });
 
 test('switching policy reports which assessments would be stranded', () => {
+  // A 20-point assessment is no longer stranded by any policy, which was the
+  // whole point of adding the column. A maximum no table has still is.
   const assessments = [
     { name: 'Quiz 1', maxPoints: 15 },
     { name: 'Midterm Project', maxPoints: 20 },
     { name: 'Attendance', maxPoints: 10 },
   ];
-  const stranded = strandedByPolicy(assessments, '70', tables);
-  assert.deepEqual(stranded, [{ name: 'Midterm Project', maxPoints: 20 }]);
+  assert.deepEqual(strandedByPolicy(assessments, '70', tables), []);
   assert.deepEqual(strandedByPolicy(assessments, '50', tables), []);
+
+  const odd = [{ name: 'Portfolio', maxPoints: 17 }];
+  assert.deepEqual(strandedByPolicy(odd, '70', tables), [{ name: 'Portfolio', maxPoints: 17 }]);
 });

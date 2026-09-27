@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('gradedesk', {
   policies: {
     list: () => call('policies:list'),
     maximums: (policy) => call('policies:maximums', policy),
+    derivedMaximums: (policy) => call('policies:derivedMaximums', policy),
     validateMax: (maxPoints, policy) => call('policies:validateMax', maxPoints, policy),
     stranded: (assessments, newPolicy) => call('policies:stranded', assessments, newPolicy),
   },

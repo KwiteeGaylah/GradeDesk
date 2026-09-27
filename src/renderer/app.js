@@ -1996,6 +1996,10 @@ async function removeStudent(student) {
 
 async function renderConfig(content, course) {
   const maximums = await api.policies.maximums(course.policy);
+  // Columns the university table did not give us, which are reconstructed. They
+  // are usable, but they are labelled wherever they appear so nobody submits a
+  // grade from one without knowing.
+  const derived = (await api.policies.derivedMaximums(course.policy)) || [];
   const selectable = state.policies.filter((p) => p.selectable);
   const policyInfo = state.policies.find((p) => p.policy === String(course.policy));
 
@@ -2033,12 +2037,20 @@ async function renderConfig(content, course) {
   const note = el('div', { class: 'note' },
     'Class standing is the ', el('b', {}, 'equal-weight average'), ' of the assessments below × 0.6. ',
     'Add or remove as you like. You never have to redo the weights. ',
-    `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`
+    `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`,
+    derived.length
+      ? el('div', { class: 'hint' },
+          `${derived.join(' and ')} ${derived.length === 1 ? 'points is' : 'points are'} `,
+          el('b', {}, 'worked out'),
+          ` rather than copied from the ${course.policy}% table, which does not list `,
+          `${derived.length === 1 ? 'it' : 'them'}. It follows the same pattern as the rest `,
+          'of the table. Check one result against your printed table before you submit.')
+      : null
   );
 
   const panels = el('div', { class: 'panelgrid' },
-    termPanel('midterm', 'Midterm term', course, maximums),
-    termPanel('final', 'Final term', course, maximums)
+    termPanel('midterm', 'Midterm term', course, maximums, derived),
+    termPanel('final', 'Final term', course, maximums, derived)
   );
 
   setChildren(content, kpis, courseFields, note, panels);
@@ -2061,7 +2073,7 @@ async function updateCourseField(course, key, value) {
   saved();
 }
 
-function termPanel(kind, title, course, maximums) {
+function termPanel(kind, title, course, maximums, derived = []) {
   const list = state.assessments[kind];
   const term = state.terms[kind];
   const exam = list.find((a) => a.kind === 'exam');
@@ -2083,7 +2095,13 @@ function termPanel(kind, title, course, maximums) {
     nameInput.addEventListener('blur', commitName);
 
     const maxSelect = el('select', { 'aria-label': 'Point value' },
-      ...maximums.map((m) => el('option', { value: m, selected: m === a.max_points }, `${m} pts`)),
+      ...maximums.map((m) => el('option', {
+        value: m,
+        selected: m === a.max_points,
+        title: derived.includes(m)
+          ? `Worked out, not copied from the ${course.policy}% table`
+          : '',
+      }, derived.includes(m) ? `${m} pts (worked out)` : `${m} pts`)),
       // Keep an existing out-of-table value visible rather than silently changing it.
       maximums.includes(a.max_points) ? null : el('option', { value: a.max_points, selected: true }, `${a.max_points} pts (unsupported)`)
     );
@@ -2511,6 +2529,7 @@ async function applyPreset(term, kind, course) {
 
 async function addAssessment(term, kind, course, isAttendance = false) {
   const maximums = await api.policies.maximums(course.policy);
+  const derived = (await api.policies.derivedMaximums(course.policy)) || [];
   const name = el('input', {
     type: 'text',
     required: true,
@@ -2518,8 +2537,27 @@ async function addAssessment(term, kind, course, isAttendance = false) {
     placeholder: 'Quiz 1',
   });
   const points = el('select', {},
-    ...maximums.map((m) => el('option', { value: m, selected: m === 10 }, `${m} pts`))
+    ...maximums.map((m) => el('option', {
+      value: m,
+      selected: m === 10,
+    }, derived.includes(m) ? `${m} pts (worked out)` : `${m} pts`))
   );
+
+  // Shown only while a reconstructed column is selected, so the ordinary case
+  // stays quiet and the exception is stated where the choice is made.
+  const derivedNote = el('div', { class: 'note warn', style: 'display:none' });
+  const refreshNote = async () => {
+    const chosen = Number(points.value);
+    if (!derived.includes(chosen)) {
+      derivedNote.style.display = 'none';
+      return;
+    }
+    const check = await api.policies.validateMax(chosen, course.policy);
+    setChildren(derivedNote, el('span', { text: (check && check.message) || '' }));
+    derivedNote.style.display = '';
+  };
+  points.addEventListener('change', refreshNote);
+  await refreshNote();
 
   const result = await modal({
     title: isAttendance ? 'Add attendance' : 'Add assessment',
@@ -2528,7 +2566,8 @@ async function addAssessment(term, kind, course, isAttendance = false) {
       : `Added to the ${kind === 'midterm' ? 'midterm' : 'final'} term and averaged equally with the others.`,
     body: el('div', {},
       el('div', { class: 'field' }, el('label', { text: 'Name' }), name),
-      el('div', { class: 'field' }, el('label', { text: 'Point value' }), points)),
+      el('div', { class: 'field' }, el('label', { text: 'Point value' }), points),
+      derivedNote),
     confirmLabel: 'Add',
     onConfirm: () => (name.value.trim() ? { name: name.value.trim(), maxPoints: Number(points.value) } : false),
   });

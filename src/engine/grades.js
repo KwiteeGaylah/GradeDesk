@@ -82,19 +82,34 @@ function attendanceRawExact(sessionMarks, points) {
 
 /**
  * Class standing for one term.
+ * An assessment whose point maximum has no column in the active policy's table
+ * is SKIPPED, not counted as zero and not allowed to throw. It can only arise
+ * from a deliberate override or from data that predates a policy change, and
+ * throwing here used to blank every grade in the course behind a toast — one bad
+ * assessment hiding an entire class's results. Skipping keeps the other grades
+ * computable; the assessment is reported by name in the pre-export issue review
+ * (see gradebook.reviewIssues) so it cannot be missed.
+ *
  * @param {Array<{raw:*, maxPoints:number}>} assessments  class-standing only, no exam
  * @param {TransmutationTables} tables
  * @param {string|number} policy
- * @returns {number|null} null when the term has no class-standing assessments
+ * @returns {number|null} null when the term has no usable class-standing assessments
  */
 function classStanding(assessments, tables, policy) {
   const list = Array.isArray(assessments) ? assessments : [];
   if (list.length === 0) return null;
   let sum = 0;
+  let counted = 0;
   for (const a of list) {
-    sum += tables.transmute(a.raw, a.maxPoints, policy);
+    const value = tables.transmuteOrNull(a.raw, a.maxPoints, policy);
+    if (value === null) continue; // no column for this maximum
+    sum += value;
+    counted += 1;
   }
-  return (sum / list.length) * CLASS_STANDING_WEIGHT;
+  // Every assessment in the term is unusable, so there is no class standing to
+  // report. The letter becomes NG rather than a number built from nothing.
+  if (counted === 0) return null;
+  return (sum / counted) * CLASS_STANDING_WEIGHT;
 }
 
 /**
@@ -194,8 +209,10 @@ function computeStudent(input, tables, policy) {
   const letter = letterGrade(grade, midtermExamRaw, finalExamRaw);
 
   return {
-    midtermTransmuted: midtermAssessments.map((a) => tables.transmute(a.raw, a.maxPoints, policy)),
-    finalTransmuted: finalAssessments.map((a) => tables.transmute(a.raw, a.maxPoints, policy)),
+    // null for an assessment with no column, so a screen can show it as
+    // unusable rather than printing a number that was never looked up.
+    midtermTransmuted: midtermAssessments.map((a) => tables.transmuteOrNull(a.raw, a.maxPoints, policy)),
+    finalTransmuted: finalAssessments.map((a) => tables.transmuteOrNull(a.raw, a.maxPoints, policy)),
     midtermClassStanding,
     finalClassStanding,
     midtermExamTransmuted,

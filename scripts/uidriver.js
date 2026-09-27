@@ -210,14 +210,30 @@ async function drive(win, app) {
       await new Promise(r => setTimeout(r, 300));
       const options = [...document.querySelectorAll('#content .arow select option')]
         .map(o => o.value).filter((v, i, arr) => arr.indexOf(v) === i);
+      const optionLabels = [...document.querySelectorAll('#content .arow select option')]
+        .map(o => o.textContent.trim()).filter((v, i, arr) => arr.indexOf(v) === i);
       const policies = [...document.querySelectorAll('#content .field select option')].map(o => o.value);
       const examBadge = !!document.querySelector('#content .badge.exam');
-      return { options, policies, examBadge };
+      return { options, optionLabels, policies, examBadge };
     })()`);
+    // 20 points is offered now: the 70% table had no such column because the
+    // workbook it was transcribed from has only seven, and instructors do set
+    // 20-point work. It is reconstructed and labelled as worked out.
     check(
-      'only the maxima the 70% table supports are offered (no 20)',
-      !config.options.includes('20') && config.options.includes('15') && config.options.includes('25'),
+      'every supported maximum is offered, including 20',
+      ['5', '10', '15', '20', '25', '30', '35', '40', '45', '50']
+        .every((m) => config.options.includes(m)),
       JSON.stringify(config.options)
+    );
+    check(
+      'a maximum no table has is still not offered',
+      !config.options.includes('17') && !config.options.includes('100'),
+      JSON.stringify(config.options)
+    );
+    check(
+      'the reconstructed 20-point column is labelled, not passed off as copied',
+      /20 pts \(worked out\)/.test(config.optionLabels.join(' | ')),
+      JSON.stringify(config.optionLabels.filter((l) => /^(15|20|25) pts/.test(l)))
     );
     check('all three policies are offered', ['50', '60', '70'].every((p) => config.policies.includes(p)), JSON.stringify(config.policies));
     check('the exam is shown as fixed at 40', config.examBadge);

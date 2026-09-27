@@ -977,3 +977,92 @@ test('a preset keeps rows that share a name', () => {
   assert.deepEqual(preset.items.map((i) => i.name), ['Quiz', 'Quiz', 'Assign 1']);
   store.close();
 });
+
+// ---------------- a 20-point assessment, and unusable maximums --------------
+
+test('a 20-point assessment works under every policy', () => {
+  // Reported by a teacher: 20 points could not be assigned under the 70% policy,
+  // because the workbook the table was transcribed from has no such column. The
+  // column is now reconstructed, so all three policies accept 20 points.
+  for (const policy of ['50', '60', '70']) {
+    const store = newStore();
+    const semester = store.createSemester('2026-2027 Sem 1');
+    const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102', policy });
+    const { byKind } = store.getTerms(course.id);
+    const project = store.addAssessment(byKind.midterm.id, { name: 'Project', maxPoints: 20 });
+    store.addAssessment(byKind.final.id, { name: 'Quiz', maxPoints: 10 });
+    const student = store.addStudent(course.id, {
+      studentId: '10001', lastName: 'Bestman', firstName: 'Comfort',
+    });
+    store.setScore(student.id, project.id, 14);
+
+    const row = computeCourse(store, course.id, tables).students[0];
+    const cell = row.midterm.assessments.find((a) => a.assessment.id === project.id);
+    assert.equal(cell.raw, 14, `${policy}%: the raw score is kept`);
+    assert.ok(cell.transmuted > 50 && cell.transmuted <= 100,
+      `${policy}%: 14/20 should transmute to a real value, got ${cell.transmuted}`);
+    store.close();
+  }
+});
+
+test('an assessment with no table column leaves the rest of the course intact', () => {
+  // This used to throw out of computeCourse, so every grade in the course went
+  // blank behind a toast. It can arise from a deliberate override or from data
+  // that predates a policy change.
+  const store = newStore();
+  const semester = store.createSemester('2026-2027 Sem 1');
+  const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102', policy: '70' });
+  const { byKind } = store.getTerms(course.id);
+  const bad = store.addAssessment(byKind.midterm.id, { name: 'Portfolio', maxPoints: 17 });
+  const good = store.addAssessment(byKind.midterm.id, { name: 'Quiz 1', maxPoints: 15 });
+  store.addAssessment(byKind.final.id, { name: 'Quiz 2', maxPoints: 10 });
+  const student = store.addStudent(course.id, {
+    studentId: '10001', lastName: 'Bestman', firstName: 'Comfort',
+  });
+  store.setScore(student.id, bad.id, 12);
+  store.setScore(student.id, good.id, 12);
+
+  const row = computeCourse(store, course.id, tables).students[0];
+  assert.ok(row.midterm.classStanding > 0, 'class standing still computes');
+  assert.equal(row.midterm.assessments.find((a) => a.assessment.id === bad.id).transmuted, null,
+    'the unusable one reports null rather than a made-up number');
+  assert.ok(row.midterm.assessments.find((a) => a.assessment.id === good.id).transmuted > 0,
+    'the usable one is unaffected');
+  store.close();
+});
+
+test('issue review names an assessment whose point value has no column', () => {
+  // The engine skips it, so without this the grades would look fine while being
+  // quietly averaged over fewer assessments.
+  const store = newStore();
+  const semester = store.createSemester('2026-2027 Sem 1');
+  const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102', policy: '70' });
+  const { byKind } = store.getTerms(course.id);
+  store.addAssessment(byKind.midterm.id, { name: 'Portfolio', maxPoints: 17 });
+  store.addAssessment(byKind.final.id, { name: 'Quiz', maxPoints: 10 });
+  store.addStudent(course.id, { studentId: '10001', lastName: 'Bestman', firstName: 'Comfort' });
+
+  const issues = reviewIssues(store, course.id, tables)
+    .filter((i) => i.kind === 'unusable_max_points');
+  assert.equal(issues.length, 1, 'reported once, for the one bad assessment');
+  assert.equal(issues[0].severity, 'error');
+  assert.match(issues[0].message, /Portfolio/, 'it names the assessment');
+  assert.match(issues[0].message, /17/, 'and the offending point value');
+  assert.match(issues[0].message, /5, 10, 15, 20, 25, 30, 35, 40, 45, 50/, 'and what would work');
+  store.close();
+});
+
+test('a 20-point assessment is not reported as a problem any more', () => {
+  const store = newStore();
+  const semester = store.createSemester('2026-2027 Sem 1');
+  const course = store.createCourse({ semesterId: semester.id, code: 'CSE 102', policy: '70' });
+  const { byKind } = store.getTerms(course.id);
+  store.addAssessment(byKind.midterm.id, { name: 'Project', maxPoints: 20 });
+  store.addAssessment(byKind.final.id, { name: 'Quiz', maxPoints: 10 });
+  store.addStudent(course.id, { studentId: '10001', lastName: 'Bestman', firstName: 'Comfort' });
+
+  const issues = reviewIssues(store, course.id, tables)
+    .filter((i) => i.kind === 'unusable_max_points');
+  assert.deepEqual(issues, []);
+  store.close();
+});

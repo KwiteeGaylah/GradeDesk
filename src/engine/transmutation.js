@@ -131,6 +131,24 @@ class TransmutationTables {
   }
 }
 
+/**
+ * Transmute, or null when this policy has no column for that maximum.
+ *
+ * `transmute` throws for a missing column, which is right where a caller can
+ * act on it: the UI refuses such a maximum, and a silent wrong number is worse
+ * than a loud failure. But a grade computation runs over a whole class, and one
+ * assessment with an unusable maximum must not take every other grade in the
+ * course down with it — which is what happened before, leaving every screen
+ * blank behind a toast. The engine uses this form and isolates the bad column.
+ *
+ * Added as a method on the prototype rather than inside the class body to keep
+ * the class itself about the lookup, with this as the deliberate exception.
+ */
+TransmutationTables.prototype.transmuteOrNull = function transmuteOrNull(raw, maxPoints, policy) {
+  if (!this.supports(policy, maxPoints)) return null;
+  return this.transmute(raw, maxPoints, policy);
+};
+
 module.exports = {
   TransmutationTables,
   POLICIES,

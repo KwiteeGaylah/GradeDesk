@@ -275,7 +275,7 @@ function buildGradeRecord(workbook, result) {
     };
     row.midterm.assessments.forEach((a) => {
       values[`m_raw_${a.assessment.id}`] = num(a.raw);
-      values[`m_t_${a.assessment.id}`] = a.transmuted;
+      values[`m_t_${a.assessment.id}`] = num(a.transmuted);
     });
     values.m_cs = num(row.midterm.classStanding);
     values.m_exam = num(row.midterm.examRaw);
@@ -284,7 +284,7 @@ function buildGradeRecord(workbook, result) {
 
     row.final.assessments.forEach((a) => {
       values[`f_raw_${a.assessment.id}`] = num(a.raw);
-      values[`f_t_${a.assessment.id}`] = a.transmuted;
+      values[`f_t_${a.assessment.id}`] = num(a.transmuted);
     });
     values.f_cs = num(row.final.classStanding);
     values.f_exam = num(row.final.examRaw);

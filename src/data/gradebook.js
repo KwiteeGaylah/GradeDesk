@@ -239,6 +239,27 @@ function reviewIssues(store, courseId, tables) {
     }
   }
 
+  // An assessment whose point maximum has no column in the active policy's
+  // table. The engine skips it so the rest of the course still computes, which
+  // means it would otherwise be invisible: the grades look fine and are quietly
+  // averaged over fewer assessments. Reported once per assessment, as an error,
+  // because every grade in the term is affected until it is fixed.
+  for (const termKey of ['midterm', 'final']) {
+    const label = termKey === 'midterm' ? 'Midterm' : 'Final';
+    for (const a of result.terms[termKey].classStanding || []) {
+      if (tables.supports(result.policy, a.max_points)) continue;
+      issues.push({
+        severity: 'error',
+        kind: 'unusable_max_points',
+        message:
+          `${label} assessment "${a.name}" is out of ${a.max_points}, which the ` +
+          `${result.policy}% table has no column for, so it is left out of every ` +
+          `student's class standing. Change it to one of: ` +
+          `${tables.supportedMaximums(result.policy).join(', ')}.`,
+      });
+    }
+  }
+
   // Students sitting in without being on the official roster. The instructor
   // submits these names on an addendum list along with their grades, so this
   // reminder appears every time they check the course until it is sent and

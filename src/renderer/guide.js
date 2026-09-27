@@ -61,8 +61,11 @@ const GUIDE_SECTIONS = [
         'else and name them whatever you call them on your own sheet.' },
       { type: 'warn', text:
         'A point value has to be one the university table has a column for, so the app ' +
-        'only offers those. Under the 70% policy there is no 20-point column, which is ' +
-        'why 20 is missing from the list.' },
+        'only offers those: 5 up to 50, in fives. One of them, 20 points under the 70% ' +
+        'policy, is marked "worked out" — the table we were given does not list it, so ' +
+        'it is calculated to follow the same pattern as the columns either side. It ' +
+        'grades sensibly, but check one result against your printed table before you ' +
+        'submit.' },
       { type: 'tip', text:
         'Adding or removing an assessment never means redoing weights. Class standing is ' +
         'a straight average, so the app just averages whatever is there.' },

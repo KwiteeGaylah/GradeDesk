@@ -71,17 +71,62 @@ test('string raw scores are accepted like numbers', () => {
   assert.equal(tables.transmute(' 8 ', 10, '70'), 80);
 });
 
-test('supported maximums differ by policy: 70% has no 20-point column', () => {
-  assert.deepEqual(tables.supportedMaximums('50'), [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]);
-  assert.deepEqual(tables.supportedMaximums('60'), [5, 10, 15, 20, 25, 30, 35, 40, 45, 50]);
-  assert.deepEqual(tables.supportedMaximums('70'), [5, 10, 15, 25, 30, 35, 40, 45, 50]);
-  assert.equal(tables.supports('70', 20), false);
-  assert.equal(tables.supports('50', 20), true);
+test('every policy supports the same ten point maximums', () => {
+  // The 70% table originally had no 20-point column, because the workbook it was
+  // transcribed from has only seven. Instructors do set 20-point work, so that
+  // column is now reconstructed (see DERIVED_MAXIMUMS in policy.js) and all three
+  // policies offer the same set.
+  const all = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
+  for (const policy of ['50', '60', '70']) {
+    assert.deepEqual(tables.supportedMaximums(policy), all, `${policy}% maximums`);
+    assert.equal(tables.supports(policy, 20), true, `${policy}% supports 20 points`);
+  }
+});
+
+test('a 20-point assessment transmutes under every policy', () => {
+  // The case a teacher reported: a 20-point assessment under the 70% policy used
+  // to throw, which blanked every computed column in the course.
+  for (const policy of ['50', '60', '70']) {
+    assert.equal(tables.transmute(0, 20, policy), 50, `${policy}% raw 0`);
+    assert.equal(tables.transmute(20, 20, policy), 100, `${policy}% raw 20`);
+    const mid = tables.transmute(14, 20, policy);
+    assert.ok(mid > 50 && mid < 100, `${policy}% raw 14 should land between`);
+  }
+});
+
+test('the reconstructed 20-point column matches the real ones it was built from', () => {
+  // The rule that generated the 70% 20-point column reproduces the 50% and 60%
+  // 20-point columns — which ARE transcribed from the university table — exactly.
+  // If that stops holding, the derived column is no longer justified.
+  const rebuild = (max, policy) => {
+    const pass = Math.round((Number(policy) / 100) * max);
+    const out = { 0: 50 };
+    for (let k = 1; k <= pass; k++) out[k] = Math.round(50 + 20 * (k / pass));
+    for (let k = pass + 1; k <= max; k++) out[k] = Math.round(70 + 30 * ((k - pass) / (max - pass)));
+    out[max] = 100;
+    return out;
+  };
+  for (const policy of ['50', '60']) {
+    const generated = rebuild(20, policy);
+    for (const [raw, value] of tables.column(policy, 20)) {
+      assert.equal(value, generated[raw],
+        `${policy}% 20-point raw ${raw}: the rule must reproduce the transcribed column`);
+    }
+  }
+});
+
+test('the reconstructed column never exceeds the easier policy beside it', () => {
+  // A 70% score can never be kinder than the same raw score under 60%.
+  for (const [raw, value] of tables.column('70', 20)) {
+    const easier = tables.transmute(raw, 20, '60');
+    assert.ok(value <= easier,
+      `70% 20-point raw ${raw} is ${value}, above the 60% value of ${easier}`);
+  }
 });
 
 test('an unsupported point maximum throws rather than guessing a column', () => {
-  assert.throws(() => tables.transmute(10, 20, '70'), /no 20-point column/);
   assert.throws(() => tables.transmute(10, 100, '70'), /no 100-point column/);
+  assert.throws(() => tables.transmute(10, 17, '70'), /no 17-point column/);
 });
 
 test('every column is monotonic and anchored at 50 and 100', () => {
@@ -415,4 +460,55 @@ test('isBlank distinguishes blank from zero', () => {
   assert.equal(isBlank('  '), true);
   assert.equal(isBlank(0), false);
   assert.equal(isBlank('0'), false);
+});
+
+// ------------------- an assessment whose column does not exist -------------
+
+/**
+ * A point maximum with no column can only come from a deliberate override or
+ * from data that predates a policy change. It used to make transmute() throw
+ * from inside the class-standing loop, which took the WHOLE course down: every
+ * grade, letter and total on every screen went blank behind a toast, the same
+ * failure shape as a pasted roster losing its IDs. One bad assessment must not
+ * hide a whole class's results.
+ */
+
+test('transmuteOrNull reports a missing column instead of throwing', () => {
+  assert.equal(tables.transmuteOrNull(12, 17, '70'), null);
+  assert.equal(tables.transmuteOrNull(14, 20, '70'), 70, 'a real column still works');
+  // The throwing form is deliberately kept for callers that can act on it.
+  assert.throws(() => tables.transmute(12, 17, '70'), /no 17-point column/);
+});
+
+test('class standing skips an assessment with no column rather than failing', () => {
+  const { classStanding } = require('../src/engine/grades');
+  const good = [{ raw: 12, maxPoints: 15 }, { raw: 8, maxPoints: 10 }];
+  const withBad = [...good, { raw: 12, maxPoints: 17 }];
+
+  const expected = classStanding(good, tables, '70');
+  assert.ok(expected > 0);
+  // The unusable one is left out, so the average is over the two that work —
+  // not counted as zero, which would quietly deflate every grade.
+  assert.equal(classStanding(withBad, tables, '70'), expected);
+});
+
+test('a term of only unusable assessments has no class standing', () => {
+  const { classStanding } = require('../src/engine/grades');
+  assert.equal(classStanding([{ raw: 5, maxPoints: 17 }], tables, '70'), null);
+});
+
+test('one unusable assessment does not blank the rest of the course', () => {
+  const result = computeStudent({
+    midtermAssessments: [{ raw: 12, maxPoints: 15 }, { raw: 9, maxPoints: 17 }],
+    midtermExamRaw: 30,
+    finalAssessments: [{ raw: 8, maxPoints: 10 }],
+    finalExamRaw: 32,
+  }, tables, '70');
+
+  assert.ok(Number.isFinite(result.finalGrade), 'the final grade must still compute');
+  assert.ok(['A', 'B', 'C', 'D', 'F'].includes(result.letter), `letter was ${result.letter}`);
+  // The unusable column reports null, so a screen can mark it rather than
+  // printing a number that was never looked up.
+  assert.equal(result.midtermTransmuted[1], null);
+  assert.ok(Number.isFinite(result.midtermTransmuted[0]));
 });

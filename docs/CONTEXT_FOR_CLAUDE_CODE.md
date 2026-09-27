@@ -137,8 +137,13 @@ there, it is the source of truth for the math.
 ## 5. Supported point-maximums (a real constraint, not cosmetic)
 
 An assessment's max must be a column the active policy's table actually has:
-- 50% and 60%: `5, 10, 15, 20, 25, 30, 35, 40, 45, 50`
-- 70%: `5, 10, 15, 25, 30, 35, 40, 45, 50` (**no 20-point column**)
+- All three policies: `5, 10, 15, 20, 25, 30, 35, 40, 45, 50`
+
+The 70% table originally had **no 20-point column**, because the workbook it was
+transcribed from has only seven columns. A teacher hit this trying to set a 20-point
+assessment. It is now derived by the rule that reproduces the real columns exactly
+(including the real 50%/60% 20-point ones), registered in `DERIVED_MAXIMUMS`, and
+labelled "worked out" in the UI. Do not silently add more derived columns.
 
 The UI must offer only supported maxes for the active policy, and warn if switching
 policy would strand an existing assessment's max. An instructor should not be able to
@@ -220,8 +225,9 @@ Neither changes the engine. Proceed.
 3. **Rounding "to be helpful."** Do not. Two decimals, exact.
 4. **Treating the exam as configurable.** It is fixed at 40.
 5. **Adding per-assessment weights.** There are none. It is a flat average.
-6. **Offering unsupported maxes** (e.g. a 20-pt assessment under the 70% policy). The
-   70% table has no 20 column.
+6. **Offering unsupported maxes.** Validate against real columns. All three policies
+   now support 5-50 in fives; the 70% 20-point column is derived and labelled as such.
+   A max no table has (17, 100) must still be refused.
 7. **Blank handling.** Blank assessment → transmutes to 50 and counts. Blank **exam** →
    whole letter becomes `I`. These are different rules; keep them straight.
 

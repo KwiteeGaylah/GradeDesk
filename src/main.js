@@ -20,6 +20,7 @@ const {
   allPolicies,
   validateMaxPoints,
   strandedByPolicy,
+  isDerivedMaximum,
   DEFAULT_POLICY,
   parseRosterText,
   formatDate,
@@ -215,6 +216,10 @@ function registerHandlers() {
   // ---- reference data ----
   handle('policies:list', () => allPolicies(tables));
   handle('policies:maximums', (policy) => tables.supportedMaximums(policy));
+  // Which of those columns were reconstructed rather than copied from the
+  // university table, so the UI can label them where they are chosen.
+  handle('policies:derivedMaximums', (policy) =>
+    tables.supportedMaximums(policy).filter((m) => isDerivedMaximum(m, policy)));
   handle('policies:validateMax', (maxPoints, policy) => validateMaxPoints(maxPoints, policy, tables));
   handle('policies:stranded', (assessments, newPolicy) =>
     strandedByPolicy(assessments, newPolicy, tables)
