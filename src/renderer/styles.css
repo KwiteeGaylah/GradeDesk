@@ -3,40 +3,73 @@
 :root {
   /*
    * Chosen for a projector as much as a laptop screen. Projectors have poor
-   * black levels and wash out mid greys, so the interface is light, the text
-   * is near black, and every text-on-background pair clears a contrast ratio
-   * of 4.5 to 1. One green accent carries meaning; everything else is neutral.
+   * black levels and wash out mid greys, so the interface stays light, the text
+   * is near black, and every text-on-background pair clears a contrast ratio of
+   * 4.5 to 1. Those ratios are asserted in test/contrast.test.js, so a colour
+   * edited to look nicer on a good monitor fails there rather than in a
+   * lecture hall.
+   *
+   * COLOUR CARRIES MEANING HERE, it is not decoration:
+   *
+   *   indigo   the app itself -- the active course, the primary action, focus
+   *   teal     a score you typed, and the wells those live in
+   *   violet   a value the app worked out for you, never typed
+   *   amber    something to look at before submitting
+   *   red      something wrong now: over the maximum, a failing letter
+   *
+   * An instructor reading a row should be able to tell what they entered from
+   * what GradeDesk derived without reading a legend, which is why the entry
+   * column and the computed columns are different hues rather than two shades
+   * of the same one.
    */
-  --ink: #12181f;           /* body text, 17.9:1 on white */
-  --ink-soft: #4a5561;      /* secondary text, 7.6:1 on white */
-  --ink-faint: #657079;     /* labels and hints, 5.1:1 on white, 4.7:1 on canvas */
-  --line: #dfe4ea;
-  --line-strong: #c2cad3;
+
+  /* ---- neutrals ---- */
+  --ink: #151a24;           /* body text, 17.4:1 on white */
+  --ink-soft: #48525f;      /* secondary text, 7.9:1 on white */
+  --ink-faint: #616b78;     /* labels and hints, 5.4:1 on white, 4.9:1 on canvas */
+  --line: #dee3ea;
+  --line-strong: #c3cbd6;
   --paper: #ffffff;
-  --canvas: #f4f6f8;
+  --canvas: #f2f5f9;        /* a cool page behind the white cards */
 
   /* The side panel is light. A dark panel looks smart on a laptop and turns
-     into an unreadable block when projected. */
-  --rail: #ffffff;
-  --rail-edge: #e4e8ee;
-  --rail-ink: #3d4854;
-  --rail-muted: #657079;
-  --rail-hover: #eef1f5;
+     into an unreadable block when projected. It is tinted just enough to read
+     as a panel rather than more page. */
+  --rail: #f7f9fc;
+  --rail-edge: #dfe5ee;
+  --rail-ink: #3a4452;
+  --rail-muted: #5f6a78;
+  --rail-hover: #e8edf5;
 
-  --brand: #0f6b4f;
-  --brand-ink: #0b5540;
-  --brand-tint: #e3f2ec;
+  /* ---- indigo: the app, the active thing, the primary action ---- */
+  --brand: #2f4b8f;
+  --brand-ink: #23396d;
+  --brand-tint: #e8eefa;
+  --brand-line: #b9c9e8;
+
+  /* ---- teal: what you typed ---- */
+  --teal: #0f6b63;
+  --teal-tint: #e2f2f0;
+  --teal-line: #9ccbc5;
+
+  /* ---- violet: what the app worked out ---- */
+  --violet: #6b3fa0;
+  --violet-tint: #f0e9fa;
+  --violet-line: #cdb8e8;
+
+  /* ---- status ---- */
   --amber: #8a5300;
   --amber-tint: #fdf3e0;
   --red: #a3231b;
   --red-tint: #fbe6e4;
-  --blue: #1a4f8a;
-  --blue-tint: #e5eef8;
+  /* Kept as an alias: the letter badges and a few notes still name it. */
+  --blue: #2f4b8f;
+  --blue-tint: #e8eefa;
 
-  --read: #f6f8fa;          /* computed cells */
-  --focus: #0f6b4f;
-  --entry-bg: #eaf4ef;      /* the editable column's well */
-  --entry-line: #9dc2b0;    /* the outline around an editable cell */
+  --read: #f5f7fb;          /* computed cells */
+  --focus: #2f4b8f;
+  --entry-bg: #e6f2f0;      /* the editable column's well, teal */
+  --entry-line: #8fc3bc;    /* the outline around an editable cell */
 }
 
 * { box-sizing: border-box; }
@@ -318,14 +351,14 @@ td.entry input {
 }
 td.entry input:hover:not([readonly]) { border-color: var(--brand); }
 td.entry input:focus {
-  border-color: var(--focus); background: #f2faf6;
+  border-color: var(--teal); background: #f1faf8;
   box-shadow: 0 0 0 3px rgba(47, 109, 79, .18);
   font-weight: 600;
 }
 /* The whole row lifts while a cell in it is being edited, so the eye keeps its
    place when typing down a long class list. */
 tbody tr:focus-within td { background: #f3f9f6; }
-tbody tr:focus-within td.entry { background: #dff0e7; }
+tbody tr:focus-within td.entry { background: #d8ece9; }
 td.entry input.over {
   background: var(--red-tint); color: var(--red); font-weight: 600;
   border-color: var(--red);
@@ -337,6 +370,12 @@ td.entry input[readonly] {
 }
 /* The column being typed into is tinted in the header too. */
 th.th-entry { position: relative; }
+/* The heading over a column you type into, tinted like the cells beneath it. */
+/* thead th sets a background for every header, so these have to match its
+   specificity to tint the columns they sit over. */
+thead th.th-entry { background: var(--teal-tint); color: var(--teal); }
+thead th.th-entry .thmax { color: var(--teal); opacity: .8; }
+thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
 
 /* ---------------- the entry grid, all of a term at once ----------------
    Every assessment in the term is a column, as the instructor's own workbook
@@ -372,7 +411,7 @@ th.th-entry { position: relative; }
 .entrytable thead th { padding-left: 4px; padding-right: 4px; white-space: normal; }
 .entrytable th.th-trans { padding-left: 1px; padding-right: 1px; }
 .entrytable td.td-trans { padding-left: 1px; padding-right: 1px; }
-.entrytable th.th-trans { font-size: 10.5px; color: var(--ink-soft); background: var(--read); }
+.entrytable th.th-trans { font-size: 10.5px; color: var(--violet); background: var(--violet-tint); }
 .entrytable td.td-trans { font-size: 11.5px; }
 /* With the transmuted columns in, the entry cells give up a little width too,
    so the whole term still fits beside the totals. */
@@ -501,20 +540,32 @@ th.th-entry { position: relative; }
   .entrytable th.th-entry .thname { font-size: 11px; }
   .entrytable td.sid, .entrytable th:nth-child(2) { font-size: 12px; }
 }
-td.read { background: var(--read); color: var(--ink-soft); text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px; }
-td.total { background: var(--read); color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
+/* Worked out, never typed. Violet so a glance along a row separates what the
+   instructor entered from what GradeDesk derived, without reading a legend. */
+td.read {
+  background: var(--violet-tint); color: var(--violet); text-align: center;
+  width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
+}
+td.total {
+  background: var(--violet-tint); color: var(--violet); text-align: center;
+  font-weight: 700; width: 82px; font-variant-numeric: tabular-nums;
+}
 /* The final grade and letter are the point of this screen, so they are pinned
    to the right edge and stay readable however narrow the window gets. */
+/* The answer this screen exists to give, so it carries the app's own colour
+   rather than sitting blank between two tinted blocks. */
 td.final, th.final {
   text-align: center; font-weight: 700; width: 86px; font-variant-numeric: tabular-nums;
-  position: sticky; right: 60px; background: var(--paper);
-  box-shadow: inset 1px 0 0 var(--line);
+  position: sticky; right: 60px; background: var(--brand-tint); color: var(--brand-ink);
+  box-shadow: inset 1px 0 0 var(--brand-line);
 }
 td.letter, th.letter {
   text-align: center; width: 60px; font-weight: 700;
   position: sticky; right: 0; background: var(--paper);
 }
-thead th.final, thead th.letter { background: var(--read); z-index: 3; }
+/* The grade and letter headings carry the app's colour, so the answer end of
+   the row is distinct from the tinted entry and computed blocks beside it. */
+thead th.final, thead th.letter { background: var(--brand); color: #fff; z-index: 3; }
 tbody tr:hover td.final, tbody tr:hover td.letter { background: var(--rail-hover); }
 tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: var(--rail-hover); }
 
@@ -529,7 +580,7 @@ tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: 
 
 /* ---------------- notes, legends ---------------- */
 .note {
-  background: var(--brand-tint); border: 1px solid #bfdfd0; border-left: 3px solid var(--brand);
+  background: var(--brand-tint); border: 1px solid var(--brand-line); border-left: 3px solid var(--brand);
   border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--brand-ink); margin-bottom: 14px;
 }
 .note.warn { background: var(--amber-tint); border-color: #e5c48c; border-left-color: var(--amber); color: var(--amber); }
@@ -554,9 +605,9 @@ td.att {
 td.att:hover .attchip { border-color: var(--brand); }
 td.att:focus-visible { outline: none; }
 td.att:focus-visible .attchip {
-  border-color: var(--focus); box-shadow: 0 0 0 3px rgba(15, 107, 79, .2);
+  border-color: var(--focus); box-shadow: 0 0 0 3px rgba(47, 75, 143, .22);
 }
-td.att.P .attchip { background: #e3f2ec; border-color: #7fb79c; color: var(--brand); }
+td.att.P .attchip { background: var(--teal-tint); border-color: var(--teal-line); color: var(--teal); }
 td.att.E .attchip { background: var(--amber-tint); border-color: #d9b57a; color: var(--amber); }
 td.att.A .attchip { background: var(--red-tint); border-color: #d99f9a; color: var(--red); }
 td.att.blank .attchip { color: #b7c0cd; border-style: dashed; }
@@ -565,7 +616,9 @@ th.session { text-align: center; font-size: 11px; }
    the right the same way the final grade is on the entry screen. Otherwise it
    scrolls out of sight the moment a term has more than a handful of meetings. */
 td.att-raw, th.att-raw {
-  position: sticky; right: 74px; background: var(--read);
+  /* Worked out from the register, so it carries the derived colour the grade
+     screen uses for the same kind of value. */
+  position: sticky; right: 74px; background: var(--violet-tint); color: var(--violet);
   text-align: center; font-weight: 600;
   /* Wide enough for the header "Raw /10" and a two-decimal value like 10.00;
      at 82px both were clipped. */
@@ -574,10 +627,12 @@ td.att-raw, th.att-raw {
   white-space: nowrap;
 }
 td.att-trans, th.att-trans {
-  position: sticky; right: 0; background: var(--read);
+  position: sticky; right: 0; background: var(--violet-tint); color: var(--violet);
   text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
 }
-thead th.att-raw, thead th.att-trans { background: var(--read); z-index: 3; }
+thead th.att-raw, thead th.att-trans {
+  background: var(--violet); color: #fff; z-index: 3;
+}
 th.session .del { color: var(--ink-faint); cursor: pointer; margin-left: 4px; }
 th.session .del:hover { color: var(--red); }
 
@@ -607,9 +662,19 @@ th.session .del:hover { color: var(--red); }
 .addrow { margin-top: 10px; }
 
 .kpis { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-.kpi { background: var(--paper); border: 1px solid var(--line); border-radius: 9px; padding: 11px 15px; min-width: 100px; }
-.kpi .v { font-size: 20px; font-weight: 700; }
+/* A coloured edge along the top, so a row of tiles reads as a set of figures
+   rather than four empty boxes. The number carries the app's colour. */
+.kpi {
+  background: var(--paper); border: 1px solid var(--line); border-radius: 9px;
+  padding: 11px 15px; min-width: 100px; border-top: 3px solid var(--brand);
+}
+.kpi .v { font-size: 20px; font-weight: 700; color: var(--brand-ink); }
 .kpi .l { font-size: 11.5px; color: var(--ink-soft); }
+/* Every other tile takes the next hue along, so a row of them is scannable. */
+.kpi:nth-child(2n) { border-top-color: var(--teal); }
+.kpi:nth-child(2n) .v { color: var(--teal); }
+.kpi:nth-child(3n) { border-top-color: var(--violet); }
+.kpi:nth-child(3n) .v { color: var(--violet); }
 
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
@@ -670,7 +735,7 @@ th.session .del:hover { color: var(--red); }
 .ta-right { text-align: right; }
 .ta-center { text-align: center; }
 .ta-left { text-align: left; }
-.th-entry { text-align: center; background: #eef7f1; }
+.th-entry { text-align: center; }
 .th-computed { text-align: center; background: var(--read); }
 .w-id { width: 140px; }
 .w-auto { width: auto; }
@@ -731,9 +796,9 @@ td.entry input.id-input:focus {
 .previewtable tr:last-child td { border-bottom: 0; }
 /* A row with no surname: the columns did not line up. */
 .previewtable tr.previewbad td { background: #fdf1ef; color: #993229; }
-.k-entry { background: #eef7f1; border: 1px solid #bfdfd0; }
-.k-read { background: var(--read); border: 1px solid var(--line); }
-.k-total { background: var(--read); border: 1px solid var(--line); }
+.k-entry { background: var(--entry-bg); border: 1px solid var(--teal-line); }
+.k-read { background: var(--violet-tint); border: 1px solid var(--violet-line); }
+.k-total { background: var(--violet-tint); border: 1px solid var(--violet-line); }
 
 
 /* ---------------- wizard ---------------- */
@@ -764,8 +829,8 @@ td.entry input.id-input:focus {
 tbody tr.rowblank td { background: #fbfbfc; }
 tbody tr.rowblank td.idx { color: #c3cad4; }
 tbody tr.rowpartial td.entry { background: #fffdf6; }
-.kpi.warn { border-color: #e5c48c; background: var(--amber-tint); }
-.kpi.warn .v { color: var(--amber); }
+.kpi.warn, .kpi.flagged { border-color: #e5c48c; border-top-color: var(--amber); background: var(--amber-tint); }
+.kpi.warn .v, .kpi.flagged .v { color: var(--amber); }
 .kpi.warn .l { color: var(--amber); }
 td.entry input::placeholder { color: #c3cad4; }
 /* The roster fills the window like every other grid. Its columns are given

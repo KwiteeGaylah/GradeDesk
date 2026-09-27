@@ -167,3 +167,76 @@ test('no button sets a text colour without also setting its background', () => {
   }
   assert.deepEqual(offenders, [], `button rule(s) recolour text without a background: ${offenders.join(', ')}`);
 });
+
+/**
+ * The palette has to stay a palette.
+ *
+ * The first version of this interface was one green accent on white, which read
+ * as a single colour throughout. Colour now carries meaning — indigo for the
+ * app, teal for what the instructor typed, violet for what GradeDesk worked
+ * out, amber and red for attention — so a row can be read without a legend.
+ * These check the hues stay distinct, not merely that they exist.
+ */
+
+/** Hue angle, 0-360, from a hex colour. */
+function hue(hex) {
+  const [r, g, b] = toRgb(hex).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const d = max - min;
+  if (d === 0) return 0;
+  let h;
+  if (max === r) h = ((g - b) / d) % 6;
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  h *= 60;
+  return h < 0 ? h + 360 : h;
+}
+
+/** Shortest distance between two hue angles. */
+function hueGap(a, b) {
+  const d = Math.abs(hue(a) - hue(b)) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+test('the accent colours are genuinely different hues, not shades of one', () => {
+  const accents = ['brand', 'teal', 'violet', 'amber', 'red'];
+  const tooClose = [];
+  for (let i = 0; i < accents.length; i++) {
+    for (let j = i + 1; j < accents.length; j++) {
+      const gap = hueGap(token(accents[i]), token(accents[j]));
+      // 25 degrees apart is enough to read as a different colour; amber and red
+      // are the closest pair and sit well beyond it.
+      if (gap < 25) tooClose.push(`${accents[i]} and ${accents[j]}: ${gap.toFixed(0)} degrees apart`);
+    }
+  }
+  assert.deepEqual(tooClose, [], `${tooClose.length} accent pair(s) too close to tell apart`);
+});
+
+test('what you typed and what the app worked out are different colours', () => {
+  // The distinction the entry grid leans on: teal cells are yours, violet ones
+  // are derived. If these ever converge the grid stops being readable at a
+  // glance and the legend becomes load-bearing.
+  const gap = hueGap(token('teal'), token('violet'));
+  assert.ok(gap >= 60, `entry and computed colours are only ${gap.toFixed(0)} degrees apart`);
+  // And their tints, which is what actually fills the cells.
+  assert.notEqual(token('teal-tint'), token('violet-tint'));
+});
+
+test('every accent still reads on white and on the page', () => {
+  const failures = [];
+  for (const name of ['brand', 'teal', 'violet', 'amber', 'red']) {
+    for (const surface of ['paper', 'canvas']) {
+      const ratio = contrast(token(name), token(surface));
+      if (ratio < AA_BODY) failures.push(`${name} on ${surface}: ${ratio.toFixed(2)}:1`);
+    }
+  }
+  assert.deepEqual(failures, [], `${failures.length} accent(s) below ${AA_BODY}:1`);
+});
+
+test('white reads on the solid fills the headers use', () => {
+  for (const name of ['brand', 'violet']) {
+    const ratio = contrast('#ffffff', token(name));
+    assert.ok(ratio >= AA_BODY, `white on ${name} is only ${ratio.toFixed(2)}:1`);
+  }
+});
