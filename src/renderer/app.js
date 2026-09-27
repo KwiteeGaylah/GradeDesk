@@ -641,8 +641,60 @@ async function openManage() {
         el('button', {
           class: 'btn',
           onclick: async () => { setChildren($('modalRoot')); await managePresets(); },
-        }, 'Manage presets'))),
+        }, 'Manage presets')),
+
+      el('h4', { class: 'mansec', text: 'About and updates' }),
+      versionBlock()),
   });
+}
+
+/**
+ * The version, and whatever the update check has found.
+ *
+ * Instructors could not tell which version they were running, which made a
+ * report like "the scores disappear" hard to place. It is stated plainly here,
+ * along with what the update check is doing, so nothing about the one part of
+ * the app that uses the network is hidden.
+ */
+function versionBlock() {
+  const line = el('div', { class: 'hint', text: 'GradeDesk' });
+  const actions = el('div', { class: 'manactions' });
+
+  api.app.version().then((v) => {
+    line.textContent = `You are running GradeDesk ${v}.`;
+  }).catch(() => {});
+
+  const describe = (status) => {
+    if (!status) return;
+    if (status.state === 'ready' && status.version) {
+      setChildren(line,
+        el('b', {}, `GradeDesk ${status.version} is ready to install.`),
+        ' It will be installed when you close the app, or you can do it now.');
+      setChildren(actions, el('button', {
+        class: 'btn primary',
+        onclick: () => api.updates.install(),
+      }, 'Install and restart'));
+      return;
+    }
+    if (status.state === 'downloading') {
+      line.textContent = status.percent
+        ? `Downloading a new version… ${status.percent}%`
+        : 'A new version is available. Downloading it now…';
+      return;
+    }
+    if (status.state === 'offline') {
+      line.textContent =
+        'Could not reach the update server, which is fine — GradeDesk works offline. '
+        + 'It will look again next time you open it.';
+    }
+  };
+
+  // Whatever the check has already found by the time this is opened.
+  api.updates.pending().then((v) => {
+    if (v) describe({ state: 'ready', version: v });
+  }).catch(() => {});
+
+  return el('div', {}, line, actions);
 }
 
 /** Switch the active semester, warning that the current one gets archived. */
@@ -708,6 +760,36 @@ function toggleRail() {
 }
 
 $('railToggle').addEventListener('click', toggleRail);
+
+/**
+ * Tell the instructor an update is waiting, once, without interrupting.
+ *
+ * A dialog in the middle of entering a column would be exactly the wrong thing,
+ * so this is a line in the left panel that can be ignored indefinitely. The
+ * update installs itself when they next close the app either way.
+ */
+function showUpdateReady(version) {
+  if (document.getElementById('updateReady')) return;
+  const foot = document.querySelector('.railfoot');
+  if (!foot) return;
+  foot.insertBefore(
+    el('button', {
+      id: 'updateReady',
+      class: 'railbtn update',
+      title: `GradeDesk ${version} has been downloaded and will install when you close the app`,
+      onclick: openManage,
+    }, el('span', { class: 'ico', text: '\u2191' }), `Update to ${version}`),
+    foot.firstChild
+  );
+}
+
+if (api.updates && api.updates.onStatus) {
+  api.updates.onStatus((status) => {
+    if (status && status.state === 'ready' && status.version) {
+      showUpdateReady(status.version);
+    }
+  });
+}
 
 // Restore however it was left.
 try {

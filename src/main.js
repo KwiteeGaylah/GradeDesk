@@ -13,6 +13,7 @@ const fs = require('fs');
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 
 const { Store } = require('./data/store');
+const updates = require('./updates');
 const { computeCourse, reviewIssues } = require('./data/gradebook');
 const { exportToFile, importFromFile } = require('./data/backup');
 const {
@@ -70,8 +71,18 @@ function createWindow() {
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
 
-  // Nothing in this app should ever open a browser; it is offline by design.
+  // The app never opens a browser window of its own. The one thing that does
+  // reach the network is the update check in src/updates.js, which talks to
+  // GitHub and nothing else.
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  // Look for a newer release once the window is up. Failing quietly is the
+  // point: no internet is ordinary here, not an error worth a dialog.
+  updates.start(app, (status) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('updates:status', status);
+    }
+  });
 
   // Development harnesses only. The scripts directory is not shipped in the
   // packaged app, so these requires are guarded: a packaged build ignores them
@@ -401,5 +412,8 @@ function registerHandlers() {
     return databasePath();
   });
   handle('app:dataPath', () => databasePath());
+  handle('app:version', () => app.getVersion());
+  handle('updates:pending', () => updates.pending());
+  handle('updates:install', () => updates.installNow());
   handle('app:defaultPolicy', () => DEFAULT_POLICY);
 }

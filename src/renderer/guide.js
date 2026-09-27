@@ -338,6 +338,12 @@ const GUIDE_SECTIONS = [
         'Every score is written to disk the moment you leave the box. If the power goes ' +
         'out while you are typing, everything you had already entered is still there when ' +
         'you open the app again.' },
+      { type: 'steps', title: 'Staying up to date', items: [
+        ['It updates itself', 'GradeDesk looks for a new version when it starts and installs it when you next close the app.'],
+        ['Nothing is sent', 'It asks whether there is a newer release. No grades, no names, nothing about your students.'],
+        ['No internet is fine', 'The check fails quietly and everything else works exactly the same.'],
+        ['Manage, then About', 'Tells you which version you are running.'],
+      ] },
       { type: 'steps', title: 'Backing up', items: [
         ['Manage, then Back up', 'Writes all your data to a single file.'],
         ['Copy it somewhere', 'A flash drive is enough.'],

@@ -96,5 +96,14 @@ contextBridge.exposeInMainWorld('gradedesk', {
     revealData: () => call('app:revealData'),
     dataPath: () => call('app:dataPath'),
     defaultPolicy: () => call('app:defaultPolicy'),
+    version: () => call('app:version'),
+  },
+  // The update check is the one thing in this app that uses the network.
+  updates: {
+    pending: () => call('updates:pending'),
+    install: () => call('updates:install'),
+    // A push from the main process rather than a call: the check happens on
+    // its own schedule, so the renderer is told rather than asking.
+    onStatus: (fn) => ipcRenderer.on('updates:status', (_e, status) => fn(status)),
   },
 });

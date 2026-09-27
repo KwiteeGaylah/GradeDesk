@@ -1,6 +1,6 @@
 {
   "name": "gradedesk",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Offline desktop grade-recording and transmutation tool for WVSTU instructors",
   "main": "src/main.js",
   "author": "Kwitee D. Gaylah",
@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "electron-updater": "^6.8.9",
     "exceljs": "^4.4.0"
   },
   "build": {
@@ -73,7 +74,13 @@
       "menuCategory": false,
       "deleteAppDataOnUninstall": false,
       "artifactName": "GradeDesk-Setup-${version}.exe",
-      "include": "build/installer.nsh"
+      "include": "build/installer.nsh",
+      "differentialPackage": true
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "KwiteeGaylah",
+      "repo": "GradeDesk"
     }
   }
 }

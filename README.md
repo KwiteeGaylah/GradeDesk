@@ -43,7 +43,7 @@ figure, combined with an exam score, and merged across two terms. Across dozens
 of students and a dozen assessments, it is slow and easy to get wrong.
 
 GradeDesk does the same job the same way, but you only type the marks. It runs
-entirely on your own computer, needs no internet connection at any point, and
+entirely on your own computer, works without an internet connection, and
 saves as you type.
 
 It is built for real conditions: unreliable power, poor connectivity, and
@@ -148,14 +148,14 @@ A four-step wizard on first run, and a full guide you can open at any time.
   in the familiar layout, ready to submit without reformatting.
 - ✅ **Nothing to save.** Every score is written to disk the moment you leave
   the cell. A power cut costs you nothing already entered.
-- ✅ **Completely offline.** No accounts, no internet, no data leaves your
+- ✅ **Your data stays yours.** No accounts, and no grade ever leaves your
   machine.
 
 ---
 
 ## Install on another PC
 
-You need one file: **`GradeDesk-Setup-1.5.0.exe`**.
+You need one file: **`GradeDesk-Setup-1.6.0.exe`**.
 
 1. **Copy the installer** onto a flash drive, or download it from the
    [Releases page](https://github.com/KwiteeGaylah/GradeDesk/releases).
@@ -166,8 +166,8 @@ You need one file: **`GradeDesk-Setup-1.5.0.exe`**.
 4. Choose where to install it, or accept the default.
 5. GradeDesk opens, and puts a shortcut on the desktop and in the Start menu.
 
-That is the whole process. No internet connection is needed, and nothing else
-has to be installed first.
+That is the whole process. Nothing else has to be installed first, and you can
+install and use GradeDesk without an internet connection.
 
 **Requirements:** Windows 10 or 11, 64-bit. About 400 MB of disk space.
 
@@ -184,6 +184,23 @@ Everything comes across: semesters, courses, class lists, scores and attendance.
 
 > ⚠️ Loading a backup replaces whatever is currently in GradeDesk on that
 > machine. You are asked to confirm first.
+
+### Staying up to date
+
+From 1.6.0 GradeDesk checks for a new version when it starts, downloads one in
+the background, and installs it the next time you close the app. You do not have
+to do anything, and you will not be interrupted while you are working.
+
+This is the **only** part of GradeDesk that uses the internet. It asks
+github.com whether there is a newer release and nothing more: no grades, no
+names, no student data of any kind is sent, and there is nothing to sign in to.
+If there is no connection the check fails quietly and the app carries on — it
+works exactly the same offline.
+
+**Manage → About and updates** tells you which version you are running and what
+the check found. If an update has been downloaded, a line appears at the bottom
+of the left panel; you can install it immediately from there or just ignore it
+and let it happen when you next close the app.
 
 ### Upgrading from version 1.1
 
