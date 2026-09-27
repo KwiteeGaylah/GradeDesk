@@ -542,3 +542,146 @@ test('student IDs in the template are text, so leading zeros survive', async () 
   const ws = wb.worksheets[0];
   assert.equal(ws.getColumn(1).numFmt, '@', 'the ID column is formatted as text');
 });
+
+// ------------------ a 20-point assessment in the exports -------------------
+
+/**
+ * The 70% table's 20-point column is reconstructed rather than transcribed, so
+ * these check it travels through the export layer like any other column: right
+ * value, right tint, counted in the weight row, and consistent between the
+ * grade record and the summary. A teacher reported not being able to set 20
+ * points at all; the export is where that grade is actually submitted from.
+ */
+function seed20() {
+  const store = new Store(':memory:');
+  const semester = store.createSemester('2026–2027 Semester 1');
+  const course = store.createCourse({
+    semesterId: semester.id, code: 'CSE 102', name: 'Computer Literacy',
+    section: '2', instructor: 'K. Gaylah', policy: '70',
+  });
+  const { byKind } = store.getTerms(course.id);
+  const project = store.addAssessment(byKind.midterm.id, { name: 'Midterm Project', maxPoints: 20 });
+  const quiz = store.addAssessment(byKind.midterm.id, { name: 'Quiz 1', maxPoints: 15 });
+  store.addAssessment(byKind.final.id, { name: 'Final Project', maxPoints: 20 });
+  const student = store.addStudent(course.id, {
+    studentId: '10001', lastName: 'Bestman', firstName: 'Comfort', middleName: 'K.',
+  });
+  store.setScore(student.id, project.id, 17);
+  store.setScore(student.id, quiz.id, 12);
+  store.setScore(student.id, store.getExam(byKind.midterm.id).id, 33);
+  store.setScore(student.id, store.getExam(byKind.final.id).id, 36);
+  return { store, course, project, quiz };
+}
+
+/** Column index of the nth header with this exact text. */
+function colOf(ws, headerRow, text, nth = 1) {
+  let seen = 0;
+  let found = null;
+  ws.getRow(headerRow).eachCell((cell, col) => {
+    if (String(cell.value ?? '').trim() === text) {
+      seen += 1;
+      if (seen === nth) found = col;
+    }
+  });
+  return found;
+}
+
+test('a 20-point assessment exports its raw score and transmuted value', async () => {
+  const { store, course } = seed20();
+  const file = path.join(tmpDir, 'record-20pt.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const hr = headerRowOf(ws);
+  const rawCol = colOf(ws, hr, 'Midterm Project');
+  assert.ok(rawCol, 'the 20-point assessment should have a column');
+
+  assert.equal(ws.getCell(hr + 1, rawCol).value, 17, 'the raw score is exported as typed');
+  // 17 of 20 under the 70% table. Taken from the engine rather than restated, so
+  // this tracks the table instead of freezing a copy of it.
+  const expected = tables.transmute(17, 20, '70');
+  assert.equal(ws.getCell(hr + 1, rawCol + 1).value, expected,
+    `17/20 should transmute to ${expected}`);
+  assert.ok(expected > 50 && expected < 100, 'and be a real interior value');
+  store.close();
+});
+
+test('the 20-point column is tinted and weighted like every other one', async () => {
+  const { store, course } = seed20();
+  const file = path.join(tmpDir, 'record-20pt-style.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const hr = headerRowOf(ws);
+  const argb = (r, c) => {
+    const f = ws.getCell(r, c).fill;
+    return (f && f.fgColor && f.fgColor.argb) || null;
+  };
+  const twenty = colOf(ws, hr, 'Midterm Project');
+  const fifteen = colOf(ws, hr, 'Quiz 1');
+
+  // Its transmuted column is orange, exactly as the 15-point one beside it.
+  assert.equal(argb(hr, twenty + 1), argb(hr, fifteen + 1),
+    'the transmuted header should be tinted the same');
+  assert.equal(argb(hr, twenty + 1), 'FFFFC000', 'and that tint is the workbook orange');
+
+  // It carries a share of the 60%: two class-standing assessments, so 30% each.
+  assert.equal(ws.getCell(hr - 1, twenty).value, ws.getCell(hr - 1, fifteen).value,
+    'both assessments carry an equal share of class standing');
+  assert.match(String(ws.getCell(hr - 1, twenty).value), /%$/);
+  store.close();
+});
+
+test('the summary agrees with the grade record for a 20-point course', async () => {
+  const { store, course } = seed20();
+  const result = computeCourse(store, course.id, tables);
+  const summaryFile = path.join(tmpDir, 'summary-20pt.xlsx');
+  await exportSummary(result, summaryFile);
+
+  const wb = await readBack(summaryFile);
+  const ws = wb.worksheets[0];
+  const row = rowFor(ws, headerRowOf(ws), 'Bestman, Comfort K.');
+  // The two sheets must never disagree: both render the same computed result.
+  assert.equal(row['Final Grade'], result.students[0].finalGradeDisplay);
+  assert.equal(row['Letter Grade'], result.students[0].letter);
+  assert.equal(row['Student ID'], '10001');
+  store.close();
+});
+
+test('an unusable assessment exports a blank transmuted cell, not a made-up number', async () => {
+  // The companion fault: a point value with no column used to throw and take the
+  // whole export down with it. Now the raw score is kept, its transmuted cell is
+  // blank, and every other column still exports.
+  const store = new Store(':memory:');
+  const semester = store.createSemester('2026–2027 Semester 1');
+  const course = store.createCourse({
+    semesterId: semester.id, code: 'CSE 102', name: 'Computer Literacy', policy: '70',
+  });
+  const { byKind } = store.getTerms(course.id);
+  const bad = store.addAssessment(byKind.midterm.id, { name: 'Portfolio', maxPoints: 17 });
+  const good = store.addAssessment(byKind.midterm.id, { name: 'Quiz 1', maxPoints: 20 });
+  store.addAssessment(byKind.final.id, { name: 'Quiz 2', maxPoints: 10 });
+  const student = store.addStudent(course.id, {
+    studentId: '10001', lastName: 'Doe', firstName: 'Jane',
+  });
+  store.setScore(student.id, bad.id, 12);
+  store.setScore(student.id, good.id, 17);
+
+  const file = path.join(tmpDir, 'record-unusable.xlsx');
+  await exportGradeRecord(computeCourse(store, course.id, tables), file);
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const hr = headerRowOf(ws);
+  const badCol = colOf(ws, hr, 'Portfolio');
+  const goodCol = colOf(ws, hr, 'Quiz 1');
+
+  assert.equal(ws.getCell(hr + 1, badCol).value, 12, 'the raw score is not lost');
+  assert.equal(ws.getCell(hr + 1, badCol + 1).value, null,
+    'its transmuted cell is blank rather than invented');
+  assert.equal(ws.getCell(hr + 1, goodCol + 1).value, tables.transmute(17, 20, '70'),
+    'and the 20-point assessment beside it is unaffected');
+  store.close();
+});
