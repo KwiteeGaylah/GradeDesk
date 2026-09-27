@@ -35,6 +35,10 @@ const COMMON_SORTS = [
   ['first', 'First name (A–Z)'],
   ['first-desc', 'First name (Z–A)'],
   ['id', 'Student ID'],
+  // Common to every screen, because the addendum list is compiled from the
+  // roster, the marks are taken on attendance, and the grades are typed on the
+  // entry grid -- a flagged student has to be findable from all three.
+  ['unofficial', 'Not on the official roster first'],
 ];
 
 /** Offered only where there is a score in the current column. */
@@ -167,6 +171,10 @@ function comparator(sort, accessors) {
     letter: (a, b) => LETTERS.indexOf(letter(a)) - LETTERS.indexOf(letter(b)) || byOrder(a, b),
     incomplete: (a, b) =>
       (incomplete(student(a)) ? 0 : 1) - (incomplete(student(b)) ? 0 : 1) || byOrder(a, b),
+    // Flagged students to the top, then surname within each group, so the list
+    // stays readable rather than becoming two blocks in arbitrary order.
+    unofficial: (a, b) =>
+      (student(a).unofficial ? 0 : 1) - (student(b).unofficial ? 0 : 1) || byLast(a, b),
   };
 
   return sorters[sort] || sorters[DEFAULT_SORT];

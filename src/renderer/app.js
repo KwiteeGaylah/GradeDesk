@@ -611,40 +611,48 @@ async function openManage() {
     confirmLabel: 'Done',
     cancelLabel: null,
     onConfirm: () => true,
+    // Four unrelated things live here. Each gets its own panel, or they read
+    // as one long column with headings scattered through it.
     body: el('div', {},
-      el('h4', { class: 'mansec', text: 'Semesters' }),
-      list,
-      el('div', { class: 'manactions' },
-        el('button', {
-          class: 'btn',
-          onclick: async () => { setChildren($('modalRoot')); await newSemester(); },
-        }, '＋ New semester')),
+      el('div', { class: 'manpanel' },
+        el('h4', { class: 'mansec', text: 'Semesters' }),
+        list,
+        el('div', { class: 'manactions' },
+          el('button', {
+            class: 'btn',
+            onclick: async () => { setChildren($('modalRoot')); await newSemester(); },
+          }, '＋ New semester'))),
 
-      el('h4', { class: 'mansec', text: 'Your data' }),
-      el('div', { class: 'note' },
-        'Your work is saved on this computer as you type. A backup is one ',
-        'file you can copy onto a flash drive and take to another computer.'),
-      el('div', { class: 'manactions' },
-        el('button', { class: 'btn', onclick: backupNow }, 'Save a backup'),
-        el('button', {
-          class: 'btn danger',
-          onclick: async () => { setChildren($('modalRoot')); await restoreNow(); },
-        }, 'Load a backup')),
-      el('div', { class: 'hint' },
-        'Restoring wipes what is here now and puts the backup in its place. We will ask you first.'),
+      el('div', { class: 'manpanel' },
+        el('h4', { class: 'mansec', text: 'Your data' }),
+        el('div', { class: 'note' },
+          'Your work is saved on this computer as you type — there is no save button ',
+          'and nothing is ever waiting to be written. A backup is one file you can copy ',
+          'onto a flash drive and take to another computer.'),
+        el('div', { class: 'manactions' },
+          el('button', { class: 'btn', onclick: backupNow }, 'Save a backup'),
+          el('button', {
+            class: 'btn danger',
+            onclick: async () => { setChildren($('modalRoot')); await restoreNow(); },
+          }, 'Load a backup')),
+        el('div', { class: 'hint' },
+          'Restoring wipes what is here now and puts the backup in its place. ',
+          'We will ask you first.')),
 
-      el('h4', { class: 'mansec', text: 'Assessment presets' }),
-      el('div', { class: 'note' },
-        'A preset is a set of assessments you can drop into any course, so setting ',
-        'up the next one does not mean typing the same rows again.'),
-      el('div', { class: 'manactions' },
-        el('button', {
-          class: 'btn',
-          onclick: async () => { setChildren($('modalRoot')); await managePresets(); },
-        }, 'Manage presets')),
+      el('div', { class: 'manpanel' },
+        el('h4', { class: 'mansec', text: 'Assessment presets' }),
+        el('div', { class: 'note' },
+          'A preset is a set of assessments you can drop into any course, so setting ',
+          'up the next one does not mean typing the same rows again.'),
+        el('div', { class: 'manactions' },
+          el('button', {
+            class: 'btn',
+            onclick: async () => { setChildren($('modalRoot')); await managePresets(); },
+          }, 'Manage presets'))),
 
-      el('h4', { class: 'mansec', text: 'About and updates' }),
-      versionBlock()),
+      el('div', { class: 'manpanel' },
+        el('h4', { class: 'mansec', text: 'About and updates' }),
+        versionBlock())),
   });
 }
 

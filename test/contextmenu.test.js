@@ -396,3 +396,35 @@ test('the off-roster flag is a mark, not words beside the name', () => {
   assert.match(APP, /'aria-label': 'Not on the official roster yet'/,
     'but must still say so to a screen reader');
 });
+
+test('the names stay pinned in preference to the final grade', () => {
+  // Frozen at both ends there is too little room left between them on a narrow
+  // window, so one has to give. An earlier version dropped the NAMES, which is
+  // backwards: typing a score six columns along without being able to see whose
+  // row it is is how a mark lands on the wrong student. The grade is a result
+  // you read afterwards.
+  const narrow = CSS.slice(CSS.indexOf('@media (max-width: 1100px)'));
+  const block = narrow.slice(0, narrow.indexOf('\n}\n'));
+  assert.match(block, /td\.final[\s\S]{0,160}position: static/,
+    'the grade gives up its pinning on a narrow window');
+  assert.ok(!/td\.name[^{]*\{[^}]*position: static/.test(block),
+    'the name must never be the one that gives way');
+});
+
+test('every screen can sort the flagged students to the top', () => {
+  const SORT = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'renderer', 'sorting.js'), 'utf8');
+  // In COMMON_SORTS, not one screen's extras: the addendum list is compiled
+  // from the roster, the marks are taken on attendance and the grades typed on
+  // the entry grid, so a flagged student has to be findable from all three.
+  const common = SORT.slice(SORT.indexOf('const COMMON_SORTS'));
+  assert.match(common.slice(0, common.indexOf('];')), /'unofficial'/);
+  assert.match(SORT, /unofficial: \(a, b\) =>/, 'and the comparator exists');
+});
+
+test('Manage is divided into panels rather than one long column', () => {
+  assert.match(CSS, /\.manpanel \{/);
+  // Four sections, four panels.
+  const opens = (APP.match(/class: 'manpanel'/g) || []).length;
+  assert.equal(opens, 4, `expected four panels, found ${opens}`);
+});

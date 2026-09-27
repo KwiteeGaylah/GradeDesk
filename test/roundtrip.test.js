@@ -134,7 +134,7 @@ test('the exported workbook carries the same grades as the original', async () =
     for (let r = 1; r <= 12; r++) {
       let found = false;
       ws.getRow(r).eachCell((cell) => {
-        if (String(cell.value ?? '').trim() === 'FullName') found = true;
+        if (String(cell.value ?? '').trim() === 'Last Name') found = true;
       });
       if (found) { headerRow = r; break; }
     }
@@ -146,7 +146,12 @@ test('the exported workbook carries the same grades as the original', async () =
 
     section.students.forEach((src, i) => {
       const row = ws.getRow(headerRow + 1 + i);
-      const name = String(row.getCell(cols.FullName).value ?? '');
+      // The sheets carry the name in parts now, so it is rebuilt to compare.
+      const name = joinName({
+        lastName: String(row.getCell(cols['Last Name']).value ?? ''),
+        firstName: String(row.getCell(cols['First Name']).value ?? ''),
+        middleName: String(row.getCell(cols['Middle Name']).value ?? ''),
+      });
       const grade = String(row.getCell(cols['Final Grade']).value ?? '');
       const letter = String(row.getCell(cols['Letter Grade']).value ?? '');
       checked += 1;
