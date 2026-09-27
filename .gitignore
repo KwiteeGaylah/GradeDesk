@@ -20,3 +20,8 @@ docs/video/source/
 # Scratch folder from the video work: an older duplicate caption file and the
 # Excel prop built for scene 1. Neither is a source file.
 Claude outputs/
+
+# Stray SQLite sidecars from a mistyped test path.
+x
+x-shm
+x-wal
