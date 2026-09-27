@@ -23,6 +23,12 @@ const APP = fs.readFileSync(
   'utf8'
 );
 
+/** The stylesheet, for the layout guarantees asserted at the end of this file. */
+const CSS = fs.readFileSync(
+  path.join(__dirname, '..', 'src', 'renderer', 'styles.css'),
+  'utf8'
+);
+
 /**
  * The menu lifecycle only: contextMenu through closeContextMenu.
  *
@@ -241,4 +247,55 @@ test('the computed cells are found by role, never by a fixed index', () => {
   assert.match(fn, /data-role=/, 'roles identify the computed cells');
   assert.match(fn, /data-student-id=/, 'and rows are matched by student');
   assert.ok(!/cells\[\d\]/.test(fn), 'no fixed cell indices remain');
+});
+
+// ------------- the entry grid reads live data, not a snapshot --------------
+
+/**
+ * Committing a score calls refreshComputed, which REPLACES state.computed with
+ * a new object. A render closure that held the students array it started with
+ * therefore went stale the moment anything was typed: re-sorting or searching
+ * afterwards redrew every cell from pre-edit data, so scores that were safely
+ * in the database vanished from the screen. Found by typing a score, changing
+ * the sort, and comparing the grid against gradebook.compute.
+ */
+
+test('the entry grid re-reads the computed class on every render', () => {
+  const start = APP.indexOf('function renderGradeRows');
+  assert.ok(start > 0);
+  const fn = APP.slice(start, start + 2500);
+  assert.match(fn, /const current = \(state\.computed && state\.computed\.students\)/,
+    'it reads state.computed at render time');
+  assert.match(fn, /current\.filter\(/, 'and sorts from that, not the captured array');
+  assert.ok(!/\bstudents\.filter\(/.test(fn),
+    'the array captured when the screen was built must not be re-sorted');
+});
+
+test('the attendance grid re-reads the computed class too', () => {
+  // Marking a session calls refreshComputed the same way.
+  const start = APP.indexOf('function renderAttendanceRows');
+  assert.ok(start > 0);
+  const fn = APP.slice(start, start + 2000);
+  assert.match(fn, /const current = \(state\.computed && state\.computed\.students\)/);
+  assert.match(fn, /current\.filter\(/);
+  assert.ok(!/\bstudents\.filter\(/.test(fn));
+});
+
+test('the pinned grade and letter are released when the grid gets wide', () => {
+  // The final grade and letter are sticky so they stay in view while a wide
+  // grid scrolls. Sticky cells float above the row, so with the transmuted
+  // columns shown they landed on top of the term total and hid it entirely:
+  // the screen read "Class std." straight into "Final grade". Measured at
+  // 1264px: the total spanned to 1123 while the grade began at 1104.
+  assert.match(CSS, /\.entrytable\.with-trans td\.final[\s\S]{0,200}position: static/,
+    'with-trans must un-pin the final grade and letter');
+});
+
+test('the transmuted columns are declared narrow enough to fit beside the totals', () => {
+  // Each transmuted column is per-assessment, so a few pixels each decides
+  // whether the running totals stay on screen.
+  assert.match(CSS, /\.entrytable th\.th-trans,[\s\S]{0,120}width: 26px/);
+  // The shared thead padding would otherwise size the table from its headings
+  // rather than from these column widths.
+  assert.match(CSS, /\.entrytable thead th \{[^}]*padding-left: 4px/);
 });

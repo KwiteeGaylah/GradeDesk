@@ -439,8 +439,11 @@ async function drive(win, app) {
         `${wide.innerWidth}px, and the wide layout starts above ${WIDE_BREAKPOINT}px ` +
         `(work area ${workArea.width}x${workArea.height}).`);
     } else {
+      // Headings are abbreviated on this grid ("Class std.", "Midterm tot."),
+      // because a whole term of columns sits beside them.
       check('wide window: the running-total columns return',
-        wide.headers.includes('Class standing') && wide.headers.some(h => h.endsWith('total')),
+        wide.headers.some(h => /^Class std/.test(h)) &&
+          wide.headers.some(h => /tot\.$/.test(h)),
         JSON.stringify({ innerWidth: wide.innerWidth, headers: wide.headers }));
       check('wide window: full button labels return',
         wide.labels.some(l => l.includes('Export grade sheet')),

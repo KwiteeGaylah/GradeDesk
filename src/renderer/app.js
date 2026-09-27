@@ -1076,8 +1076,17 @@ async function renderGradeEntry(content, course, policyInfo) {
           ? [head, el('th', { class: 'ta-center th-trans', text: 'T' })]
           : [head];
       }),
-      el('th', { class: 'ta-center col-secondary', text: 'Class standing' }),
-      el('th', { class: 'ta-center col-secondary', text: `${termLabel} total` }),
+      // Short headings, with the full wording in the tooltip. With a whole
+      // term of columns beside them these are the ones that get squeezed, and
+      // "Midte tota" is worse than a heading that was short to begin with.
+      el('th', {
+        class: 'ta-center col-secondary',
+        title: 'Class standing: the average of this term’s assessments, times 0.6',
+      }, 'Class std.'),
+      el('th', {
+        class: 'ta-center col-secondary',
+        title: `${termLabel} total: class standing plus the transmuted exam, times 0.4`,
+      }, `${termLabel} tot.`),
       el('th', { class: 'ta-center final', text: 'Final grade' }),
       el('th', { class: 'ta-center letter', text: 'Letter' })
     )
@@ -1094,6 +1103,13 @@ async function renderGradeEntry(content, course, policyInfo) {
    * matches what is actually on screen.
    */
   function renderGradeRows() {
+    // Read the computed class afresh every time rather than closing over the
+    // array this render started with. Committing a score calls refreshComputed,
+    // which REPLACES state.computed, so a closed-over array goes stale the
+    // moment anything is typed: re-sorting or searching afterwards would then
+    // redraw the cells from pre-edit data and blank out what was just entered.
+    const current = (state.computed && state.computed.students) || students;
+
     // The cell for one student in one column, whichever kind it is.
     const cellOf = (row, assessment) => {
       const term = row[termKind];
@@ -1112,7 +1128,7 @@ async function renderGradeEntry(content, course, policyInfo) {
     };
 
     const visible = GradeDeskSorting.sortRows(
-      students.filter((row) => matchesQuery(row.student, state.gradeFilter.query)),
+      current.filter((row) => matchesQuery(row.student, state.gradeFilter.query)),
       state.gradeFilter.sort,
       {
         student: (r) => r.student,
@@ -1206,18 +1222,18 @@ async function renderGradeEntry(content, course, policyInfo) {
       setChildren(tbody, ...rows);
     }
 
-    countLabel.textContent = countText(visible.length, students.length);
+    countLabel.textContent = countText(visible.length, current.length);
   }
 
   renderGradeRows();
-  state.rerenderGradeRows = renderGradeRows;
 
   setChildren(content,
     termSwitch,
     bar,
     policyWarn,
     note,
-    el('div', { class: 'gridcard' }, el('table', { class: 'entrytable' }, thead, tbody)),
+    el('div', { class: 'gridcard' },
+      el('table', { class: `entrytable${showTransmuted ? ' with-trans' : ''}` }, thead, tbody)),
     el('div', { class: 'legend' },
       el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
       showTransmuted
@@ -1504,8 +1520,12 @@ async function renderAttendance(content, course) {
    * box while typing.
    */
   function renderAttendanceRows() {
+    // Read the computed class afresh: marking a session calls refreshComputed,
+    // which replaces state.computed, so a closed-over array would redraw the
+    // rows from pre-mark data. Same reason as on the grade entry screen.
+    const current = (state.computed && state.computed.students) || students;
     const visible = GradeDeskSorting.sortRows(
-      students.filter((row) => matchesQuery(row.student, state.attendanceFilter.query)),
+      current.filter((row) => matchesQuery(row.student, state.attendanceFilter.query)),
       state.attendanceFilter.sort,
       {
         student: (r) => r.student,
@@ -1534,7 +1554,7 @@ async function renderAttendance(content, course) {
     } else {
       setChildren(tbody, ...rows);
     }
-    countLabel.textContent = countText(visible.length, students.length);
+    countLabel.textContent = countText(visible.length, current.length);
   }
 
   function makeAttendanceRow(row, i) {
