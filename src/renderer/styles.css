@@ -471,10 +471,16 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
 .entrytable td.name, .entrytable th:nth-child(3) {
   position: sticky; left: 140px; z-index: 2; background: var(--paper);
   /* A real width, not just a minimum: a sticky column only holds the space its
-     column actually occupies, and left to grow this one took 416px and the
-     scrolling cells slid underneath it. 190px fits "Bestman, Comfort K." and
-     leaves the scores and the pinned grade the room they need. */
-  width: 170px; min-width: 170px; max-width: 170px;
+     column actually occupies, and left to grow this one took 416px with the
+     scrolling cells sliding underneath it.
+
+     240px, because that is what the real names need. The longest in the
+     instructor's own class lists run to 27 characters -- "Nyemah, Christiana,
+     Dumondy", "Teah, Jr., Alexander, Mombo" -- and a name cut to "Allison,
+     Florence, Ras..." is a guess about which student a mark belongs to. The
+     grid scrolls sideways now, so the width this takes costs nothing that
+     cannot be scrolled to. */
+  width: 240px; min-width: 240px; max-width: 240px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   /* A rule down the right-hand edge, so the pinned block reads as one piece
      and it is obvious the columns beyond it are scrolling underneath. */
@@ -509,10 +515,19 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
    So with transmuted on they are not pinned. The grid is being read across
    rather than scrolled at that point, and a column that is present but covered
    is worse than one that scrolls with everything else. */
-.entrytable.with-trans td.final,
-.entrytable.with-trans th.final,
-.entrytable.with-trans td.letter,
-.entrytable.with-trans th.letter {
+/* The final grade and letter are NOT pinned on this grid.
+   
+   They were, so they would stay in view while the scores scrolled. But a sticky
+   cell floats above the row, so whenever the table only just exceeds its card
+   they land on top of the term total and hide it -- which happened at 1264px,
+   then again at 1280px after the name column was widened. Tuning widths only
+   moves the width at which it reappears.
+   
+   The names are pinned instead, which is what matters while typing, and the
+   grade scrolls into view with everything else. There is a scrollbar above the
+   grid as well as below it, so reaching it costs one drag. */
+.entrytable td.final, .entrytable th.final,
+.entrytable td.letter, .entrytable th.letter {
   position: static; right: auto;
 }
 /* The name column carries a fixed width above, where it is pinned. It is wide
@@ -585,7 +600,7 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
      directly after the row number rather than after the ID's old 100px. */
   .entrytable td.name, .entrytable th:nth-child(3) {
     left: 40px;
-    width: 150px; min-width: 150px; max-width: 150px;
+    width: 200px; min-width: 200px; max-width: 200px;
     z-index: 3;
   }
   /* A static cell cannot sit between two sticky ones without being painted
@@ -954,11 +969,34 @@ tbody tr.rowunofficial td.idx { color: var(--amber); font-weight: 600; }
    pushed longer names out of the cell entirely -- the flag was crowding out the
    thing it was annotating. It is a small amber dot now, with the full wording
    in the cell's tooltip, so it costs a few pixels instead of half the column. */
-td.name .offroster {
-  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-  margin-left: 6px; vertical-align: 2px;
-  background: var(--amber); border: 1px solid #7a4900;
+/* A student sitting in before the addendum list arrives.
+
+   This has been two things already and both were wrong. The words NOT ON
+   ROSTER beside the name pushed longer names out of the cell. A 7px dot fitted,
+   but vanished on a projector in a bright room, which is where this app is
+   actually read -- and the whole point of the flag is that it should catch the
+   eye of someone scanning a class list.
+
+   So the row itself is marked: an amber band down the left edge of the name
+   cell and a warm tint behind it. That reads at a distance, costs no width, and
+   cannot be missed while scrolling past. */
+tr.rowflagged td.name {
+  background: var(--amber-tint);
+  box-shadow: inset 4px 0 0 var(--amber), inset -1px 0 0 var(--line);
+  color: #6b4100;
 }
+tr.rowflagged td.idx, tr.rowflagged td.sid { background: var(--amber-tint); }
+/* Still a mark beside the name, but a bigger one, and it keeps its meaning if
+   the row tint is ever lost to another rule. */
+td.name .offroster {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  margin-left: 7px; vertical-align: -1px;
+  background: var(--amber); border: 1.5px solid #6b4100;
+}
+/* The row tint has to win over the banding and the hover, or a flagged row
+   stops looking flagged the moment the pointer crosses it. */
+tbody tr.rowflagged:hover td.name,
+tbody tr.rowflagged:focus-within td.name { background: #fbeacb; }
 .kpi.flagged { border-color: #e0be8c; background: var(--amber-tint); }
 .kpi.flagged .v, .kpi.flagged .l { color: var(--amber); }
 

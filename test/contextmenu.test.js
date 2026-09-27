@@ -281,14 +281,16 @@ test('the attendance grid re-reads the computed class too', () => {
   assert.ok(!/\bstudents\.filter\(/.test(fn));
 });
 
-test('the pinned grade and letter are released when the grid gets wide', () => {
-  // The final grade and letter are sticky so they stay in view while a wide
-  // grid scrolls. Sticky cells float above the row, so with the transmuted
-  // columns shown they landed on top of the term total and hid it entirely:
-  // the screen read "Class std." straight into "Final grade". Measured at
-  // 1264px: the total spanned to 1123 while the grade began at 1104.
-  assert.match(CSS, /\.entrytable\.with-trans td\.final[\s\S]{0,200}position: static/,
-    'with-trans must un-pin the final grade and letter');
+test('the grade and letter are not pinned on the entry grid', () => {
+  // They were, so they would stay in view while the scores scrolled. But a
+  // sticky cell floats above the row, so whenever the table only just exceeds
+  // its card they land on top of the term total and hide it -- at 1264px, then
+  // again at 1280px once the name column was widened. Tuning widths only moves
+  // the width at which it comes back. The names are pinned instead, which is
+  // what matters while typing.
+  const rule = CSS.slice(CSS.indexOf('.entrytable td.final, .entrytable th.final,'));
+  assert.match(rule.slice(0, rule.indexOf('}') + 1), /position: static/,
+    'the grade must scroll with the grid, not float over it');
 });
 
 test('the transmuted columns are declared narrow enough to fit beside the totals', () => {
@@ -333,10 +335,16 @@ test('the identity columns are frozen while the scores scroll', () => {
 });
 
 test('the frozen columns hold a fixed width, not just a minimum', () => {
-  // A sticky column only reserves the width its column actually has. Left to
-  // grow, the name took 416px and the scrolling cells slid underneath it.
-  assert.match(CSS, /width: 170px; min-width: 170px; max-width: 170px/,
-    'the pinned name column is sized, not merely floored');
+  // A fixed width, whatever the number: a sticky column only reserves the space
+  // its column actually occupies, so a bare min-width lets it grow and the
+  // scrolling cells slide underneath it. The value itself is chosen to fit the
+  // longest real names (27 characters) and is free to change.
+  const name = CSS.slice(CSS.indexOf('.entrytable td.name, .entrytable th:nth-child(3) {'));
+  const rule = name.slice(0, name.indexOf('}') + 1);
+  const m = /width: (\d+)px; min-width: \1px; max-width: \1px/.exec(rule);
+  assert.ok(m, 'the pinned name column needs one fixed width, not a floor');
+  assert.ok(Number(m[1]) >= 200,
+    `the name column is ${m[1]}px, too narrow for a real name`);
 });
 
 test('the identity columns give up their pinning on a narrow window', () => {
@@ -385,16 +393,23 @@ test('a scrollbar sits above the grid as well as below it', () => {
   assert.match(APP, /card\.addEventListener\('scroll'/, 'and follows it back');
 });
 
-test('the off-roster flag is a mark, not words beside the name', () => {
-  // "NOT ON ROSTER" printed next to the name pushed longer names out of the
-  // cell entirely, so the flag crowded out the thing it was annotating.
-  const dot = CSS.slice(CSS.indexOf('td.name .offroster {'));
-  assert.match(dot.slice(0, dot.indexOf('}') + 1), /border-radius: 50%/,
-    'it is a dot, not a label');
-  assert.ok(!/}, 'not on roster'\)/.test(APP),
-    'the flag should render no visible text');
+test('an off-roster student is marked on the row, visibly', () => {
+  // This has been wrong twice. "NOT ON ROSTER" beside the name pushed longer
+  // names out of the cell. A 7px dot fitted but vanished on a projector in a
+  // bright room, which is where this app is actually read. The row itself
+  // carries the mark now: a band down the edge of the name cell and a tint
+  // behind it, which reads at a distance and costs no width.
+  const row = CSS.slice(CSS.indexOf('tr.rowflagged td.name {'));
+  const rule = row.slice(0, row.indexOf('}') + 1);
+  assert.match(rule, /background: var\(--amber-tint\)/, 'the row is tinted');
+  assert.match(rule, /inset 4px 0 0 var\(--amber\)/, 'and banded down its edge');
+  // Both grids mark the row, so a flagged student looks the same either place.
+  const marks = (APP.match(/class: row\.student\.unofficial \? 'rowflagged' : ''/g) || []).length;
+  assert.equal(marks, 2, `expected both grids to mark the row, found ${marks}`);
+  // No visible text, so it cannot crowd the name out again.
+  assert.ok(!/}, 'not on roster'\)/.test(APP));
   assert.match(APP, /'aria-label': 'Not on the official roster yet'/,
-    'but must still say so to a screen reader');
+    'but a screen reader still hears it');
 });
 
 test('the names stay pinned in preference to the final grade', () => {

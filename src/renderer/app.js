@@ -1325,7 +1325,12 @@ async function renderGradeEntry(content, course, policyInfo) {
           : [td];
       });
 
-      return el('tr', { dataset: { studentId: String(row.student.id) } },
+      return el('tr', {
+        // Marks the whole row, not just a spot beside the name: this has to be
+        // visible on a projector at the back of a lecture room.
+        class: row.student.unofficial ? 'rowflagged' : '',
+        dataset: { studentId: String(row.student.id) },
+      },
         el('td', { class: 'idx', text: row.student.number ?? rowIndex + 1 }),
         el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
         el('td', {
@@ -1766,7 +1771,11 @@ async function renderAttendance(content, course) {
       return td;
     });
 
-    return el('tr', {},
+    return el('tr', {
+      // The same row highlight as the grade screen, so a flagged student looks
+      // the same wherever they are met.
+      class: row.student.unofficial ? 'rowflagged' : '',
+    },
       el('td', { class: 'idx', text: row.student.number ?? i + 1 }),
       el('td', {
         class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
