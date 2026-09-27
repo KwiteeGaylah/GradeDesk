@@ -110,6 +110,12 @@ body {
 .railtoggle:hover { border-color: var(--brand); color: var(--brand); }
 .railtoggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
+/* The "an update is waiting" line in the left panel. Deliberately an ordinary
+   panel button rather than anything that demands attention: the update installs
+   itself when the app is next closed whether or not it is ever clicked. */
+.railbtn.update { color: var(--brand); font-weight: 600; }
+.railbtn.update .ico { color: var(--brand); }
+
 /* ---------------- left panel ----------------
    Light, with a hairline separating it from the work area. The active item is
    the only saturated thing on screen, so it is obvious even on a washed-out
