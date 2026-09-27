@@ -1,6 +1,6 @@
 {
   "name": "gradedesk",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Offline desktop grade-recording and transmutation tool for WVSTU instructors",
   "main": "src/main.js",
   "author": "Kwitee D. Gaylah",

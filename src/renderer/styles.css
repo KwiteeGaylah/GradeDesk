@@ -375,7 +375,10 @@ td.entry input[readonly] {
   cursor: default; font-weight: 500;
 }
 /* The column being typed into is tinted in the header too. */
-th.th-entry { position: relative; }
+/* NOT position:relative. thead th is sticky so the headings stay above the
+   rows while a long class scrolls, and relative here silently cancelled that,
+   leaving a grid of unlabelled boxes forty students down. */
+th.th-entry { position: sticky; top: 0; }
 /* The heading over a column you type into, tinted like the cells beneath it. */
 /* thead th sets a background for every header, so these have to match its
    specificity to tint the columns they sit over. */
@@ -518,6 +521,39 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
    reads at a glance from its own cell, but "Bestman, Comf..." is a guess about
    which student a mark belongs to. */
 .entrytable td.sid { font-size: 12.5px; }
+
+/* ---- the column headings stay put while the class list scrolls ----
+   A class runs to fifty or sixty students, far past one screen. The headings
+   were sticky already, but sticky to the CARD, while the scrolling happened in
+   the page around it: scroll to the fortieth student and the headings had gone
+   with everything else, leaving a grid of unlabelled boxes.
+
+   So on this screen the card is the scrolling box. It takes the height left in
+   the window, the rows scroll inside it, and the headings stick to its top rail
+   where they belong. The horizontal scrollbar then sits at the bottom of the
+   card rather than the bottom of the page, and there is a matching one above
+   the grid, because with a long list the bottom of the table is nowhere near
+   the bottom of the window. */
+.gridcard.entrygrid {
+  /* Whatever is left under the toolbar and the note. Not a fixed height: the
+     note wraps to two lines on a narrow window and the grid has to give way. */
+  max-height: calc(100vh - 290px);
+  min-height: 220px;
+  overflow: auto;
+}
+/* The page itself no longer scrolls on this screen; the grid does. */
+.content:has(.gridcard.entrygrid) { overflow: hidden; }
+
+/* A scrollbar above the grid as well as below it, tied to the same box, so the
+   columns can be reached without first scrolling to the end of the class. */
+.scrollpeer {
+  overflow-x: auto; overflow-y: hidden;
+  height: 14px; margin-bottom: -2px;
+  border: 1px solid var(--line); border-bottom: 0;
+  border-radius: 10px 10px 0 0; background: var(--canvas);
+}
+.scrollpeer > div { height: 1px; }
+.gridcard.entrygrid.haspeer { border-radius: 0 0 10px 10px; }
 
 /* On a narrow window the columns cannot be frozen at BOTH ends. At 960px the
    card is 676px wide, and 350px of frozen identity columns plus the 146px
@@ -868,10 +904,15 @@ td.entry input::placeholder { color: #c3cad4; }
 }
 tbody tr.rowunofficial td { background: #fffaf0; }
 tbody tr.rowunofficial td.idx { color: var(--amber); font-weight: 600; }
+/* A student sitting in before the addendum list arrives.
+   This was the words NOT ON ROSTER beside the name, which on a real class list
+   pushed longer names out of the cell entirely -- the flag was crowding out the
+   thing it was annotating. It is a small amber dot now, with the full wording
+   in the cell's tooltip, so it costs a few pixels instead of half the column. */
 td.name .offroster {
-  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 4px;
-  background: var(--amber-tint); color: var(--amber); font-size: 10.5px;
-  font-weight: 700; text-transform: uppercase; letter-spacing: .3px; vertical-align: 1px;
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  margin-left: 6px; vertical-align: 2px;
+  background: var(--amber); border: 1px solid #7a4900;
 }
 .kpi.flagged { border-color: #e0be8c; background: var(--amber-tint); }
 .kpi.flagged .v, .kpi.flagged .l { color: var(--amber); }

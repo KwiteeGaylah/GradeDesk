@@ -233,6 +233,89 @@ Neither changes the engine. Proceed.
 
 ---
 
+## 10b. Releasing (read this before you publish anything)
+
+GradeDesk updates itself. From 1.6.0 the installed app asks GitHub for a newer
+release on launch, downloads it, and installs it when the instructor next closes
+the app. That machinery is in `src/updates.js` and nowhere else.
+
+**This makes publishing unforgiving in one specific way: a release that is
+missing its metadata is silently inert.** Nothing errors. The release page looks
+correct, the installer downloads and runs, and every existing user simply never
+hears about it — including for every version after, because they are still on an
+old build that never updated. You will not find out from a test.
+
+### The three files every release needs
+
+`npm run dist` writes all of them into `dist/`:
+
+| File | Why |
+|---|---|
+| `GradeDesk-Setup-<version>.exe` | The installer itself. |
+| `latest.yml` | **The update feed.** `electron-updater` fetches only this. Without it, no client ever updates. |
+| `GradeDesk-Setup-<version>.exe.blockmap` | Lets the updater download only the changed parts. |
+
+All three must be attached to the GitHub release. `latest.yml` carries the
+version, the installer's size and its SHA-512; the updater refuses a download
+whose hash does not match, so a stale or hand-edited `latest.yml` breaks updates
+as surely as a missing one.
+
+Note that `dist/latest.yml` is **overwritten by every build** and is not
+versioned. Upload the one produced by the build you are actually publishing.
+
+### The order that works
+
+1. `npm test` and `npm run uitest` — both green. The verification gate
+   (`npm run verify`) needs the real workbook in `data/`.
+2. Bump `version` in `package.json`. Update the installer filename wherever the
+   README names it.
+3. Commit, push, tag `vX.Y.Z`, push the tag.
+4. `npm run dist`.
+5. Create the release on the tag, then attach **all three** files.
+6. **Verify the feed resolves**, from the public URL with no credentials:
+
+   ```bash
+   curl -sSL https://github.com/KwiteeGaylah/GradeDesk/releases/latest/download/latest.yml
+   ```
+
+   It must return HTTP 200 and name the version you just shipped. Then confirm
+   its `sha512` matches the installer you built. If either is wrong, clients
+   will not update and nothing else will tell you.
+
+`build.publish` in `package.json` is what makes electron-builder write
+`latest.yml` at all. If it is ever removed, builds keep succeeding and updates
+quietly stop. `test/updates.test.js` asserts it stays.
+
+### What the update check may and may not do
+
+The promise to instructors is that their students' grades never leave the
+machine. The check exists inside that promise, not as an exception to it:
+
+- It requests release metadata from github.com. **Nothing else is sent** — no
+  grades, no names, no identifiers, no telemetry, and there is no account.
+- A failure is **not an error**. No internet is the ordinary case for these
+  users; the check logs and moves on. Never surface it in a dialog.
+- It never installs while the app is open. An update that replaced the running
+  app mid-entry is a way to lose work.
+- Keep all network code in `src/updates.js`. Someone auditing what leaves this
+  machine should have one file to read, and `main.js` should not drive the
+  updater directly.
+
+If you add anything else that uses the network, the README and the in-app guide
+both make specific claims about this, and they have to be corrected in the same
+change. Do not leave a claim standing that someone might rely on when deciding
+whether to trust GradeDesk with student records.
+
+### Code signing
+
+The installer is unsigned, so Windows shows "Windows protected your PC" on first
+install. That warning comes from SmartScreen **reputation**, not from the absence
+of a signature, so a self-signed certificate does not remove it and can add a
+certificate-trust error on top. Only a CA-issued certificate (OV, EV, or Azure
+Trusted Signing) helps. Do not "fix" this by self-signing.
+
+---
+
 ## 11. File map
 
 ```

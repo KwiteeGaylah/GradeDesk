@@ -352,3 +352,47 @@ test('the left panel can be folded away, and stays that way', () => {
     'the choice outlives the session');
   assert.match(APP, /aria-expanded/, 'and the button says which state it is in');
 });
+
+// ---------- the headings stay put, and the flag stays out of the way --------
+
+test('the entry grid scrolls in its own card so the headings can stick', () => {
+  // The headings were sticky to the CARD while the scrolling happened in the
+  // page around it, so forty students down they had gone with everything else
+  // and the grid was a field of unlabelled boxes.
+  const card = CSS.slice(CSS.indexOf('.gridcard.entrygrid {'));
+  const block = card.slice(0, card.indexOf('}') + 1);
+  assert.match(block, /overflow: auto/, 'the card scrolls');
+  assert.match(block, /max-height/, 'and is bounded, or it cannot');
+  assert.match(CSS, /\.content:has\(\.gridcard\.entrygrid\) \{ overflow: hidden; \}/,
+    'the page must stop scrolling so the grid can');
+  assert.match(APP, /class: 'gridcard entrygrid/, 'the entry grid asks for that card');
+});
+
+test('nothing cancels the sticky headings', () => {
+  // th.th-entry was position:relative, which silently overrode the sticky from
+  // thead th. The symptom was invisible in every test until a long class list.
+  assert.ok(!/th\.th-entry \{ position: relative/.test(CSS),
+    'position:relative on the entry heading cancels the sticky');
+  assert.match(CSS, /th\.th-entry \{ position: sticky/);
+});
+
+test('a scrollbar sits above the grid as well as below it', () => {
+  // With fifty students the bottom of the table is far below the window, so
+  // the usual scrollbar cannot be reached without scrolling the whole class.
+  assert.match(CSS, /\.scrollpeer \{/);
+  assert.match(APP, /class: 'scrollpeer'/);
+  assert.match(APP, /scroller\.addEventListener\('scroll'/, 'it drives the grid');
+  assert.match(APP, /card\.addEventListener\('scroll'/, 'and follows it back');
+});
+
+test('the off-roster flag is a mark, not words beside the name', () => {
+  // "NOT ON ROSTER" printed next to the name pushed longer names out of the
+  // cell entirely, so the flag crowded out the thing it was annotating.
+  const dot = CSS.slice(CSS.indexOf('td.name .offroster {'));
+  assert.match(dot.slice(0, dot.indexOf('}') + 1), /border-radius: 50%/,
+    'it is a dot, not a label');
+  assert.ok(!/}, 'not on roster'\)/.test(APP),
+    'the flag should render no visible text');
+  assert.match(APP, /'aria-label': 'Not on the official roster yet'/,
+    'but must still say so to a screen reader');
+});
