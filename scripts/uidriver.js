@@ -114,7 +114,7 @@ async function drive(win, app) {
       await new Promise(r => setTimeout(r, 600));
       const tr = document.querySelectorAll('#content tbody tr')[0];
       const role = (r) => { const td = tr.querySelector('td[data-role="' + r + '"]'); return td ? td.textContent : null; };
-      return {
+      const result = {
         raw: input.value,
         transmuted: tr.querySelector('td[data-trans-for="' + assessmentId + '"]').textContent,
         classStanding: role('cs'),
@@ -122,6 +122,13 @@ async function drive(win, app) {
         finalGrade: role('grade'),
         letter: role('letter')
       };
+      // Put it back: leaving the transmuted columns on adds one per assessment
+      // for every check that follows, which is not the layout those checks are
+      // about.
+      state.showTransmuted = false;
+      await renderScreen();
+      await new Promise(r => setTimeout(r, 400));
+      return result;
     })()`);
 
     // Quiz 1 = 11/15 transmutes to 70 in the 70% table.

@@ -58,6 +58,25 @@ body {
 
 .app { display: grid; grid-template-columns: 236px 1fr; height: 100vh; overflow: hidden; }
 
+/* ---- the left panel folds away ----
+   A term can carry a dozen assessments, and on a laptop the 236px panel is the
+   difference between the grid fitting and having to scroll it. Collapsed, the
+   panel is gone entirely rather than narrowed to icons: the courses and screens
+   are a click away on the button that brings it back, and a half-width panel
+   would cost width without being readable. The toggle lives in the top bar, so
+   it is in the same place on every screen. */
+/* One column, not a zero-width first one: with the panel display:none the grid
+   still counted it and the work area collapsed to a couple of pixels. */
+.app.railhidden { grid-template-columns: 1fr; }
+.app.railhidden .rail { display: none; }
+.railtoggle {
+  border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink-soft);
+  border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 15px;
+  line-height: 1; padding: 7px 10px; flex: none;
+}
+.railtoggle:hover { border-color: var(--brand); color: var(--brand); }
+.railtoggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
 /* ---------------- left panel ----------------
    Light, with a hairline separating it from the work area. The active item is
    the only saturated thing on screen, so it is obvious even on a washed-out
@@ -370,9 +389,68 @@ th.th-entry { position: relative; }
 .entrytable td.final {
   padding-left: 8px; padding-right: 8px;
 }
-.entrytable th.col-secondary, .entrytable td.read.col-secondary { min-width: 68px; }
-.entrytable td.total, .entrytable th:nth-last-child(3) { min-width: 72px; }
-.entrytable td.name { min-width: 170px; }
+/* That padding is a nicety on a wide screen and 48px of lost width on a narrow
+   one, which is the difference between the letter fitting and being cut off. */
+
+/* Only above the narrow breakpoint: below it the running totals are hidden
+   anyway, and these floors would push the pinned letter past the card edge. */
+@media (min-width: 1101px) {
+  .entrytable th.col-secondary, .entrytable td.read.col-secondary { min-width: 68px; }
+  .entrytable td.total, .entrytable th:nth-last-child(3) { min-width: 72px; }
+}
+/* ---- who the row belongs to stays put while the columns scroll ----
+   A term can carry a dozen assessments, more than fits any window, so the grid
+   scrolls sideways. Scrolling the name away with it means typing a score into
+   whichever row happens to be under the cursor, which is how a mark lands on
+   the wrong student. The number, ID and name are therefore pinned to the left,
+   in the same way the final grade and letter are pinned to the right.
+
+   The offsets are cumulative: # is 40px wide, so the ID sits at 40, and the
+   name after it at 140. They are declared on the entry grid alone, because the
+   other screens are not wide enough to need it. */
+/* The widths are fixed, not just minimums, because the sticky offsets below
+   are absolute: an ID column that grows to fit "TU-90001" would slide out from
+   under the name pinned at 140px and leave a gap in the frozen block. */
+.entrytable td.idx, .entrytable th:nth-child(1) {
+  position: sticky; left: 0; z-index: 2; background: var(--paper);
+  width: 40px; min-width: 40px; max-width: 40px;
+}
+.entrytable td.sid, .entrytable th:nth-child(2) {
+  position: sticky; left: 40px; z-index: 2; background: var(--paper);
+  width: 100px; min-width: 100px; max-width: 100px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.entrytable td.name, .entrytable th:nth-child(3) {
+  position: sticky; left: 140px; z-index: 2; background: var(--paper);
+  /* A real width, not just a minimum: a sticky column only holds the space its
+     column actually occupies, and left to grow this one took 416px and the
+     scrolling cells slid underneath it. 190px fits "Bestman, Comfort K." and
+     leaves the scores and the pinned grade the room they need. */
+  width: 170px; min-width: 170px; max-width: 170px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* A rule down the right-hand edge, so the pinned block reads as one piece
+     and it is obvious the columns beyond it are scrolling underneath. */
+  box-shadow: inset -1px 0 0 var(--line);
+}
+/* The right-hand pinned pair must outrank the left-hand block, or the frozen
+   name paints over the final grade and the grade appears to scroll away. */
+.entrytable td.final, .entrytable td.letter { z-index: 3; }
+.entrytable thead th.final, .entrytable thead th.letter { z-index: 4; }
+
+
+/* Headers sit above the body cells, and the pinned headers above both, or the
+   first three headings scroll under the sticky row while the rest stay. */
+.entrytable thead th:nth-child(1),
+.entrytable thead th:nth-child(2),
+.entrytable thead th:nth-child(3) { z-index: 3; background: var(--read); }
+/* The row tint has to follow onto the pinned cells, which set their own
+   background and would otherwise stay white while the rest of the row lifts. */
+.entrytable tbody tr:hover td.idx,
+.entrytable tbody tr:hover td.sid,
+.entrytable tbody tr:hover td.name { background: var(--rail-hover); }
+.entrytable tbody tr:focus-within td.idx,
+.entrytable tbody tr:focus-within td.sid,
+.entrytable tbody tr:focus-within td.name { background: #f3f9f6; }
 
 /* The final grade and letter are normally pinned to the right edge, so they
    stay in view while a wide grid scrolls. Sticky cells float ABOVE the row,
@@ -389,13 +467,31 @@ th.th-entry { position: relative; }
 .entrytable.with-trans th.letter {
   position: static; right: auto;
 }
-/* The name column is NOT capped. A truncated name is the one thing on this
-   screen that cannot be recovered by looking harder: a score reads at a glance
-   from its own cell, but "Bestman, Comfort K." cut to "Bestman, Comf..." is a
-   guess about which student a mark belongs to. The table scrolls sideways inside
-   its card instead, which the card already indicates. */
-.entrytable td.name { min-width: 150px; }
+/* The name column carries a fixed width above, where it is pinned. It is wide
+   enough for a full "Surname, Given M." because a truncated name is the one
+   thing on this screen that cannot be recovered by looking harder: a score
+   reads at a glance from its own cell, but "Bestman, Comf..." is a guess about
+   which student a mark belongs to. */
 .entrytable td.sid { font-size: 12.5px; }
+
+/* On a narrow window the columns cannot be frozen at BOTH ends. At 960px the
+   card is 676px wide, and 350px of frozen identity columns plus the 146px
+   pinned to the right leaves too little in between: the final grade gets pushed
+   past the right-hand edge.
+
+   The grade and letter keep their pinning, because they are the answer this
+   screen exists to give. The identity columns give theirs up and scroll with
+   the grid, exactly as they did before this was added, and take no fixed width
+   with them. Freezing them is a convenience on a wide screen; having the grade
+   visible is not negotiable on any screen. */
+@media (max-width: 1100px) {
+  .entrytable td.idx, .entrytable th:nth-child(1),
+  .entrytable td.sid, .entrytable th:nth-child(2),
+  .entrytable td.name, .entrytable th:nth-child(3) {
+    position: static; left: auto; box-shadow: none;
+    width: auto; min-width: 0; max-width: none;
+  }
+}
 
 @media (max-width: 1280px) {
   /* Tighter on a laptop screen, which is what these are used on. The entry

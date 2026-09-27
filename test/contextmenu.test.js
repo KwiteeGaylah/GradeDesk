@@ -320,3 +320,35 @@ test('cycling an attendance mark updates the map the rows are drawn from', () =>
   assert.match(call, /marksByStudent/, 'the click handler passes the map');
   assert.match(call, /sessionIndex: si/, 'and which session was clicked');
 });
+
+// ------------- the frozen columns and the collapsible panel ----------------
+
+test('the identity columns are frozen while the scores scroll', () => {
+  // A term can carry a dozen assessments, more than fits any window. Scrolling
+  // the name away with the scores means typing into whichever row happens to be
+  // under the cursor, which is how a mark lands on the wrong student.
+  assert.match(CSS, /\.entrytable td\.idx[\s\S]{0,140}position: sticky/);
+  assert.match(CSS, /\.entrytable td\.sid[\s\S]{0,140}left: 40px/);
+  assert.match(CSS, /\.entrytable td\.name[\s\S]{0,200}left: 140px/);
+});
+
+test('the frozen columns hold a fixed width, not just a minimum', () => {
+  // A sticky column only reserves the width its column actually has. Left to
+  // grow, the name took 416px and the scrolling cells slid underneath it.
+  assert.match(CSS, /width: 170px; min-width: 170px; max-width: 170px/,
+    'the pinned name column is sized, not merely floored');
+});
+
+test('the identity columns give up their pinning on a narrow window', () => {
+  // Frozen at both ends, 960px leaves too little between them and the pinned
+  // final grade is pushed past the card edge. The grade keeps its pinning.
+  assert.match(CSS, /@media \(max-width: 1100px\)[\s\S]{0,400}position: static/);
+});
+
+test('the left panel can be folded away, and stays that way', () => {
+  assert.match(CSS, /\.app\.railhidden \{ grid-template-columns: 1fr; \}/,
+    'one column, not a zero-width first one');
+  assert.match(APP, /localStorage\.setItem\(RAIL_HIDDEN_KEY/,
+    'the choice outlives the session');
+  assert.match(APP, /aria-expanded/, 'and the button says which state it is in');
+});

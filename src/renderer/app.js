@@ -672,6 +672,50 @@ async function switchSemester(id) {
 $('settingsBtn').addEventListener('click', openManage);
 $('helpBtn').addEventListener('click', () => openGuide());
 
+/**
+ * Fold the left panel away, for the width.
+ *
+ * A term can carry a dozen assessments, and on a laptop the panel is the
+ * difference between the entry grid fitting and having to scroll it. Kept in
+ * localStorage rather than in `state`, because unlike a search box or a sort
+ * this is how someone wants the window arranged, and it should still be that
+ * way the next time they open the app.
+ */
+const RAIL_HIDDEN_KEY = 'gradedesk.railHidden';
+
+function applyRailHidden(hidden) {
+  const app = document.querySelector('.app');
+  const button = $('railToggle');
+  if (app) app.classList.toggle('railhidden', hidden);
+  if (button) {
+    button.setAttribute('aria-expanded', hidden ? 'false' : 'true');
+    const label = hidden ? 'Show the left panel' : 'Hide the left panel';
+    button.title = label;
+    button.setAttribute('aria-label', label);
+  }
+}
+
+function toggleRail() {
+  const app = document.querySelector('.app');
+  const hidden = !(app && app.classList.contains('railhidden'));
+  applyRailHidden(hidden);
+  // Storage can throw in a locked-down profile; the panel still works either way.
+  try {
+    localStorage.setItem(RAIL_HIDDEN_KEY, hidden ? '1' : '0');
+  } catch (err) {
+    /* not worth telling anyone about */
+  }
+}
+
+$('railToggle').addEventListener('click', toggleRail);
+
+// Restore however it was left.
+try {
+  applyRailHidden(localStorage.getItem(RAIL_HIDDEN_KEY) === '1');
+} catch (err) {
+  applyRailHidden(false);
+}
+
 // ----------------------------------------------------------------- courses
 
 async function newCourse() {
