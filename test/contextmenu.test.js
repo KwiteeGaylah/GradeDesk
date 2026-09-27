@@ -182,3 +182,63 @@ test('listPhrase joins a list the way a person writes one', () => {
   assert.equal(listPhrase(['20', '35']), '20 and 35');
   assert.equal(listPhrase(['20', '35', '40']), '20, 35 and 40');
 });
+
+// ------------------- the entry grid holds a whole term ---------------------
+
+/**
+ * Grade entry shows every assessment in the term at once, one column each,
+ * because the instructor's own workbook was laid out that way: Attendance,
+ * Assign 1, Quiz 1, Quiz 2, ClassWork and the exam were all columns on one
+ * sheet. Recording one column at a time meant switching assessment to enter an
+ * assignment and a quiz from the same sitting.
+ *
+ * Source-level checks, as elsewhere in this file. The behaviour itself was
+ * verified by driving the real app.
+ */
+
+test('the entry grid builds a column per assessment, not one at a time', () => {
+  const start = APP.indexOf('async function renderGradeEntry');
+  assert.ok(start > 0);
+  const fn = APP.slice(start, APP.indexOf('\nfunction onEntryKey'));
+  assert.match(fn, /const columns = all\.filter/, 'the columns are the assessments of the term');
+  assert.match(fn, /columns\.flatMap/, 'and each one becomes a cell');
+  // The old single-assessment picker must be gone, or two designs would coexist.
+  assert.ok(!/class: 'apicker'/.test(fn), 'the single-assessment picker is gone');
+});
+
+test('entry cells carry a row and a column, so the keyboard can move in 2-D', () => {
+  const start = APP.indexOf('async function renderGradeEntry');
+  const fn = APP.slice(start, APP.indexOf('\nfunction onEntryKey'));
+  assert.match(fn, /row: String\(rowIndex\)/);
+  assert.match(fn, /col: String\(colIndex\)/);
+  assert.match(fn, /assessmentId: String\(assessment\.id\)/,
+    'each cell knows which assessment it belongs to');
+});
+
+test('Enter goes down the column and Tab goes across the row', () => {
+  const start = APP.indexOf('function onEntryKey');
+  const fn = APP.slice(start, start + 3000);
+  // Down is (1, 0); across is (0, 1). Getting these the wrong way round would
+  // make entering one pile of papers require a keystroke per cell.
+  assert.match(fn, /event\.key === 'Enter'[\s\S]*?focusFrom\(row, col, 1, 0\)/,
+    'Enter moves down');
+  assert.match(fn, /event\.key === 'Tab'[\s\S]*?focusFrom\(row, col, 0, 1\)/,
+    'Tab moves across');
+});
+
+test('movement skips a read-only attendance column', () => {
+  const start = APP.indexOf('function onEntryKey');
+  const fn = APP.slice(start, start + 3000);
+  assert.match(fn, /!next\.readOnly/, 'it looks for a typeable cell');
+  assert.match(fn, /for \(let guard = 0/, 'and cannot loop forever looking');
+});
+
+test('the computed cells are found by role, never by a fixed index', () => {
+  // The grid has a variable number of columns, so cells[4] would point at a
+  // different thing depending on the term and the transmuted toggle.
+  const start = APP.indexOf('function updateComputedColumns');
+  const fn = APP.slice(start, start + 2200);
+  assert.match(fn, /data-role=/, 'roles identify the computed cells');
+  assert.match(fn, /data-student-id=/, 'and rows are matched by student');
+  assert.ok(!/cells\[\d\]/.test(fn), 'no fixed cell indices remain');
+});

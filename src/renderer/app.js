@@ -5,7 +5,7 @@
  * Structure follows docs/GradeDesk_Mockup.html: a left rail (semester, courses,
  * per-course screens) and one screen at a time in the main area.
  *
- * The central interaction is grade entry: one assessment, the whole class list,
+ * The central interaction is grade entry: one term's assessments side by side,
  * one editable column typed straight down like Excel. Everything else exists to
  * serve that. Computed columns are read-only and refresh from the engine.
  */
@@ -35,6 +35,15 @@ const state = {
   rosterFilter: { query: '', sort: GradeDeskSorting.DEFAULT_SORT },
   /** Search and sort applied to the attendance grid. */
   attendanceFilter: { query: '', sort: GradeDeskSorting.DEFAULT_SORT },
+  /**
+   * Show the transmuted value beside every score on the entry grid.
+   *
+   * Off by default. With every assessment in the term on screen at once, a
+   * transmuted column beside each one doubles the width for values that are
+   * derived rather than typed. Not persisted: it is a way of looking at the
+   * grid right now, like the search and sort.
+   */
+  showTransmuted: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -960,51 +969,68 @@ async function renderGradeEntry(content, course, policyInfo) {
     return;
   }
 
-  const selected = all.find((a) => a.id === state.selectedAssessmentId) || all[0];
-  state.selectedAssessmentId = selected.id;
-  state.selectedTermKind = selected.termKind;
+  // ---- which term, and its columns in order ----
+  //
+  // Every assessment in the term is enterable at once, side by side, which is
+  // how the instructor's own workbook was laid out: Attendance, Assign 1,
+  // Quiz 1, Quiz 2, ClassWork and the exam were all columns on one sheet. Doing
+  // one column at a time meant switching assessment to record an assignment and
+  // a quiz from the same pile of papers.
+  //
+  // Scope is one TERM, not the whole course. A term is four to six columns,
+  // which fits; both terms together is a dozen and would not.
+  const termKind = state.selectedTermKind === 'final' ? 'final' : 'midterm';
+  const termLabel = termKind === 'midterm' ? 'Midterm' : 'Final';
+  const columns = all.filter((a) => a.termKind === termKind);
 
-  // ---- assessment picker ----
-  // A dropdown grouped by term, not a long strip of tabs: a course can carry a
-  // dozen assessments and the strip pushed the grid down or scrolled sideways.
-  // Prev/next buttons keep single-key movement between assessments.
-  const picker = el('select', {
-    class: 'apicker',
-    'aria-label': 'Assessment being entered',
-    onchange: async (e) => {
-      const pick = all.find((a) => String(a.id) === e.target.value);
-      if (!pick) return;
-      state.selectedAssessmentId = pick.id;
-      state.selectedTermKind = pick.termKind;
-      await renderScreen();
-      focusFirstEntry();
-    },
-  });
-  for (const kind of ['midterm', 'final']) {
-    const list = all.filter((a) => a.termKind === kind);
-    if (!list.length) continue;
-    const group = el('optgroup', { label: kind === 'midterm' ? 'Midterm term' : 'Final term' });
-    for (const a of list) {
-      group.append(el('option', {
-        value: String(a.id),
-        selected: a.id === selected.id,
-      }, `${a.name}  ·  ${a.max_points} marks${a.kind === 'exam' ? '  (exam)' : ''}`));
-    }
-    picker.append(group);
+  if (!columns.length) {
+    setChildren(content, emptyState({
+      icon: '⚙',
+      title: `No assessments in the ${termLabel.toLowerCase()} term`,
+      text: 'Add some, or switch to the other term.',
+      actionLabel: 'Set up assessments',
+      onAction: async () => { state.screen = 'config'; renderRail(); await renderScreen(); },
+    }));
+    return;
   }
 
-  const step = async (delta) => {
-    const i = all.findIndex((a) => a.id === selected.id);
-    const next = all[i + delta];
-    if (!next) return;
-    state.selectedAssessmentId = next.id;
-    state.selectedTermKind = next.termKind;
-    await renderScreen();
-    focusFirstEntry();
-  };
-  const index = all.findIndex((a) => a.id === selected.id);
+  // Keep the selected assessment meaningful: it is the column the keyboard
+  // lands in first, and the one the score sorts act on.
+  let selected = columns.find((a) => a.id === state.selectedAssessmentId);
+  if (!selected) {
+    selected = columns[0];
+    state.selectedAssessmentId = selected.id;
+  }
+  state.selectedTermKind = termKind;
 
-  // Re-renders only the rows, so the caret stays in the search box.
+  const termSwitch = el('div', { class: 'assessbar' },
+    el('span', { class: 'term-pill', text: 'TERM' }),
+    ...['midterm', 'final'].map((kind) =>
+      el('button', {
+        class: `atab${kind === termKind ? ' active' : ''}`,
+        onclick: async () => {
+          state.selectedTermKind = kind;
+          const first = all.find((a) => a.termKind === kind);
+          if (first) state.selectedAssessmentId = first.id;
+          await renderScreen();
+        },
+      }, kind === 'midterm' ? 'Midterm term' : 'Final term')
+    )
+  );
+
+  // The transmuted column beside every score doubles the width and is derived,
+  // not typed, so it is collapsible. Off by default: what an instructor needs
+  // while typing is the raw columns and the final grade.
+  const showTransmuted = !!state.showTransmuted;
+  const transToggle = el('button', {
+    class: `btn small${showTransmuted ? ' primary' : ''}`,
+    title: 'Show or hide the transmuted value beside each score',
+    onclick: async () => {
+      state.showTransmuted = !state.showTransmuted;
+      await renderScreen();
+    },
+  }, showTransmuted ? 'Hide transmuted' : 'Show transmuted');
+
   const { group: filterBar, countLabel } = filterGroup(
     state.gradeFilter,
     () => renderGradeRows(),
@@ -1012,31 +1038,18 @@ async function renderGradeEntry(content, course, policyInfo) {
   );
 
   const bar = el('div', { class: 'entrybar' },
-    el('div', { class: 'pickgroup' },
-      el('span', { class: 'term-pill', text: selected.termKind === 'midterm' ? 'MIDTERM' : 'FINAL' }),
-      picker,
-      el('button', {
-        class: 'btn small step', title: 'Previous assessment',
-        disabled: index <= 0, onclick: () => step(-1),
-      }, '‹'),
-      el('button', {
-        class: 'btn small step', title: 'Next assessment',
-        disabled: index >= all.length - 1, onclick: () => step(1),
-      }, '›')),
+    el('div', { class: 'pickgroup' }, transToggle),
     el('div', { class: 'spacer' }),
     filterBar
   );
 
-  const isAttendance = selected.kind === 'attendance';
-  const note = isAttendance
-    ? el('div', { class: 'note' },
-        el('b', {}, selected.name), ' works itself out from the attendance you have marked. ',
-        'Mark the sessions on the Attendance screen. You cannot type in this column.')
-    : el('div', { class: 'note' },
-        'Entering ', el('b', {}, selected.name), '. ',
-        `The highest mark you can give here is ${selected.max_points}. `,
-        'Type a score on each row and press Enter to drop to the next student, just like in Excel. ',
-        'A blank counts as 50. The shaded columns work themselves out.');
+  const note = el('div', { class: 'note' },
+    'Every ', el('b', {}, termLabel.toLowerCase()), ' assessment is here at once. ',
+    'Type across a row with ', el('b', {}, 'Tab'), ', or down a column with ',
+    el('b', {}, 'Enter'), '. The arrow keys move either way, just like in Excel. ',
+    'A blank counts as 50. Attendance works itself out from the register, and the ',
+    'shaded columns work themselves out too.'
+  );
 
   const policyWarn = policyInfo && policyInfo.confidence !== 'grade-verified'
     ? el('div', { class: 'note warn' },
@@ -1046,14 +1059,23 @@ async function renderGradeEntry(content, course, policyInfo) {
     : null;
 
   // ---- table ----
-  const termLabel = selected.termKind === 'midterm' ? 'Midterm' : 'Final';
   const thead = el('thead', {},
     el('tr', {},
       el('th', { text: '#', class: 'ta-right' }),
       el('th', { text: 'ID' }),
       el('th', { text: 'Full name' }),
-      el('th', { class: 'th-entry', text: `${selected.name} (of ${selected.max_points})` }),
-      el('th', { class: 'ta-center', text: 'Transmuted' }),
+      ...columns.flatMap((a) => {
+        const head = el('th', {
+          class: 'th-entry',
+          title: `${a.name}, out of ${a.max_points}${a.kind === 'exam' ? ' (exam)' : ''}`,
+        },
+          el('span', { class: 'thname', text: a.name }),
+          el('span', { class: 'thmax', text: `/${a.max_points}` })
+        );
+        return showTransmuted
+          ? [head, el('th', { class: 'ta-center th-trans', text: 'T' })]
+          : [head];
+      }),
       el('th', { class: 'ta-center col-secondary', text: 'Class standing' }),
       el('th', { class: 'ta-center col-secondary', text: `${termLabel} total` }),
       el('th', { class: 'ta-center final', text: 'Final grade' }),
@@ -1062,29 +1084,35 @@ async function renderGradeEntry(content, course, policyInfo) {
   );
 
   const tbody = el('tbody');
+  const columnCount = 3 + columns.length * (showTransmuted ? 2 : 1) + 4;
 
   /**
    * Build the visible rows from the current search and sort.
    *
    * Kept as a closure so typing in the search box re-renders only the rows and
-   * never disturbs the caret, and so the entry column's keyboard order always
+   * never disturbs the caret, and so the entry grid's keyboard order always
    * matches what is actually on screen.
    */
   function renderGradeRows() {
-    const q = state.gradeFilter.query;
-    const cellOf = (row) => {
-      const term = row[selected.termKind];
-      if (selected.kind === 'exam') return { raw: term.examRaw, transmuted: term.examTransmuted };
-      return term.assessments.find((a) => a.assessment.id === selected.id) || { raw: null, transmuted: 50 };
+    // The cell for one student in one column, whichever kind it is.
+    const cellOf = (row, assessment) => {
+      const term = row[termKind];
+      if (assessment.kind === 'exam') {
+        return { raw: term.examRaw, transmuted: term.examTransmuted };
+      }
+      return term.assessments.find((a) => a.assessment.id === assessment.id)
+        || { raw: null, transmuted: 50 };
     };
 
-    const rawOf = (r) => {
-      const v = cellOf(r).raw;
+    // The score sorts act on the column the keyboard is in, so "this score,
+    // high to low" still means something with several columns on screen.
+    const rawOf = (row) => {
+      const v = cellOf(row, selected).raw;
       return v === null || v === undefined ? null : Number(v);
     };
 
     const visible = GradeDeskSorting.sortRows(
-      students.filter((row) => matchesQuery(row.student, q)),
+      students.filter((row) => matchesQuery(row.student, state.gradeFilter.query)),
       state.gradeFilter.sort,
       {
         student: (r) => r.student,
@@ -1094,38 +1122,61 @@ async function renderGradeEntry(content, course, policyInfo) {
       }
     );
 
-    const isAtt = selected.kind === 'attendance';
-    const rows = visible.map((row, index) => {
-      const term = row[selected.termKind];
-      const cell = cellOf(row);
+    const rows = visible.map((row, rowIndex) => {
+      const term = row[termKind];
 
-      const input = el('input', {
-        type: 'text',
-        inputmode: 'decimal',
-        value: showRaw(cell.raw),
-        // `committed` is the baseline an edit is compared against. Seeding it
-        // with the displayed value means simply tabbing through a cell is not
-        // mistaken for a change.
-        dataset: {
-          index: String(index),
-          studentId: String(row.student.id),
-          committed: showRaw(cell.raw),
-        },
-        readonly: isAtt,
-        title: isAtt ? 'Worked out from the attendance you have marked' : '',
-        'aria-label': `${selected.name} for ${row.student.full_name}`,
+      const entryCells = columns.flatMap((assessment, colIndex) => {
+        const cell = cellOf(row, assessment);
+        const isAtt = assessment.kind === 'attendance';
+
+        const input = el('input', {
+          type: 'text',
+          inputmode: 'decimal',
+          value: showRaw(cell.raw),
+          // `committed` is the baseline an edit is compared against. Seeding it
+          // with the displayed value means simply tabbing through a cell is not
+          // mistaken for a change.
+          dataset: {
+            row: String(rowIndex),
+            col: String(colIndex),
+            studentId: String(row.student.id),
+            assessmentId: String(assessment.id),
+            committed: showRaw(cell.raw),
+          },
+          readonly: isAtt,
+          title: isAtt ? 'Worked out from the attendance you have marked' : '',
+          'aria-label': `${assessment.name} for ${row.student.full_name}`,
+        });
+        if (cell.raw !== null && Number(cell.raw) > assessment.max_points) {
+          input.classList.add('over');
+        }
+        if (!isAtt) {
+          input.addEventListener('keydown',
+            (e) => onEntryKey(e, rowIndex, colIndex, visible.length, columns.length));
+          input.addEventListener('focus', () => {
+            input.select();
+            // The focused column becomes the one the score sorts act on.
+            if (state.selectedAssessmentId !== assessment.id) {
+              state.selectedAssessmentId = assessment.id;
+              selected = assessment;
+            }
+          });
+          input.addEventListener('change', () => commitScore(input, row.student.id, assessment));
+          input.addEventListener('blur', () => commitScore(input, row.student.id, assessment));
+        }
+
+        const td = el('td', { class: 'entry' }, input);
+        return showTransmuted
+          ? [td, el('td', {
+              class: 'read td-trans',
+              dataset: { transFor: String(assessment.id) },
+              text: show(cell.transmuted, 0),
+            })]
+          : [td];
       });
-      if (cell.raw !== null && Number(cell.raw) > selected.max_points) input.classList.add('over');
 
-      if (!isAtt) {
-        input.addEventListener('keydown', (e) => onEntryKey(e, index, visible.length));
-        input.addEventListener('focus', () => input.select());
-        input.addEventListener('change', () => commitScore(input, row.student.id, selected));
-        input.addEventListener('blur', () => commitScore(input, row.student.id, selected));
-      }
-
-      return el('tr', {},
-        el('td', { class: 'idx', text: row.student.number ?? index + 1 }),
+      return el('tr', { dataset: { studentId: String(row.student.id) } },
+        el('td', { class: 'idx', text: row.student.number ?? rowIndex + 1 }),
         el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
         el('td', {
           class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
@@ -1137,18 +1188,18 @@ async function renderGradeEntry(content, course, policyInfo) {
           row.student.unofficial
             ? el('span', { class: 'offroster', title: 'Not on the official roster yet' }, 'not on roster')
             : null),
-        el('td', { class: 'entry' }, input),
-        el('td', { class: 'read', text: show(cell.transmuted, 0) }),
-        el('td', { class: 'read col-secondary', text: show(term.classStanding) }),
-        el('td', { class: 'total col-secondary', text: show(term.total) }),
-        el('td', { class: 'final', text: showGrade(row) }),
-        el('td', { class: 'letter' }, el('span', { class: `lg ${row.letter}`, text: row.letter }))
+        ...entryCells,
+        el('td', { class: 'read col-secondary', dataset: { role: 'cs' }, text: show(term.classStanding) }),
+        el('td', { class: 'total col-secondary', dataset: { role: 'total' }, text: show(term.total) }),
+        el('td', { class: 'final', dataset: { role: 'grade' }, text: showGrade(row) }),
+        el('td', { class: 'letter', dataset: { role: 'letter' } },
+          el('span', { class: `lg ${row.letter}`, text: row.letter }))
       );
     });
 
     if (!rows.length) {
       setChildren(tbody, el('tr', {}, el('td', {
-        class: 'cellpad emptyrow', colspan: '9',
+        class: 'cellpad emptyrow', colspan: String(columnCount),
         text: `No student matches “${state.gradeFilter.query}”.`,
       })));
     } else {
@@ -1162,13 +1213,16 @@ async function renderGradeEntry(content, course, policyInfo) {
   state.rerenderGradeRows = renderGradeRows;
 
   setChildren(content,
+    termSwitch,
     bar,
     policyWarn,
     note,
-    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
+    el('div', { class: 'gridcard' }, el('table', { class: 'entrytable' }, thead, tbody)),
     el('div', { class: 'legend' },
       el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
-      el('span', {}, el('span', { class: 'k k-read' }), `Transmuted (${course.policy}% table)`),
+      showTransmuted
+        ? el('span', {}, el('span', { class: 'k k-read' }), `T = transmuted (${course.policy}% table)`)
+        : null,
       el('span', {}, el('span', { class: 'k k-total' }), 'Running totals'),
       el('span', {}, 'Blank exam → letter ', el('b', {}, 'I'), ' · Final grade shown to 2 decimals, never rounded up'),
       // Shown only when the running-total columns have been dropped, so the
@@ -1178,37 +1232,84 @@ async function renderGradeEntry(content, course, policyInfo) {
   );
 }
 
-/** Enter/Tab move down the column, arrows navigate, like a spreadsheet. */
-function onEntryKey(event, index, total) {
-  const move = (delta) => {
-    const next = document.querySelector(`#content input[data-index="${index + delta}"]`);
-    if (next) {
-      next.focus();
-      next.select();
+/**
+ * Spreadsheet keys over the entry grid.
+ *
+ * Enter goes DOWN the column and Tab goes ACROSS the row, which is what each
+ * key does in Excel and what the two real ways of working need: down a column
+ * when marking one pile of papers, across a row when entering everything you
+ * have for one student. Arrows move either way.
+ *
+ * Attendance columns are read-only, so movement skips over them rather than
+ * parking the caret in a cell that cannot be typed in.
+ */
+function onEntryKey(event, row, col, rowCount, colCount) {
+  const cellAt = (r, c) => document.querySelector(
+    `#content input[data-row="${r}"][data-col="${c}"]`
+  );
+
+  /** The next typeable cell from (r,c), stepping by (dr,dc). */
+  const focusFrom = (r, c, dr, dc) => {
+    let nr = r + dr;
+    let nc = c + dc;
+    // At most one pass over the grid, so a term of only attendance columns
+    // cannot spin here.
+    for (let guard = 0; guard < rowCount * colCount + colCount; guard += 1) {
+      if (nr < 0 || nr >= rowCount || nc < 0 || nc >= colCount) return false;
+      const next = cellAt(nr, nc);
+      if (next && !next.readOnly) {
+        next.focus();
+        next.select();
+        return true;
+      }
+      nr += dr;
+      nc += dc;
     }
+    return false;
+  };
+
+  const move = (dr, dc) => {
+    focusFrom(row, col, dr, dc);
     event.preventDefault();
   };
-  if (event.key === 'Enter' || (event.key === 'Tab' && !event.shiftKey)) {
-    if (index < total - 1) move(1);
-    else if (event.key === 'Enter') event.preventDefault();
+
+  if (event.key === 'Enter') {
+    // Down the column, and at the bottom carry on at the top of the next one,
+    // so a whole term can be entered without reaching for the mouse.
+    event.preventDefault();
+    if (focusFrom(row, col, 1, 0)) return;
+    if (col + 1 < colCount) focusFrom(-1, col + 1, 1, 0);
     return;
   }
-  if (event.key === 'Tab' && event.shiftKey) {
-    if (index > 0) move(-1);
+  if (event.key === 'Tab') {
+    // Across the row, and on to the next row at the end of one, so a whole
+    // class can be entered student by student without reaching for the mouse.
+    // At the very start and the very end of the grid nothing is preventDefault-ed,
+    // so focus can still leave the table for the rest of the page.
+    if (event.shiftKey) {
+      if (focusFrom(row, col, 0, -1)) { event.preventDefault(); return; }
+      // Start of a row: carry back to the last typeable cell of the one above.
+      if (row > 0 && focusFrom(row - 1, colCount, 0, -1)) { event.preventDefault(); }
+      return;
+    }
+    if (focusFrom(row, col, 0, 1)) { event.preventDefault(); return; }
+    // End of a row: carry on at the first typeable cell of the next one.
+    if (row + 1 < rowCount && focusFrom(row + 1, -1, 0, 1)) { event.preventDefault(); }
     return;
   }
-  if (event.key === 'ArrowDown') move(1);
-  if (event.key === 'ArrowUp') move(-1);
+  if (event.key === 'ArrowDown') move(1, 0);
+  if (event.key === 'ArrowUp') move(-1, 0);
+  // Left and right only jump cells from the ends of the text, so arrowing
+  // through a two-digit score you are editing still works normally.
+  if (event.key === 'ArrowRight' && event.target.selectionStart === event.target.value.length) {
+    move(0, 1);
+  }
+  if (event.key === 'ArrowLeft' && event.target.selectionStart === 0) {
+    move(0, -1);
+  }
   if (event.key === 'Escape') event.target.blur();
 }
 
-function focusFirstEntry() {
-  const first = document.querySelector('#content input[data-index="0"]:not([readonly])');
-  if (first) {
-    first.focus();
-    first.select();
-  }
-}
 
 /**
  * Persist one typed score, then refresh the computed columns in place.
@@ -1249,26 +1350,50 @@ async function commitScore(input, studentId, assessment) {
   refreshIssueBadge();
 }
 
-/** Refresh only the read-only cells, so the focused input is never disturbed. */
+/**
+ * Refresh only the read-only cells, so the focused input is never disturbed.
+ *
+ * Rows are matched by the student id on the <tr> and cells by their role,
+ * rather than by position: the entry grid holds one column per assessment and
+ * optionally a transmuted column beside each, so a fixed cell index would point
+ * at the wrong thing as soon as the term or the toggle changed. It also means
+ * the sorted order on screen does not have to match state.computed's order.
+ */
 function updateComputedColumns(assessment) {
   if (!state.computed) return;
-  const rows = document.querySelectorAll('#content tbody tr');
-  state.computed.students.forEach((row, i) => {
-    const tr = rows[i];
-    if (!tr) return;
-    const term = row[state.selectedTermKind];
-    const isExam = assessment.kind === 'exam';
-    const cell = isExam
-      ? { transmuted: term.examTransmuted }
-      : term.assessments.find((a) => a.assessment.id === assessment.id) || { transmuted: 50 };
+  const termKind = state.selectedTermKind === 'final' ? 'final' : 'midterm';
 
-    const cells = tr.querySelectorAll('td');
-    cells[4].textContent = show(cell.transmuted, 0);
-    cells[5].textContent = show(term.classStanding);
-    cells[6].textContent = show(term.total);
-    cells[7].textContent = showGrade(row);
-    setChildren(cells[8], el('span', { class: `lg ${row.letter}`, text: row.letter }));
-  });
+  for (const row of state.computed.students) {
+    const tr = document.querySelector(
+      `#content tbody tr[data-student-id="${row.student.id}"]`
+    );
+    if (!tr) continue; // filtered out by the search box
+    const term = row[termKind];
+
+    // The transmuted cell for the column just edited, when it is shown at all.
+    const transCell = tr.querySelector(`td[data-trans-for="${assessment.id}"]`);
+    if (transCell) {
+      const cell = assessment.kind === 'exam'
+        ? { transmuted: term.examTransmuted }
+        : term.assessments.find((a) => a.assessment.id === assessment.id) || { transmuted: 50 };
+      transCell.textContent = show(cell.transmuted, 0);
+    }
+
+    // Attendance is derived from the register, but its column sits in this grid
+    // too and its own transmuted value does not change from a typed score.
+    const set = (role, text) => {
+      const td = tr.querySelector(`td[data-role="${role}"]`);
+      if (td) td.textContent = text;
+    };
+    set('cs', show(term.classStanding));
+    set('total', show(term.total));
+    set('grade', showGrade(row));
+
+    const letterCell = tr.querySelector('td[data-role="letter"]');
+    if (letterCell) {
+      setChildren(letterCell, el('span', { class: `lg ${row.letter}`, text: row.letter }));
+    }
+  }
 }
 
 // -------------------------------------------------------------- attendance
@@ -3052,7 +3177,8 @@ async function runSetupWizard() {
     subtitle: `${course.code} is ready.`,
     body: el('div', {},
       el('p', { class: 'guidep' },
-        'Pick an assessment from the list at the top and type scores down the column. ' +
+        'Every assessment in the term is a column. Type down one with Enter, or across ' +
+        'a row with Tab. ' +
         'Press Enter to move to the next student.'),
       el('p', { class: 'guidep' },
         'The guide is always there under the Guide button at the bottom of the ' +

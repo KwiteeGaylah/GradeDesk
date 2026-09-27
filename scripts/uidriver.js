@@ -66,18 +66,26 @@ async function drive(win, app) {
     const rail = await run(win, `({
       courses: document.querySelectorAll('#courseNav a').length,
       title: document.getElementById('screenTitle').textContent,
-      tabs: [...document.querySelectorAll('.apicker option')].map(t => t.textContent),
-      groups: [...document.querySelectorAll('.apicker optgroup')].map(g => g.label)
+      // Every assessment in the term is a column now, rather than one being
+      // chosen from a picker.
+      entryHeads: [...document.querySelectorAll('#content thead th.th-entry')]
+        .map(t => t.textContent.replace(/\s+/g, ' ').trim()),
+      termTabs: [...document.querySelectorAll('#content .assessbar .atab')].map(b => b.textContent)
     })`);
     check('course appears in the left rail', rail.courses >= 2, JSON.stringify(rail.courses));
     check('grade entry screen is showing', rail.title === 'Grade entry', rail.title);
     check(
-      'the assessment picker lists both terms including the fixed exams',
-      rail.tabs.some((t) => t.includes('Quiz 1')) &&
-        rail.tabs.some((t) => t.includes('Midterm Exam') && t.includes('40')) &&
-        rail.tabs.some((t) => t.includes('Final Exam') && t.includes('40')) &&
-        rail.groups.length === 2,
-      JSON.stringify(rail)
+      'every assessment in the term is its own entry column',
+      rail.entryHeads.length >= 3 &&
+        rail.entryHeads.some((h) => h.includes('Quiz 1') && h.includes('/15')) &&
+        rail.entryHeads.some((h) => h.includes('/10')) &&
+        rail.entryHeads.some((h) => h.includes('/40')),
+      JSON.stringify(rail.entryHeads)
+    );
+    check(
+      'both terms are reachable from the term switch',
+      rail.termTabs.length === 2 && rail.termTabs.join(' ').includes('Final'),
+      JSON.stringify(rail.termTabs)
     );
 
     // A null child rendered as the literal word "null" once; guard against it.
@@ -87,28 +95,32 @@ async function drive(win, app) {
     })()`);
     check('no stray "null" or "undefined" rendered on screen', !stray.hasNull && !stray.hasUndefined, JSON.stringify(stray));
 
-    // ---- type a score into the column, exactly as an instructor would ----
+    // ---- type a score into a column, exactly as an instructor would ----
+    // Cells are found by their role rather than by position: the grid holds one
+    // column per assessment and optionally a transmuted column beside each, so a
+    // fixed index would point at the wrong thing.
     const typed = await run(win, `(async () => {
-      // Select Quiz 1.
-      // Choose Quiz 1 from the picker, as a user would.
-      const picker = document.querySelector('.apicker');
-      const opt = [...picker.options].find(o => o.textContent.includes('Quiz 1'));
-      picker.value = opt.value;
-      picker.dispatchEvent(new Event('change', { bubbles: true }));
-      await new Promise(r => setTimeout(r, 600));
-      const input = document.querySelector('#content input[data-index="0"]');
+      const heads = [...document.querySelectorAll('#content thead th.th-entry')];
+      const quizCol = heads.findIndex(h => h.innerText.includes('Quiz 1'));
+      // Show the transmuted columns so the lookup value can be read off screen.
+      state.showTransmuted = true;
+      await renderScreen();
+      await new Promise(r => setTimeout(r, 500));
+      const input = document.querySelector('#content input[data-row="0"][data-col="' + quizCol + '"]');
+      const assessmentId = input.dataset.assessmentId;
       input.focus();
       input.value = '11';
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      await new Promise(r => setTimeout(r, 500));
-      const cells = document.querySelectorAll('#content tbody tr')[0].querySelectorAll('td');
+      await new Promise(r => setTimeout(r, 600));
+      const tr = document.querySelectorAll('#content tbody tr')[0];
+      const role = (r) => { const td = tr.querySelector('td[data-role="' + r + '"]'); return td ? td.textContent : null; };
       return {
         raw: input.value,
-        transmuted: cells[4].textContent,
-        classStanding: cells[5].textContent,
-        midtermTotal: cells[6].textContent,
-        finalGrade: cells[7].textContent,
-        letter: cells[8].textContent
+        transmuted: tr.querySelector('td[data-trans-for="' + assessmentId + '"]').textContent,
+        classStanding: role('cs'),
+        midtermTotal: role('total'),
+        finalGrade: role('grade'),
+        letter: role('letter')
       };
     })()`);
 
@@ -118,27 +130,42 @@ async function drive(win, app) {
     check('class standing recomputes live', typed.classStanding !== '—', typed.classStanding);
     check('midterm total recomputes live', typed.midtermTotal !== '—', typed.midtermTotal);
 
-    // ---- Enter advances down the column, like Excel ----
+    // ---- Enter goes down a column, Tab goes across a row, like Excel ----
     const advanced = await run(win, `(async () => {
-      const first = document.querySelector('#content input[data-index="0"]');
-      first.focus();
-      first.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-      await new Promise(r => setTimeout(r, 150));
-      const active = document.activeElement;
-      return { index: active ? active.dataset.index : null };
+      const at = (r, c) => document.querySelector('#content input[data-row="' + r + '"][data-col="' + c + '"]');
+      const where = () => {
+        const a = document.activeElement;
+        return a && a.dataset && a.dataset.row !== undefined ? a.dataset.row + ',' + a.dataset.col : null;
+      };
+      const press = (el, key, shift) => el.dispatchEvent(
+        new KeyboardEvent('keydown', { key, shiftKey: !!shift, bubbles: true }));
+      const res = {};
+      // Start from a column that is definitely typeable, not attendance.
+      const heads = [...document.querySelectorAll('#content thead th.th-entry')];
+      const col = heads.findIndex(h => h.innerText.includes('Quiz 1'));
+      res.col = col;
+      at(0, col).focus(); press(at(0, col), 'Enter');      res.down = where();
+      at(0, col).focus(); press(at(0, col), 'Tab');        res.across = where();
+      at(0, col).focus(); press(at(0, col), 'ArrowDown');  res.arrowDown = where();
+      return res;
     })()`);
-    check('Enter advances to the next student down the column', advanced.index === '1', JSON.stringify(advanced));
+    check('Enter advances to the next student down the column',
+      advanced.down === '1,' + advanced.col, JSON.stringify(advanced));
+    check('Tab advances to the next assessment across the row',
+      advanced.across === '0,' + (advanced.col + 1), JSON.stringify(advanced));
+    check('the arrow keys move down the column too',
+      advanced.arrowDown === '1,' + advanced.col, JSON.stringify(advanced));
 
     // ---- the computed values must equal the engine's own answer ----
     const cross = await run(win, `(async () => {
       const api = window.gradedesk;
       const result = await api.gradebook.compute(${setup.courseId});
       const row = result.students[0];
-      const cells = document.querySelectorAll('#content tbody tr')[0].querySelectorAll('td');
+      const tr = document.querySelectorAll('#content tbody tr')[0];
       return {
-        screenGrade: cells[7].textContent,
+        screenGrade: tr.querySelector('td[data-role="grade"]').textContent,
         engineGrade: row.finalGradeDisplay,
-        screenLetter: cells[8].textContent.trim(),
+        screenLetter: tr.querySelector('td[data-role="letter"]').textContent.trim(),
         engineLetter: row.letter
       };
     })()`);

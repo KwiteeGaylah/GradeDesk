@@ -25,10 +25,10 @@ const GUIDE_SECTIONS = [
       'You type the marks. It works out the rest.',
     blocks: [
       { type: 'text', text:
-        'You enter raw scores across your class list, one assessment at a time, the same ' +
-        'way you would type down a column in a spreadsheet. GradeDesk looks up each score ' +
-        'in the university table, averages them, applies the weights, and gives you the ' +
-        'final grade and letter. At the end you export the sheet you submit.' },
+        'You enter raw scores across your class list, with every assessment in the term ' +
+        'side by side, the same way your own grade sheet is laid out. GradeDesk looks up ' +
+        'each score in the university table, averages them, applies the weights, and gives ' +
+        'you the final grade and letter. At the end you export the sheet you submit.' },
       { type: 'text', text:
         'Everything is kept on this computer and saved as you type. There is no save ' +
         'button and no internet connection needed.' },
@@ -124,19 +124,27 @@ const GUIDE_SECTIONS = [
   {
     id: 'entry',
     title: 'Entering scores',
-    lead: 'The screen you will spend your time in. It works like a spreadsheet column.',
+    lead: 'The screen you will spend your time in. It works like a spreadsheet.',
     blocks: [
       { type: 'text', text:
-        'Pick one assessment from the dropdown at the top, then type each student’s raw ' +
-        'score straight down the column. Press Enter and you drop to the next student.' },
+        'Every assessment in the term is on screen at once, one column each, so you can ' +
+        'record an assignment and a quiz in the same sitting without switching anywhere. ' +
+        'Type down a column with Enter, or across a row with Tab — whichever suits the ' +
+        'pile of papers in front of you. Use the term buttons to move between the midterm ' +
+        'and the final term.' },
+      { type: 'text', text:
+        'The transmuted value beside each score is hidden by default, to keep the columns ' +
+        'wide enough to read. “Show transmuted” brings it back when you want to check a ' +
+        'lookup.' },
       { type: 'text', text:
         'The white boxes are the ones you type in. Everything shaded is worked out for ' +
         'you and cannot be typed in. Those columns update the moment you leave a box, so ' +
         'you can watch a grade settle as you mark.' },
       { type: 'keys', title: 'Keys worth knowing', items: [
-        ['Enter', 'Save and drop to the next student'],
-        ['Tab', 'Same, and Shift+Tab goes back up'],
-        ['Up and Down arrows', 'Move without changing anything'],
+        ['Enter', 'Save and drop to the next student, down the column'],
+        ['Tab', 'Save and move across to the next assessment'],
+        ['Shift+Tab', 'Back across, and up to the previous student at the start of a row'],
+        ['Arrow keys', 'Move in any direction without changing anything'],
         ['Escape', 'Leave the box you are in'],
       ] },
       { type: 'steps', title: 'The toolbar above the list', items: [

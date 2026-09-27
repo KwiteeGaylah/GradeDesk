@@ -318,6 +318,49 @@ td.entry input[readonly] {
 }
 /* The column being typed into is tinted in the header too. */
 th.th-entry { position: relative; }
+
+/* ---------------- the entry grid, all of a term at once ----------------
+   Every assessment in the term is a column, as the instructor's own workbook
+   had them. That is four to six entry columns rather than one, so the cells are
+   narrower than a single-column grid could afford and the header carries the
+   name over its maximum instead of beside it. */
+.entrytable td.entry { width: 62px; padding: 3px 3px; }
+.entrytable td.entry input { height: 28px; font-size: 13.5px; }
+.entrytable th.th-entry {
+  /* Two lines: the name, then "/20". Keeps a long name readable without
+     making every column as wide as its heading. */
+  padding: 5px 4px; line-height: 1.25; min-width: 62px;
+}
+.entrytable th.th-entry .thname {
+  /* A name too long for its column wraps to a second line rather than being
+     cut to "Midterm ...", which tells you nothing about which column you are
+     typing into. The header grows; the score cells below it do not. */
+  display: block; font-size: 11.5px; font-weight: 700;
+  white-space: normal; overflow-wrap: anywhere; line-height: 1.2;
+}
+.entrytable th.th-entry .thmax {
+  display: block; font-size: 10.5px; font-weight: 500; color: var(--ink-soft);
+}
+/* The transmuted value beside a score, shown only on request. Narrow, because
+   it is a read-only two or three digits. */
+.entrytable th.th-trans { width: 34px; font-size: 11px; color: var(--ink-soft); background: var(--read); }
+.entrytable td.td-trans { width: 34px; font-size: 12px; padding: 3px 2px; }
+/* The name column is NOT capped. A truncated name is the one thing on this
+   screen that cannot be recovered by looking harder: a score reads at a glance
+   from its own cell, but "Bestman, Comfort K." cut to "Bestman, Comf..." is a
+   guess about which student a mark belongs to. The table scrolls sideways inside
+   its card instead, which the card already indicates. */
+.entrytable td.name { min-width: 150px; }
+.entrytable td.sid { font-size: 12.5px; }
+
+@media (max-width: 1280px) {
+  /* Tighter on a laptop screen, which is what these are used on. The entry
+     cells give up padding first, and the ID shrinks; the name does not. */
+  .entrytable td.entry { width: 54px; padding: 2px 2px; }
+  .entrytable td.entry input { height: 26px; font-size: 13px; }
+  .entrytable th.th-entry .thname { font-size: 11px; }
+  .entrytable td.sid, .entrytable th:nth-child(2) { font-size: 12px; }
+}
 td.read { background: var(--read); color: var(--ink-soft); text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px; }
 td.total { background: var(--read); color: var(--ink); text-align: center; font-weight: 600; width: 82px; font-variant-numeric: tabular-nums; }
 /* The final grade and letter are the point of this screen, so they are pinned

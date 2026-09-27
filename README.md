@@ -55,9 +55,13 @@ ordinary low-spec Windows laptops.
 
 ### Grade entry
 
-The screen you spend your time in. Pick one assessment, type scores straight
-down the column, press Enter to drop to the next student. The shaded columns
-work themselves out as you go.
+The screen you spend your time in. Every assessment in the term is there at
+once, one column each, laid out the way your own grade sheet is — so an
+assignment and a quiz from the same sitting go in without switching anywhere.
+
+Type down a column with `Enter`, or across a row with `Tab`, whichever suits the
+pile of papers in front of you. The shaded columns work themselves out as you go.
+Use the term buttons to move between the midterm and the final term.
 
 ![Grade entry](docs/images/grade-entry.png)
 
@@ -151,7 +155,7 @@ A four-step wizard on first run, and a full guide you can open at any time.
 
 ## Install on another PC
 
-You need one file: **`GradeDesk-Setup-1.2.2.exe`**.
+You need one file: **`GradeDesk-Setup-1.3.0.exe`**.
 
 1. **Copy the installer** onto a flash drive, or download it from the
    [Releases page](https://github.com/KwiteeGaylah/GradeDesk/releases).
@@ -236,8 +240,8 @@ list. You can skip it and do the same things from the left panel.
 
 ### Every day
 
-1. **Grade entry.** Pick an assessment from the dropdown at the top. Type each
-   score down the column.
+1. **Grade entry.** Every assessment in the term is a column. Type down one with
+   `Enter`, or across a row with `Tab`.
 2. **Attendance.** Add a session per class meeting, then click along each row.
 3. **Review issues.** Before exporting, check the list.
 4. **Export.** The grade sheet, the summary, or attendance.
@@ -246,11 +250,11 @@ list. You can skip it and do the same things from the left panel.
 
 | Key | What it does |
 |---|---|
-| `Enter` | Save and drop to the next student |
-| `Tab` / `Shift+Tab` | Move down or back up the column |
-| `↑` `↓` | Move without changing anything |
+| `Enter` | Save and drop to the next student, down the column |
+| `Tab` | Save and move across to the next assessment |
+| `Shift+Tab` | Back across, and up to the previous student at the start of a row |
+| `↑` `↓` `←` `→` | Move in any direction without changing anything |
 | `Esc` | Leave the box you are in |
-| `‹` `›` | Previous or next assessment |
 
 The full guide is always available from the **Guide** button at the bottom of
 the left panel.
