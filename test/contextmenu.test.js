@@ -299,3 +299,24 @@ test('the transmuted columns are declared narrow enough to fit beside the totals
   // rather than from these column widths.
   assert.match(CSS, /\.entrytable thead th \{[^}]*padding-left: 4px/);
 });
+
+test('cycling an attendance mark updates the map the rows are drawn from', () => {
+  // Reported by an instructor: marks recorded, then vanished from the grid.
+  // cycleMark writes to the database and repaints that one cell, but the screen
+  // draws every row from marksByStudent, built once when the screen opened. Any
+  // later re-render (a sort, a search) rebuilt the row from that stale map, so
+  // the mark disappeared while the attendance score beside it -- and the export
+  // -- still showed it. Exactly the shape of the grade entry fault above.
+  const start = APP.indexOf('async function cycleMark');
+  assert.ok(start > 0);
+  const fn = APP.slice(start, start + 1800);
+  assert.match(fn, /register\.marksByStudent\.set\(/,
+    'the new mark is written back into the map');
+  assert.match(fn, /register\.sessionIndex/,
+    'into the right session column');
+
+  // And the caller has to hand that map over.
+  const call = APP.slice(APP.indexOf('onclick: () => cycleMark'), APP.indexOf('onclick: () => cycleMark') + 400);
+  assert.match(call, /marksByStudent/, 'the click handler passes the map');
+  assert.match(call, /sessionIndex: si/, 'and which session was clicked');
+});

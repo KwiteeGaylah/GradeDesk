@@ -1424,6 +1424,10 @@ async function renderAttendance(content, course) {
 
   const attendanceAssessment = state.assessments[termKind].find((a) => a.kind === 'attendance');
   const { sessions, marks } = await api.attendance.forTerm(term.id);
+  // The marks this screen draws from. Cycling a cell writes straight to the
+  // database and updates that one cell, so this map has to be kept in step or
+  // a later re-render (a sort, a search) would redraw the row from the marks
+  // as they were when the screen opened and blank out what was just marked.
   const marksByStudent = new Map(marks);
   const students = (state.computed && state.computed.students) || [];
 
@@ -1577,7 +1581,10 @@ async function renderAttendance(content, course) {
         role: 'button',
         title: 'Click to change: present, excused, absent, or blank',
         'aria-label': `${row.student.full_name}, ${GradeDeskDates.formatDate(session.date)}`,
-        onclick: () => cycleMark(td, row.student.id, session.id, rawCell, transCell, attendanceAssessment, termKind),
+        onclick: () => cycleMark(
+          td, row.student.id, session.id, rawCell, transCell, attendanceAssessment, termKind,
+          { marksByStudent, sessionIndex: si, sessionCount: sessions.length }
+        ),
         onkeydown: (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -1630,7 +1637,9 @@ async function renderAttendance(content, course) {
 
 const MARK_CYCLE = ['P', 'E', 'A', null];
 
-async function cycleMark(td, studentId, sessionId, rawCell, transCell, assessment, termKind) {
+async function cycleMark(
+  td, studentId, sessionId, rawCell, transCell, assessment, termKind, register
+) {
   const chip = td.querySelector('.attchip') || td;
   const shown = chip.textContent.trim();
   const current = shown === '·' ? null : shown;
@@ -1641,6 +1650,21 @@ async function cycleMark(td, studentId, sessionId, rawCell, transCell, assessmen
 
   await guard(() => api.attendance.setMark(studentId, sessionId, next), 'Saving mark');
   saved();
+
+  // Record the new mark in the map this screen draws from. Without this the
+  // cell is right until something re-renders the rows, at which point the row
+  // is rebuilt from the marks as they were when the screen opened and the mark
+  // appears to have been lost — while the score beside it, and the export, both
+  // still show it.
+  if (register && register.marksByStudent) {
+    const existing = register.marksByStudent.get(studentId);
+    const row = Array.isArray(existing)
+      ? existing.slice()
+      : new Array(register.sessionCount).fill(null);
+    row[register.sessionIndex] = next;
+    register.marksByStudent.set(studentId, row);
+  }
+
   await refreshComputed();
 
   const row = state.computed.students.find((r) => r.student.id === studentId);
