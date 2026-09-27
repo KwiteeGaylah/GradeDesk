@@ -34,8 +34,8 @@ const GUIDE_SECTIONS = [
         'button and no internet connection needed.' },
       { type: 'steps', title: 'The whole job, in four parts', items: [
         ['Set up the course once', 'Course code, section, and the assessments you use.'],
-        ['Type your class list', 'Names and student IDs, in one grid.'],
-        ['Enter scores as you mark', 'One assessment down the whole class.'],
+        ['Type your class list', 'Student IDs and names, in the official four columns.'],
+        ['Enter scores as you mark', 'Every assessment in the term, side by side.'],
         ['Export when you are done', 'The grade record, ready to hand in.'],
       ] },
       { type: 'tip', text:
@@ -77,15 +77,30 @@ const GUIDE_SECTIONS = [
     lead: 'Type it once, or paste it if you already have it somewhere.',
     blocks: [
       { type: 'text', text:
-        'Open Roster and start typing. Enter or Tab moves to the next box, and a new row ' +
-        'appears when you fill the last one, so you can keep going without reaching for ' +
-        'the mouse.' },
+        'The columns are the same four the official class list from administration ' +
+        'uses, in the same order: Student ID, Last Name, First Name, Middle Name. ' +
+        'Open Roster and start typing. Enter or Tab moves to the next box, and a new ' +
+        'row appears when you fill the last one, so you can keep going without ' +
+        'reaching for the mouse.' },
       { type: 'text', text:
-        'If the list already exists, use "Paste list". Put one student on each line, with ' +
-        'the ID and the name separated by a tab. Names keep their commas, so ' +
-        '"Bestman, Comfort K." stays exactly as you wrote it.' },
+        'If you already have the list, use "Paste list" and paste it straight in. ' +
+        'Copying out of Excel separates the columns for you. Before anything is added ' +
+        'the box shows you how it read your list, so a column that has slipped out of ' +
+        'place is obvious while it is still easy to fix.' },
       { type: 'example', title: 'A pasted list looks like this',
-        lines: ['10001\tBestman, Comfort K.', '10002\tBestman, Daniel T.', 'TU-90001\tDolo, Patience M.'] },
+        lines: [
+          '10001\tBestman\tComfort\tK.',
+          '10002\tDolo\tPatience',
+          'TU-90001\tKollie\tJames\tT.',
+        ] },
+      { type: 'text', text:
+        'Not got the list to hand? "Download the sample Excel file" in that same box ' +
+        'gives you the four columns laid out, ready to fill in. Keep them in that ' +
+        'order: a list pasted in a different order puts names in the wrong fields.' },
+      { type: 'text', text:
+        'A list typed the old way, with the whole name in one column, still works. ' +
+        'GradeDesk splits "Bestman, Comfort K." into its parts for you, and you can ' +
+        'correct any it gets wrong on this screen.' },
       { type: 'steps', title: 'The boxes at the top tell you', items: [
         ['How many students', 'The total in this course.'],
         ['How many are complete', 'They have both an ID and a name.'],
@@ -238,6 +253,80 @@ const GUIDE_SECTIONS = [
       { type: 'text', text:
         'Both open in Excel and are ready to submit as they are. You do not need to ' +
         'reformat anything.' },
+    ],
+  },
+  {
+    id: 'finding',
+    title: 'Finding a student, and the order of the list',
+    lead: 'Every screen has the same search box and the same sort menu.',
+    blocks: [
+      { type: 'text', text:
+        'Grade entry, Attendance and Roster all carry a search box and a sort menu in ' +
+        'the same place, and they offer the same options. Type any part of a name or an ' +
+        'ID in the search box and the list narrows as you type; clear it and everyone ' +
+        'comes back. Nothing is ever deleted by searching.' },
+      { type: 'steps', title: 'The sort options', items: [
+        ['Last name', 'The order the official list arrives in. Every screen opens on this.'],
+        ['First name', 'When you know someone by their given name.'],
+        ['Student ID', 'Numeric order, so 9 comes before 10.'],
+        ['Roster order', 'However you arranged the list yourself.'],
+        ['This score, high to low', 'Grade entry only, for the column you are typing in.'],
+        ['Final grade, or letter', 'Grade entry only, to see how the class is doing.'],
+      ] },
+      { type: 'tip', text:
+        'Attendance is marked by reading down a column against a printed list, so it ' +
+        'matters that it can be put in the same order as the paper in your hand. That ' +
+        'is why the options are the same everywhere.' },
+      { type: 'text', text:
+        'The count beside the sort menu tells you how many students you are looking at, ' +
+        'and how many there are altogether when a search is narrowing the list.' },
+    ],
+  },
+  {
+    id: 'presets',
+    title: 'Presets, and reusing a course you already set up',
+    lead: 'Set your assessments up once, then use them again.',
+    blocks: [
+      { type: 'text', text:
+        'Most instructors give the same shape of work in every section: an attendance ' +
+        'mark, a couple of quizzes, an assignment, some class work. GradeDesk ships a ' +
+        'few starting sets, and you can save your own.' },
+      { type: 'steps', title: 'Three ways to avoid retyping', items: [
+        ['Use a preset', 'On Assessments and policy. Pick a ready-made set and it fills the term in.'],
+        ['Save as preset', 'Once a term is set up the way you like, save it and it joins the list.'],
+        ['Duplicate a course', 'Right-click a course in the left panel, then Duplicate.'],
+      ] },
+      { type: 'text', text:
+        'Duplicating a course copies its assessments and its policy, and nothing else. ' +
+        'A second section wants the same quizzes, not the same students, so the new ' +
+        'course starts with an empty class list.' },
+      { type: 'text', text:
+        'Manage, then Manage presets, lets you rename or remove the ones you have ' +
+        'saved. Deleting a preset never touches a course you built from it.' },
+    ],
+  },
+  {
+    id: 'shortcuts',
+    title: 'Right-click menus, and tidying the list',
+    lead: 'The things that are quicker than going round the long way.',
+    blocks: [
+      { type: 'text', text:
+        'Right-click a course in the left panel for a menu: jump straight to any of its ' +
+        'four screens, duplicate it, open its details, or delete it. Deleting always ' +
+        'asks first and tells you what goes with it.' },
+      { type: 'steps', title: 'On the Roster screen', items: [
+        ['Renumber', 'Numbers everyone 1, 2, 3 in the order shown. The number is only a label on the grade sheet; no grade changes.'],
+        ['Add rows', 'Adds blank rows at the bottom when you have more students to type.'],
+        ['On roster?', 'Flags a student who is sitting in but not on the official list yet.'],
+      ] },
+      { type: 'steps', title: 'On Assessments and policy', items: [
+        ['The arrows beside an assessment', 'Move it up or down. The order here is the column order on screen and in the exported sheet.'],
+        ['Copy from the other term', 'Brings the other term’s assessments across. Only names and point values; no scores come with them.'],
+      ] },
+      { type: 'tip', text:
+        'The button at the top left of the window folds the left panel away, which is ' +
+        'worth doing on a laptop when a term has a lot of assessments. It stays folded ' +
+        'until you bring it back.' },
     ],
   },
   {
