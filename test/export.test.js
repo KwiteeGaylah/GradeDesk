@@ -82,14 +82,14 @@ async function readBack(filePath) {
 }
 
 /**
- * Locate the header row by looking for the "FullName" cell, rather than
+ * Locate the header row by looking for the "Last Name" cell, rather than
  * hardcoding a row number that shifts whenever the title block changes.
  */
 function headerRowOf(ws) {
   for (let r = 1; r <= 12; r++) {
     let found = false;
     ws.getRow(r).eachCell((cell) => {
-      if (String(cell.value ?? '').trim() === 'FullName') found = true;
+      if (String(cell.value ?? '').trim() === 'Last Name') found = true;
     });
     if (found) return r;
   }
@@ -164,7 +164,7 @@ test('the exported final grade is exactly two decimals and never rounded up', as
 
   const wb = await readBack(file);
   const ws = wb.worksheets[0];
-  const row = rowFor(ws, headerRowOf(ws), 'Bestman, Comfort K.');
+  const row = rowFor(ws, headerRowOf(ws), 'Bestman');
   assert.ok(row, 'the student should appear in the export');
 
   const exported = String(row['Final Grade']);
@@ -182,7 +182,7 @@ test('a blank exam exports the letter I', async () => {
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
 
   const wb = await readBack(file);
-  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Karnga, Esther');
+  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Karnga');
   assert.equal(row['Letter Grade'], 'I');
   store.close();
 });
@@ -193,7 +193,7 @@ test('a blank raw score exports as blank, not as zero', async () => {
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
 
   const wb = await readBack(file);
-  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Karnga, Esther');
+  const row = rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Karnga');
   // Bob's Project was never entered.
   assert.ok(
     row['Project'] === null || row['Project'] === undefined || row['Project'] === '',
@@ -253,11 +253,11 @@ test('the summary export holds ID, name, final grade and letter only', async () 
   // The identity block is the administration's four columns, then the joined
   // name, so the summary can be handed back in the format it was issued in.
   assert.deepEqual(headers, [
-    'No.', 'Student ID', 'Last Name', 'First Name', 'Middle Name', 'FullName',
+    'No.', 'Student ID', 'Last Name', 'First Name', 'Middle Name',
     'Final Grade', 'Letter Grade',
   ]);
 
-  const row = rowFor(ws, headerRowOf(ws), 'Bestman, Comfort K.');
+  const row = rowFor(ws, headerRowOf(ws), 'Bestman');
   assert.equal(row['Student ID'], '10001');
   assert.equal(row['Last Name'], 'Bestman');
   assert.equal(row['First Name'], 'Comfort');
@@ -278,7 +278,7 @@ test('an archived semester still exports', async () => {
   const file = path.join(tmpDir, 'archived.xlsx');
   await exportGradeRecord(computeCourse(store, course.id, tables), file);
   const wb = await readBack(file);
-  assert.ok(rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Bestman, Comfort K.'));
+  assert.ok(rowFor(wb.worksheets[0], headerRowOf(wb.worksheets[0]), 'Bestman'));
   store.close();
 });
 
@@ -372,13 +372,13 @@ test('a student not on the official roster is highlighted in the export', async 
   const hr = headerRowOf(ws);
   let nameCol = null;
   ws.getRow(hr).eachCell((cell, col) => {
-    if (String(cell.value ?? '').trim() === 'FullName') nameCol = col;
+    if (String(cell.value ?? '').trim() === 'Last Name') nameCol = col;
   });
-  assert.ok(nameCol, 'the sheet should have a FullName column');
+  assert.ok(nameCol, 'the sheet should have a Last Name column');
 
   let row = null;
   for (let r = hr + 1; r <= ws.rowCount; r++) {
-    if (String(ws.getRow(r).getCell(nameCol).value ?? '').trim() === 'Bestman, Comfort K.') {
+    if (String(ws.getRow(r).getCell(nameCol).value ?? '').trim() === 'Bestman') {
       row = r;
       break;
     }
@@ -421,7 +421,7 @@ test('attendance exports with readable dates and a score', async () => {
   assert.ok(headers.some((h) => /Score \/10/.test(h)));
 
   // Alice: one P and one E over two sessions is 7.5, recorded as 8.
-  const row = rowFor(ws, 5, 'Bestman, Comfort K.');
+  const row = rowFor(ws, 5, 'Bestman');
   assert.equal(row['Sept. 2, 2026'], 'P');
   assert.equal(row['Sept. 9, 2026'], 'E');
   assert.equal(row['Score /10'], 8);
@@ -642,7 +642,7 @@ test('the summary agrees with the grade record for a 20-point course', async () 
 
   const wb = await readBack(summaryFile);
   const ws = wb.worksheets[0];
-  const row = rowFor(ws, headerRowOf(ws), 'Bestman, Comfort K.');
+  const row = rowFor(ws, headerRowOf(ws), 'Bestman');
   // The two sheets must never disagree: both render the same computed result.
   assert.equal(row['Final Grade'], result.students[0].finalGradeDisplay);
   assert.equal(row['Letter Grade'], result.students[0].letter);

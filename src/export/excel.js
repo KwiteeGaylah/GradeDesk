@@ -117,18 +117,17 @@ function buildGradeRecord(workbook, result) {
   // final grade, letter.
   //
   // The identity block is the administration's four columns in their order,
-  // plus the row number and the joined name. Both spellings are exported on
-  // purpose: the parts are what the administration's own systems expect back,
-  // and FullName is what a person reads down the page. ID_COLUMNS is used
-  // everywhere a loop needs to know where the scores start, so widening this
-  // block cannot leave a stray "column 4" behind.
+  // plus the row number. The joined name is NOT exported beside them: it says
+  // the same thing twice, and a sheet that carries both invites the two to be
+  // edited apart. ID_COLUMNS is used everywhere a loop needs to know where the
+  // scores start, so changing this block cannot leave a stray "column 4"
+  // behind.
   const columns = [];
   columns.push({ key: 'no', header: 'No.', width: 5 });
   columns.push({ key: 'id', header: 'Student ID', width: 12 });
   columns.push({ key: 'last', header: 'Last Name', width: 18 });
   columns.push({ key: 'first', header: 'First Name', width: 16 });
   columns.push({ key: 'middle', header: 'Middle Name', width: 14 });
-  columns.push({ key: 'name', header: 'FullName', width: 28 });
   const ID_COLUMNS = columns.length;
 
   const midStart = columns.length + 1;
@@ -271,7 +270,6 @@ function buildGradeRecord(workbook, result) {
       last: row.student.last_name || '',
       first: row.student.first_name || '',
       middle: row.student.middle_name || '',
-      name: row.student.full_name || '',
     };
     row.midterm.assessments.forEach((a) => {
       values[`m_raw_${a.assessment.id}`] = num(a.raw);
@@ -318,7 +316,9 @@ function buildGradeRecord(workbook, result) {
         cell.fill = FILL_FLAGGED;
         cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
       }
-      const nameCell = ws.getCell(excelRow.number, ID_COLUMNS);
+      // On the surname, not the last identity column: that is Middle Name now,
+      // which is blank for plenty of students and a poor place for a note.
+      const nameCell = ws.getCell(excelRow.number, 3);
       nameCell.note = row.student.note
         ? `Not on the official roster yet. ${row.student.note}`
         : 'Not on the official roster yet.';
@@ -397,12 +397,11 @@ function buildSummary(workbook, result) {
     { key: 'last', width: 18 },
     { key: 'first', width: 16 },
     { key: 'middle', width: 14 },
-    { key: 'name', width: 30 },
     { key: 'grade', width: 14 },
     { key: 'letter', width: 12 },
   ];
   /** Columns before the grade: the identity block. */
-  const ID_COLUMNS = 6;
+  const ID_COLUMNS = 5;
 
   ws.mergeCells(1, 1, 1, ID_COLUMNS + 2);
   const title = ws.getCell(1, 1);
@@ -428,7 +427,7 @@ function buildSummary(workbook, result) {
 
   const headerRow = 5;
   [
-    'No.', 'Student ID', 'Last Name', 'First Name', 'Middle Name', 'FullName',
+    'No.', 'Student ID', 'Last Name', 'First Name', 'Middle Name',
     'Final Grade', 'Letter Grade',
   ].forEach((h, i) => {
     const cell = ws.getCell(headerRow, i + 1);
@@ -443,7 +442,6 @@ function buildSummary(workbook, result) {
       last: row.student.last_name || '',
       first: row.student.first_name || '',
       middle: row.student.middle_name || '',
-      name: row.student.full_name || '',
       grade: row.finalGradeDisplay || '',
       letter: row.letter,
     });
@@ -467,7 +465,7 @@ function buildSummary(workbook, result) {
         cell.fill = FILL_FLAGGED;
         cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
       }
-      ws.getCell(excelRow.number, ID_COLUMNS).note = row.student.note
+      ws.getCell(excelRow.number, 3).note = row.student.note
         ? `Not on the official roster yet. ${row.student.note}`
         : 'Not on the official roster yet.';
     }
@@ -522,7 +520,7 @@ function buildAttendance(workbook, result, register) {
     const label = termKey === 'midterm' ? 'Mid-Term' : 'Final-Term';
     // The identity block matches the other two sheets: the administration's
     // four columns, plus the row number and the joined name.
-    const ID_COLUMNS = 6;
+    const ID_COLUMNS = 5;
     const ws = workbook.addWorksheet(`Attendance ${label}`, {
       views: [{ state: 'frozen', xSplit: ID_COLUMNS, ySplit: 5 }],
       pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
@@ -539,7 +537,6 @@ function buildAttendance(workbook, result, register) {
       { width: 18 },
       { width: 16 },
       { width: 14 },
-      { width: 26 },
       ...term.sessions.map(() => ({ width: 12 })),
       { width: 11 },
       { width: 12 },
@@ -584,7 +581,6 @@ function buildAttendance(workbook, result, register) {
       'Last Name',
       'First Name',
       'Middle Name',
-      'FullName',
       ...term.sessions.map((s) => formatDate(s.date)),
       `Score /${points}`,
       'Transmuted',
@@ -617,7 +613,6 @@ function buildAttendance(workbook, result, register) {
         row.student.last_name || '',
         row.student.first_name || '',
         row.student.middle_name || '',
-        row.student.full_name || '',
         ...term.sessions.map((_, j) => marks[j] || ''),
         computed && computed.raw !== null && computed.raw !== undefined ? computed.raw : null,
         computed ? computed.transmuted : null,
@@ -656,7 +651,7 @@ function buildAttendance(workbook, result, register) {
           cell.fill = FILL_FLAGGED;
           cell.font = { size: 10, bold: true, color: { argb: 'FF8A5A10' } };
         }
-        ws.getCell(excelRow.number, ID_COLUMNS).note = row.student.note
+        ws.getCell(excelRow.number, 3).note = row.student.note
           ? `Not on the official roster yet. ${row.student.note}`
           : 'Not on the official roster yet.';
       }
