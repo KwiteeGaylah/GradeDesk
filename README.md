@@ -151,7 +151,7 @@ A four-step wizard on first run, and a full guide you can open at any time.
 
 ## Install on another PC
 
-You need one file: **`GradeDesk-Setup-1.2.1.exe`**.
+You need one file: **`GradeDesk-Setup-1.2.2.exe`**.
 
 1. **Copy the installer** onto a flash drive, or download it from the
    [Releases page](https://github.com/KwiteeGaylah/GradeDesk/releases).

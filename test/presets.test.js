@@ -114,3 +114,16 @@ test('the renderer copy of the presets matches the engine', () => {
     'run `npm run build:presets` after changing src/engine/presets.js'
   );
 });
+
+test('the safe point list includes every maximum all three tables share', () => {
+  // SAFE_POINTS excluded 20 only because the 70% table had no such column. It
+  // has one now, so the list must not keep a stale hole in it: a preset row is
+  // limited to these values, and they are what the wizard offers.
+  const shared = POLICIES.reduce((acc, policy) => {
+    const maxes = tables.supportedMaximums(policy);
+    return acc === null ? maxes : acc.filter((m) => maxes.includes(m));
+  }, null);
+  assert.deepEqual([...SAFE_POINTS].sort((a, b) => a - b), shared,
+    'SAFE_POINTS should be exactly the maximums every policy supports');
+  assert.ok(SAFE_POINTS.includes(20), '20 points is available in every table now');
+});

@@ -910,6 +910,18 @@ function matchesQuery(student, query) {
   return fields.some((f) => String(f || '').toLowerCase().includes(q));
 }
 
+/**
+ * Join a list the way a person writes one: "a", "a and b", "a, b and c".
+ *
+ * Used for the reconstructed point values, which is a list of one today. It is
+ * written generally so that adding a second one never produces "20 and 35 and 40".
+ */
+function listPhrase(items) {
+  const list = (items || []).map(String).filter(Boolean);
+  if (list.length <= 1) return list[0] || '';
+  return `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
+
 /** "12 students", or "4 of 12" when a search is narrowing the list. */
 function countText(visible, total) {
   return visible === total
@@ -2037,23 +2049,29 @@ async function renderConfig(content, course) {
   const note = el('div', { class: 'note' },
     'Class standing is the ', el('b', {}, 'equal-weight average'), ' of the assessments below × 0.6. ',
     'Add or remove as you like. You never have to redo the weights. ',
-    `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`,
-    derived.length
-      ? el('div', { class: 'hint' },
-          `${derived.join(' and ')} ${derived.length === 1 ? 'points is' : 'points are'} `,
-          el('b', {}, 'worked out'),
-          ` rather than copied from the ${course.policy}% table, which does not list `,
-          `${derived.length === 1 ? 'it' : 'them'}. It follows the same pattern as the rest `,
-          'of the table. Check one result against your printed table before you submit.')
-      : null
+    `Each point value must match a real column in the ${course.policy}% table (${maximums.join(', ')}).`
   );
+
+  // A separate note, not nested inside the one above: a hint inside a note
+  // inherits neither colour cleanly, and this is its own piece of information.
+  // Only shown when the active policy actually has a reconstructed column.
+  const derivedNote = derived.length
+    ? el('div', { class: 'note warn' },
+        el('b', {}, listPhrase(derived.map((m) => `${m} points`))),
+        derived.length === 1 ? ' is ' : ' are ',
+        el('b', {}, 'worked out'),
+        ` rather than copied from the ${course.policy}% table, which does not list `,
+        derived.length === 1 ? 'it' : 'them',
+        `. ${derived.length === 1 ? 'It follows' : 'They follow'} the same pattern as the `,
+        'rest of the table. Check one result against your printed table before you submit.')
+    : null;
 
   const panels = el('div', { class: 'panelgrid' },
     termPanel('midterm', 'Midterm term', course, maximums, derived),
     termPanel('final', 'Final term', course, maximums, derived)
   );
 
-  setChildren(content, kpis, courseFields, note, panels);
+  setChildren(content, kpis, courseFields, note, derivedNote, panels);
 }
 
 function field(label, value, onSave) {

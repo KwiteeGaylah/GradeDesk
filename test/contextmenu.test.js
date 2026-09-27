@@ -132,3 +132,53 @@ test('menu items close the menu themselves', () => {
     'an item closes the menu before running its action'
   );
 });
+
+// ------------------- the reconstructed-column notice -----------------------
+
+/**
+ * The 70% 20-point column is derived rather than copied from the university
+ * table, so it must say so where it is chosen. These are source-level checks,
+ * like the rest of this file: the renderer has no module system and cannot be
+ * required. The rendered result was verified by driving the real app.
+ */
+
+test('the derived-column notice is its own note, not nested inside another', () => {
+  // A .hint inside a .note inherits neither colour cleanly: it rendered grey on
+  // the green note background while the text around it was dark green.
+  const start = APP.indexOf('const derivedNote = derived.length');
+  assert.ok(start > 0, 'renderConfig should build a derivedNote');
+  const block = APP.slice(start, start + 900);
+  assert.match(block, /class: 'note warn'/, 'it is a warning note in its own right');
+  assert.ok(!/class: 'hint'/.test(block), 'and not a hint nested in the note above it');
+});
+
+test('the derived-column notice is only built when there is one', () => {
+  // A 60% course has no derived column and must show no notice at all.
+  const start = APP.indexOf('const derivedNote = derived.length');
+  const block = APP.slice(start, start + 900);
+  assert.match(block, /derived\.length\s*\?/, 'guarded on there being a derived column');
+  assert.match(block, /:\s*null/, 'and nothing is rendered otherwise');
+});
+
+test('the derived-column notice reads correctly for one or many', () => {
+  const start = APP.indexOf('const derivedNote = derived.length');
+  const block = APP.slice(start, start + 900);
+  // Singular/plural is chosen rather than hardcoded, so a second derived column
+  // cannot produce "20 and 35 points is worked out".
+  assert.match(block, /derived\.length === 1 \? ' is ' : ' are '/);
+  assert.match(block, /It follows|They follow/);
+  assert.match(block, /listPhrase\(/, 'the values are joined as a readable list');
+});
+
+test('listPhrase joins a list the way a person writes one', () => {
+  // Extracted and evaluated, so the helper itself is exercised rather than
+  // just asserted to exist.
+  const src = APP.slice(APP.indexOf('function listPhrase'));
+  const body = src.slice(0, src.indexOf('\n}') + 2);
+  // eslint-disable-next-line no-new-func
+  const listPhrase = new Function(`${body}; return listPhrase;`)();
+  assert.equal(listPhrase([]), '');
+  assert.equal(listPhrase(['20 points']), '20 points');
+  assert.equal(listPhrase(['20', '35']), '20 and 35');
+  assert.equal(listPhrase(['20', '35', '40']), '20, 35 and 40');
+});

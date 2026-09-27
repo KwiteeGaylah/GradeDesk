@@ -17,8 +17,11 @@
 /**
  * The point maxima that exist in every published table, so a preset never
  * lands on a column some policy is missing. Checked by a test.
+ *
+ * 20 is included: it was left out only because the 70% table had no 20-point
+ * column, and that column now exists (see DERIVED_MAXIMUMS in policy.js).
  */
-const SAFE_POINTS = [5, 10, 15, 25, 30, 35, 40, 45, 50];
+const SAFE_POINTS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50];
 
 const PRESETS = [
   {
