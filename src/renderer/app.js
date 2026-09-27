@@ -1322,13 +1322,21 @@ async function renderGradeEntry(content, course, policyInfo) {
         el('td', { class: 'sid cellpad', text: row.student.student_id || '' }),
         el('td', {
           class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
+          // With the flag reduced to a dot, the tooltip is what explains it, so
+          // it carries the name as well as the reason.
           title: row.student.unofficial
-            ? `Not on the official roster${row.student.note ? `: ${row.student.note}` : ''}`
+            ? `${row.student.full_name || 'This student'} is not on the official roster yet`
+              + `${row.student.note ? `: ${row.student.note}` : ''}`
             : row.student.full_name || '',
         },
           row.student.full_name || '',
           row.student.unofficial
-            ? el('span', { class: 'offroster', title: 'Not on the official roster yet' }, 'not on roster')
+            ? el('span', {
+                class: 'offroster',
+                role: 'img',
+                'aria-label': 'Not on the official roster yet',
+                title: 'Not on the official roster yet',
+              })
             : null),
         ...entryCells,
         el('td', { class: 'read col-secondary', dataset: { role: 'cs' }, text: show(term.classStanding) }),
@@ -1353,13 +1361,42 @@ async function renderGradeEntry(content, course, policyInfo) {
 
   renderGradeRows();
 
+  // The grid scrolls inside its own card so the column headings can stay put
+  // above the rows. A class runs well past one screen, and a grid of unlabelled
+  // boxes is how a mark ends up in the wrong assessment.
+  const table = el('table', { class: `entrytable${showTransmuted ? ' with-trans' : ''}` }, thead, tbody);
+  const card = el('div', { class: 'gridcard entrygrid haspeer' }, table);
+
+  // A second scrollbar above the grid, driving the same box. With fifty
+  // students the bottom of the table is nowhere near the bottom of the window,
+  // so the usual one is out of reach until you scroll the whole class.
+  const scrollerInner = el('div');
+  const scroller = el('div', { class: 'scrollpeer' }, scrollerInner);
+  let syncing = false;
+  const mirror = (from, to) => {
+    if (syncing) return;
+    syncing = true;
+    to.scrollLeft = from.scrollLeft;
+    syncing = false;
+  };
+  scroller.addEventListener('scroll', () => mirror(scroller, card));
+  card.addEventListener('scroll', () => mirror(card, scroller));
+  // Match the strip's width to the table, and hide it when nothing overflows.
+  const sizeScroller = () => {
+    scrollerInner.style.width = `${table.scrollWidth}px`;
+    scroller.style.display = card.scrollWidth > card.clientWidth + 1 ? '' : 'none';
+    card.classList.toggle('haspeer', scroller.style.display !== 'none');
+  };
+  requestAnimationFrame(sizeScroller);
+  window.addEventListener('resize', sizeScroller);
+
   setChildren(content,
     termSwitch,
     bar,
     policyWarn,
     note,
-    el('div', { class: 'gridcard' },
-      el('table', { class: `entrytable${showTransmuted ? ' with-trans' : ''}` }, thead, tbody)),
+    scroller,
+    card,
     el('div', { class: 'legend' },
       el('span', {}, el('span', { class: 'k k-entry' }), 'Editable raw score'),
       showTransmuted
@@ -1725,13 +1762,21 @@ async function renderAttendance(content, course) {
       el('td', { class: 'idx', text: row.student.number ?? i + 1 }),
       el('td', {
         class: `name cellpad${row.student.unofficial ? ' unofficial' : ''}`,
+        // The same compact mark as the grade screen: words beside the name
+        // pushed longer ones out of the cell.
         title: row.student.unofficial
-          ? `Not on the official roster${row.student.note ? `: ${row.student.note}` : ''}`
+          ? `${row.student.full_name || 'This student'} is not on the official roster yet`
+            + `${row.student.note ? `: ${row.student.note}` : ''}`
           : row.student.full_name,
       },
         row.student.full_name,
         row.student.unofficial
-          ? el('span', { class: 'offroster', title: 'Not on the official roster yet' }, 'not on roster')
+          ? el('span', {
+              class: 'offroster',
+              role: 'img',
+              'aria-label': 'Not on the official roster yet',
+              title: 'Not on the official roster yet',
+            })
           : null),
       ...cells,
       rawCell,

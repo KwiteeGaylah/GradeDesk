@@ -155,7 +155,7 @@ A four-step wizard on first run, and a full guide you can open at any time.
 
 ## Install on another PC
 
-You need one file: **`GradeDesk-Setup-1.6.0.exe`**.
+You need one file: **`GradeDesk-Setup-1.6.1.exe`**.
 
 1. **Copy the installer** onto a flash drive, or download it from the
    [Releases page](https://github.com/KwiteeGaylah/GradeDesk/releases).
@@ -240,7 +240,7 @@ difference:
 
 | File | Size | What it is | Use it? |
 |---|---|---|---|
-| `dist/GradeDesk-Setup-1.0.0.exe` | ~119 MB | **The installer.** One self-contained file. Installs the app properly, with shortcuts and an uninstaller. | ✅ **This is the one to share.** |
+| `dist/GradeDesk-Setup-<version>.exe` | ~119 MB | **The installer.** One self-contained file. Installs the app properly, with shortcuts and an uninstaller. | ✅ **This is the one to share.** |
 | `dist/win-unpacked/GradeDesk.exe` | ~235 MB | The unpacked app. It only runs from inside the `win-unpacked` folder, alongside the 17 other files it needs. | ❌ Build output. Copying it alone will not work. |
 
 If you are giving GradeDesk to another instructor, send them the **Setup** file.
@@ -388,7 +388,7 @@ npm test               # the full suite
 npm run dist           # build the installer into dist/
 ```
 
-The installer lands at `dist/GradeDesk-Setup-1.0.0.exe`.
+The installer lands at `dist/GradeDesk-Setup-<version>.exe`.
 
 To run the 167-student verification test you need the instructor's own workbook
 at `data/`, since it is deliberately not in the repository. Every other test
