@@ -74,7 +74,7 @@ const GUIDE_SECTIONS = [
   {
     id: 'roster',
     title: 'Your class list',
-    lead: 'Type it once, or paste it if you already have it somewhere.',
+    lead: 'Import the roster PDF, paste a list you already have, or type it once.',
     blocks: [
       { type: 'text', text:
         'The columns are the same four the official class list from administration ' +
@@ -82,6 +82,22 @@ const GUIDE_SECTIONS = [
         'Open Roster and start typing. Enter or Tab moves to the next box, and a new ' +
         'row appears when you fill the last one, so you can keep going without ' +
         'reaching for the mouse.' },
+      { type: 'steps', title: 'The quickest way: import the roster PDF', items: [
+        ['Print the roster to PDF', 'Open your class roster in Smart School Online and print it, choosing "Save as PDF".'],
+        ['Click "Import PDF"', 'On the Roster screen, then choose the file you saved.'],
+        ['Check the preview', 'Every student is listed with what will happen to them before anything is saved.'],
+        ['Import', 'Your empty rows are filled first, and the rest are added after them.'],
+      ] },
+      { type: 'text', text:
+        'Only the four roster columns are taken. The email and phone number printed ' +
+        'beside each student stay in the PDF and never come into GradeDesk. A student ' +
+        'already on your list is left alone, so importing the same roster again adds ' +
+        'nobody twice. If the PDF is for a different course or section than the one ' +
+        'you have open, the preview says so and asks before going ahead.' },
+      { type: 'warn', text:
+        'A scanned or photographed list cannot be imported, because there is no text ' +
+        'in it to read, only a picture. Use the PDF printed from Smart School Online, ' +
+        'or paste the list instead.' },
       { type: 'text', text:
         'If you already have the list, use "Paste list" and paste it straight in. ' +
         'Copying out of Excel separates the columns for you. Before anything is added ' +

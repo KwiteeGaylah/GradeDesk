@@ -176,7 +176,7 @@ natural. The mockup shows exactly this — study `GradeDesk_Mockup.html`.
 | Attendance denominator | Sessions marked so far, not planned total. |
 | Transmutation source | Lookup table from JSON, snap-down match, blank = 50. |
 | Platform | Windows desktop, offline. |
-| Roster input | Typed grid. No Excel import in v1. |
+| Roster input | Typed grid, pasted list, or the Smart School Online roster PDF (read by text position, never OCR). No Excel import in v1. |
 
 ---
 

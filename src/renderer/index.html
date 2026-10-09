@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:;">
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self';">
   <title>GradeDesk</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -11,28 +11,47 @@
   <div class="app">
     <aside class="rail">
       <div class="brand">
-        <h1>GradeDesk</h1>
-        <div class="tag">Your grade sheet, offline</div>
+        <svg class="mark" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+          <rect width="34" height="34" rx="9" fill="#1e2a44"></rect>
+          <path d="M9 12h16M9 17h10M9 22h7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"></path>
+          <path d="M20 22.5l2.4 2.4 4.6-5.4" stroke="#7fd1c3" stroke-width="2.2" fill="none"
+                stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+        <div>
+          <h1>GradeDesk</h1>
+          <div class="tag">Your grade sheet, offline</div>
+        </div>
       </div>
 
       <div class="sem">
-        <label for="semesterSelect">Active semester</label>
+        <label for="semesterSelect">Semester</label>
         <select id="semesterSelect"></select>
       </div>
 
       <div class="railscroll">
         <div class="navsec">Courses</div>
-        <nav id="courseNav"></nav>
-        <div class="navsec">This course</div>
-        <nav id="screenNav"></nav>
+        <nav id="courseNav" aria-label="Courses"></nav>
       </div>
 
       <div class="railfoot">
         <button class="railbtn" id="helpBtn" title="How to use GradeDesk">
-          <span class="ico">?</span> Guide
+          <span class="ico">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"></path>
+              <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5"></path>
+            </svg>
+          </span> Guide
         </button>
         <button class="railbtn" id="settingsBtn" title="Semesters and backups">
-          <span class="ico">&#9881;</span> Manage
+          <span class="ico">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 4h18v4H3z"></path>
+              <path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8"></path>
+              <path d="M10 12h4"></path>
+            </svg>
+          </span> Manage
         </button>
         <div class="foot" id="saveStatus">Saved on this computer</div>
       </div>
@@ -49,6 +68,7 @@
         </div>
         <div id="topActions"></div>
       </div>
+      <nav class="screentabs" id="screenTabs" aria-label="Course screens"></nav>
       <div class="content" id="content"></div>
     </main>
   </div>

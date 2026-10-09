@@ -16,6 +16,7 @@ const transmutation = require('./transmutation');
 const grades = require('./grades');
 const policy = require('./policy');
 const roster = require('./roster');
+const rosterPdf = require('./roster-pdf');
 const dates = require('./dates');
 const presets = require('./presets');
 
@@ -24,6 +25,7 @@ module.exports = {
   ...grades,
   ...policy,
   ...roster,
+  ...rosterPdf,
   ...dates,
   ...presets,
 };

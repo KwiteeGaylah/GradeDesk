@@ -24,6 +24,8 @@ const {
   isDerivedMaximum,
   DEFAULT_POLICY,
   parseRosterText,
+  parseRosterPdf,
+  rosterCourseCheck,
   formatDate,
   formatDateShort,
   formatDateForFilename,
@@ -35,6 +37,7 @@ const {
   exportAttendance,
   exportRosterTemplate,
 } = require('./export/excel');
+const { readPdfText } = require('./import/pdf');
 
 const TABLES_JSON = path.join(__dirname, '..', 'data', 'transmutation_tables.json');
 
@@ -131,7 +134,8 @@ function runSmokeCheck(win) {
              rail: !!document.querySelector('.rail'),
              semesters: document.querySelectorAll('#semesterSelect option').length,
              courseLinks: document.querySelectorAll('#courseNav a').length,
-             screenLinks: document.querySelectorAll('#screenNav a').length,
+             // A course's screens are the tabs under its heading.
+             screenLinks: document.querySelectorAll('#screenTabs a').length,
              title: document.getElementById('screenTitle').textContent,
              content: document.getElementById('content').textContent.trim().slice(0, 100)
            }))()`
@@ -257,6 +261,50 @@ function registerHandlers() {
   handle('students:add', (courseId, row) => store.addStudent(courseId, row));
   handle('students:addMany', (courseId, rows) => store.addStudents(courseId, rows));
   handle('students:parsePaste', (text) => parseRosterText(text));
+
+  // Read the class roster PDF printed from Smart School Online. Nothing is
+  // saved here: the instructor sees what was read, and where each student will
+  // go, before students:importRows changes anything.
+  handle('students:readPdf', async (courseId) => {
+    const course = store.getCourse(courseId);
+    if (!course) throw new Error('That course no longer exists.');
+    const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose the class roster PDF',
+      properties: ['openFile'],
+      filters: [{ name: 'PDF document', extensions: ['pdf'] }],
+    });
+    if (canceled || !filePaths.length) return null;
+
+    const result = parseRosterPdf(await readPdfText(filePaths[0]));
+    if (!result.hasText) {
+      throw new Error(
+        'This PDF has no text in it, so it is probably a scan or a photo. ' +
+        'Open the class roster in Smart School Online, print it to PDF, and choose that file.'
+      );
+    }
+    if (!result.foundTable) {
+      throw new Error(
+        'No class list was found in this PDF. GradeDesk looks for the headings ' +
+        'Student ID, Last Name and First Name.'
+      );
+    }
+    if (!result.rows.length) throw new Error('The class list in this PDF has no students in it.');
+
+    const plan = store.planImport(courseId, result.rows);
+    const placed = new Map();
+    for (const { student, row } of plan.fill) placed.set(row, { action: 'fill', intoNumber: student.number });
+    for (const row of plan.add) placed.set(row, { action: 'add' });
+    for (const { row, reason } of plan.skip) placed.set(row, { action: 'skip', reason });
+
+    return {
+      fileName: path.basename(filePaths[0]),
+      meta: result.meta,
+      problems: result.problems,
+      courseCheck: rosterCourseCheck(result.meta, course),
+      rows: result.rows.map((row) => ({ ...row, ...placed.get(row) })),
+    };
+  });
+  handle('students:importRows', (courseId, rows) => store.importRoster(courseId, rows));
   handle('students:update', (id, fields) => store.updateStudent(id, fields));
   handle('students:delete', (id) => store.deleteStudent(id));
 

@@ -63,6 +63,11 @@ Type down a column with `Enter`, or across a row with `Tab`, whichever suits the
 pile of papers in front of you. The shaded columns work themselves out as you go.
 Use the term buttons to move between the midterm and the final term.
 
+The line above the grid keeps the class in view while you type: the class
+average, how many of the term's scores are in, how the letter grades are spread,
+and anything to check before you export. Each course's four screens are the tabs
+under its name.
+
 ![Grade entry](docs/images/grade-entry.png)
 
 ### Attendance
@@ -82,7 +87,17 @@ in the same order:
 |------------|-----------|------------|-------------|
 | 10001      | Bestman   | Comfort    | K.          |
 
-Type it once, or paste it straight from the list you were given — copying out of
+The quickest way in is **Import PDF**. Print your class roster from Smart School
+Online to PDF, choose the file, and GradeDesk reads every student off it. Before
+anything is saved it shows you each student and what will happen to them: your
+empty rows are filled first, the rest are added after them, anyone already on the
+list is left alone, and a roster for a different course or section is flagged.
+Only the four roster columns are taken — the email and phone number printed
+beside each student never come into GradeDesk.
+
+![Importing the roster PDF](docs/images/import-pdf.png)
+
+Or type it once, or paste it straight from the list you were given — copying out of
 Excel already separates the columns correctly. If you would rather start from a
 blank form, **Paste list → Download the sample Excel file** gives you the four
 columns laid out, ready to fill in. Keep the columns in that order: a list
@@ -142,6 +157,8 @@ A four-step wizard on first run, and a full guide you can open at any time.
   worked out and treated like any other assessment.
 - ✅ **Search and sort.** Find one student while you fix a score, or order the
   list by name, ID, score, grade or blanks first.
+- ✅ **Import the roster PDF.** Print the class roster from Smart School Online
+  to PDF and import it in one go, with a preview of every student first.
 - ✅ **Flag students not on the roster.** For anyone sitting in after a
   timetable clash or a late registration, until your addendum list goes in.
 - ✅ **Three exports.** Full grade record, summary sheet, and attendance. All
@@ -414,6 +431,7 @@ src/engine/       pure calculation, no UI and no I/O
   grades.js           class standing, term totals, final grade, letters
   policy.js           which policies may be offered, point validation
   roster.js           pasted class-list parsing, and name splitting/joining
+  roster-pdf.js       reading the roster PDF's text by position; import planning
   dates.js            date formatting, shared with the renderer
 src/data/         SQLite storage and the bridge to the engine
   schema.sql          the data model
@@ -421,6 +439,7 @@ src/data/         SQLite storage and the bridge to the engine
   gradebook.js        joins stored data to the engine; issue review
   backup.js           whole-database export and restore
 src/export/       Excel output in the WVSTU layout
+src/import/       pdf.js: the text and its position, read out of a roster PDF
 src/renderer/     the UI: left panel, grade entry, attendance, roster, config
   sorting.js          one definition of class-list sorting, shared by all screens
 src/main.js       Electron main process, owns the database and all IPC
@@ -430,7 +449,7 @@ The engine has no dependencies of its own and never touches the UI or the
 filesystem. That is what lets the verification test run the exact code the
 application runs, and a test asserts the separation stays true.
 
-**Built with** Electron, better-sqlite3 and ExcelJS. Electron because it ships a
+**Built with** Electron, better-sqlite3, ExcelJS and pdf.js. Electron because it ships a
 self-contained Windows installer that runs offline with no runtime
 prerequisites. SQLite because a single transactional file survives a power cut
 mid-write, which browser storage does not.
@@ -443,7 +462,7 @@ mid-write, which browser storage does not.
 npm test
 ```
 
-**140 tests**, covering:
+**307 tests**, covering:
 
 | Area | What it checks |
 |---|---|
@@ -453,9 +472,10 @@ npm test
 | Data safety | Kills the process mid-write and checks nothing is lost |
 | Export | Real `.xlsx` files written, reopened and read back |
 | Colour contrast | Every text pair clears WCAG AA, read from the stylesheet |
+| Roster PDF import | Every word lands in the right row and column, across pages |
 | Dates, roster parsing, policies, module wiring | |
 
-Plus **42 live UI checks** (`npm run uitest`) that drive the real application
+Plus **64 live UI checks** (`npm run uitest`) that drive the real application
 with real keyboard and mouse input and compare what is on screen against the
 engine.
 
@@ -486,7 +506,8 @@ anything in it you want.
 
 ## Scope
 
-v1 does one thing well. There is no Excel import, no per-student screen, no
+v1 does one thing well. The only import is the class roster PDF; there is no
+Excel import, no per-student screen, no
 statistics dashboard, no cloud and no multi-user access. Archived semesters stay
 readable and exportable.
 

@@ -65,7 +65,9 @@ async function drive(win, app) {
 
     const rail = await run(win, `({
       courses: document.querySelectorAll('#courseNav a').length,
-      title: document.getElementById('screenTitle').textContent,
+      // The course is the heading now; which screen is open is the active tab.
+      title: (document.querySelector('#screenTabs a.active') || {}).textContent,
+      heading: document.getElementById('screenTitle').textContent,
       // Every assessment in the term is a column now, rather than one being
       // chosen from a picker.
       entryHeads: [...document.querySelectorAll('#content thead th.th-entry')]
@@ -74,6 +76,7 @@ async function drive(win, app) {
     })`);
     check('course appears in the left rail', rail.courses >= 2, JSON.stringify(rail.courses));
     check('grade entry screen is showing', rail.title === 'Grade entry', rail.title);
+    check('the course is the heading', rail.heading === 'CSE 102 · Section 2', rail.heading);
     check(
       'every assessment in the term is its own entry column',
       rail.entryHeads.length >= 3 &&
@@ -508,6 +511,8 @@ async function drive(win, app) {
     check('a long dialog fits on screen', dlg.fitsOnScreen, JSON.stringify(dlg));
     check('the review dialog offers one dismiss button, not two',
       dlg.buttons.length === 1 && dlg.buttons[0] === 'Close', JSON.stringify(dlg.buttons));
+
+    await importRosterPdf(win);
   } catch (err) {
     check('driver completed without throwing', false, err.message);
   }
@@ -521,6 +526,134 @@ async function drive(win, app) {
   }
   console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
   app.exit(failed.length ? 1 : 0);
+}
+
+/**
+ * Import the roster PDF through the real button and dialog.
+ *
+ * The file picker is a native window no script can click through, so it is
+ * swapped for one that hands back an invented roster PDF; everything after
+ * that — reading the PDF, the preview, the import — is the real path. The
+ * course is deliberately the wrong section, so the warning is exercised too.
+ *
+ * Set GRADEDESK_UITEST_SHOTS to a folder to also save a picture of the preview.
+ */
+async function importRosterPdf(win) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { dialog } = require('electron');
+  const { writeRosterPdf } = require('../test/pdf-fixture');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gradedesk-uitest-pdf-'));
+  const file = path.join(dir, 'Class Roster.pdf');
+  writeRosterPdf(file); // CSE 101, Section 7, seven invented students
+  const realOpen = dialog.showOpenDialog;
+  dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] });
+
+  try {
+    // Three empty rows to fill, and one student already on the list.
+    const courseId = await run(win, `(async () => {
+      const api = window.gradedesk;
+      const semester = await api.semesters.active();
+      const c = await api.courses.create({
+        semesterId: semester.id, code: 'CSE 101', name: 'Introduction to Computers',
+        section: '12', policy: '70'
+      });
+      await api.students.addMany(c.id, [{}, {}, {}]);
+      await api.students.add(c.id, { studentId: 'TU-90005', lastName: 'Kollie', firstName: 'James' });
+      await loadAll();
+      state.courseId = c.id;
+      state.screen = 'roster';
+      renderRail();
+      await renderScreen();
+      return c.id;
+    })()`);
+
+    const preview = await run(win, `(async () => {
+      const button = [...document.querySelectorAll('#topActions .btn')]
+        .find(b => b.textContent.trim() === 'Import PDF');
+      if (!button) return { button: false };
+      button.click();
+      for (let i = 0; i < 80 && !document.querySelector('.modal .importtable'); i++) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      const m = document.querySelector('.modal');
+      if (!m) return { button: true, modal: false };
+      const rows = [...m.querySelectorAll('.importtable tbody tr')];
+      return {
+        button: true, modal: true,
+        warning: (m.querySelector('.note.warn') || {}).textContent || '',
+        chips: [...m.querySelectorAll('.importsummary .chip')].map(c => c.textContent),
+        rows: rows.length,
+        skipped: m.querySelectorAll('.importtable tr.previewskip').length,
+        flagged: m.querySelectorAll('.importtable tr.previewcheck').length,
+        cells: rows.map(r => [...r.children].map(td => td.textContent)),
+        confirm: m.querySelector('.actions .btn.primary').textContent.trim(),
+        text: m.textContent
+      };
+    })()`);
+
+    check('the roster offers Import PDF', preview.button, JSON.stringify(preview));
+    check('Import PDF opens a preview of the roster', preview.modal, JSON.stringify(preview));
+    if (!preview.modal) return;
+    check('the preview lists every student on the PDF', preview.rows === 7, String(preview.rows));
+    check('a roster for another section is warned about',
+      /Section 7/.test(preview.warning) && /Section 12/.test(preview.warning), preview.warning);
+    check('the wrong-section warning still lets you import',
+      preview.confirm === 'Import anyway', preview.confirm);
+    check('the preview says where students go',
+      JSON.stringify(preview.chips) ===
+        JSON.stringify(['3 empty rows filled', '3 students added', '1 already on your list']),
+      JSON.stringify(preview.chips));
+    check('a student already on the list is shown as skipped', preview.skipped === 1, String(preview.skipped));
+    check('a tidied name is highlighted for checking', preview.flagged === 1, String(preview.flagged));
+    check('the preview never shows email or phone',
+      !/@|0770000000/.test(preview.text), 'contact details appeared in the preview');
+    check('a middle name stays with its own student in the preview',
+      preview.cells.some(c => c[2] === 'Wleh' && c[4] === 'Deodor') &&
+        preview.cells.some(c => c[3] === 'Martha' && c[4] === ''),
+      JSON.stringify(preview.cells));
+
+    if (process.env.GRADEDESK_UITEST_SHOTS) {
+      const image = await win.webContents.capturePage();
+      fs.writeFileSync(path.join(process.env.GRADEDESK_UITEST_SHOTS, 'import-preview.png'), image.toPNG());
+    }
+
+    await run(win, `(async () => {
+      document.querySelector('.modal .actions .btn.primary').click();
+      for (let i = 0; i < 80 && document.querySelector('.modal'); i++) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      await new Promise(r => setTimeout(r, 600));
+    })()`);
+
+    const after = await run(win, `(async () => {
+      const list = await window.gradedesk.students.list(${courseId});
+      return {
+        names: list.map(s => s.full_name),
+        empty: list.filter(s => !s.full_name && !s.student_id).length,
+        onScreen: document.querySelectorAll('.rostertable tbody tr').length,
+        toast: (document.querySelector('.toast') || {}).textContent || ''
+      };
+    })()`);
+
+    check('importing leaves no empty rows behind', after.empty === 0, JSON.stringify(after));
+    check('importing adds each student once', after.names.length === 7, JSON.stringify(after.names));
+    check('a suffix is kept in the surname', after.names.includes('Doe, Jr., Marcus E.'),
+      JSON.stringify(after.names));
+    check('the roster screen shows the imported students', after.onScreen === 7, String(after.onScreen));
+    check('the import says what it did',
+      after.toast === 'Added 3 students, filled 3 empty rows, skipped 1 already on the list', after.toast);
+
+    if (process.env.GRADEDESK_UITEST_SHOTS) {
+      const image = await win.webContents.capturePage();
+      fs.writeFileSync(path.join(process.env.GRADEDESK_UITEST_SHOTS, 'import-done.png'), image.toPNG());
+    }
+  } finally {
+    dialog.showOpenDialog = realOpen;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 module.exports = { drive };
