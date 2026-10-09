@@ -80,6 +80,44 @@ function setChildren(container, ...children) {
   );
 }
 
+/**
+ * Line icons, drawn as SVG paths in a 24px box.
+ *
+ * Real drawings rather than the characters ✎ ◷ ☰ ⚙, which render differently
+ * in every font and read as decoration. Built with createElementNS because the
+ * Content Security Policy rules out inline markup and styles, and `el` makes
+ * HTML elements, which an SVG path is not.
+ */
+const ICONS = {
+  grades: ['M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z', 'M3 10h18', 'M9 4v16'],
+  attendance: ['M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z', 'M8 3v4M16 3v4M3 10h18', 'M9 15l2 2 4-4'],
+  roster: ['M9 4.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7z', 'M2.5 20c.8-3.5 3.4-5.5 6.5-5.5s5.7 2 6.5 5.5', 'M16 4.8a3.5 3.5 0 0 1 0 6.4', 'M18.5 14.8c1.6.8 2.6 2.6 3 5.2'],
+  config: ['M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12', 'M16 4a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM10 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM18 16a2 2 0 1 1 0 4 2 2 0 0 1 0-4z'],
+  course: ['M7 3h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M14 3v5h5', 'M9 13h6M9 17h4'],
+  plus: ['M12 5v14M5 12h14'],
+  download: ['M12 3v12', 'M7 10l5 5 5-5', 'M5 21h14'],
+  alert: ['M12 9v4M12 17h.01', 'M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'],
+  check: ['M5 12.5l4.5 4.5L19 7.5'],
+  pdf: ['M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 3v5h5', 'M12 11v6', 'M9 14l3 3 3-3'],
+  sheet: ['M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M9 8h6M9 12h6M9 16h3'],
+  paste: ['M9 4h6v3H9z', 'M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2'],
+};
+
+function icon(name, size = 16) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  for (const [k, v] of Object.entries({
+    width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.9', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  })) svg.setAttribute(k, String(v));
+  for (const d of ICONS[name] || []) {
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
 let toastTimer = null;
 function toast(message, kind = '') {
   document.querySelectorAll('.toast').forEach((t) => t.remove());
@@ -503,32 +541,56 @@ function renderRail() {
           await renderScreen();
         },
       },
-        el('span', { class: 'ico', text: '▤' }),
-        el('span', {}, `${c.code}${c.section ? ` · ${c.section}` : ''}`),
+        el('span', { class: 'ico' }, icon('course')),
+        // The code and section are how the course is picked out; the name
+        // beneath is how it is remembered.
+        el('span', { class: 'cname' },
+          el('span', { class: 'ctitle', text: `${c.code}${c.section ? ` · Sec ${c.section}` : ''}` }),
+          c.name ? el('span', { class: 'cdesc', text: c.name }) : null),
         el('span', { class: 'sub', text: `${c.policy}%` })
       )
     ),
-    el('a', { onclick: newCourse }, el('span', { class: 'ico', text: '＋' }), 'New course…')
+    el('a', { class: 'newcourse', onclick: newCourse }, el('span', { class: 'ico' }, icon('plus')), 'New course…')
   );
 
-  const screens = [
-    ['grades', '✎', 'Grade entry'],
-    ['attendance', '◷', 'Attendance'],
-    ['roster', '☰', 'Roster'],
-    ['config', '⚙', 'Assessments & policy'],
-  ];
   const help = $('helpBtn');
   if (help) help.classList.toggle('active', state.screen === 'guide');
-  setChildren($('screenNav'),
-    ...screens.map(([key, icon, label]) =>
+  renderScreenTabs();
+}
+
+/** The screens of a course, as the tabs under its heading. */
+const SCREENS = [
+  ['grades', 'Grade entry'],
+  ['attendance', 'Attendance'],
+  ['roster', 'Roster'],
+  ['config', 'Assessments & policy'],
+];
+
+function renderScreenTabs() {
+  const tabs = $('screenTabs');
+  // Only a course has screens. The guide and the empty states have none.
+  if (!currentCourse() || !state.activeSemester || state.screen === 'guide') {
+    setChildren(tabs);
+    return;
+  }
+  setChildren(tabs,
+    ...SCREENS.map(([key, label]) =>
       el('a', {
         class: state.screen === key ? 'active' : '',
+        'aria-current': state.screen === key ? 'page' : null,
+        tabindex: '0',
         onclick: async () => {
           state.screen = key;
           renderRail();
           await renderScreen();
         },
-      }, el('span', { class: 'ico', text: icon }), label)
+        onkeydown: (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.currentTarget.click();
+          }
+        },
+      }, el('span', { class: 'ico' }, icon(key)), label)
     )
   );
 }
@@ -877,6 +939,8 @@ async function renderScreen() {
   const content = $('content');
   const actions = $('topActions');
   setChildren(actions);
+  renderScreenTabs();
+  state.refreshSummary = null;
 
   // The guide is a page in its own right, not tied to a course or a semester,
   // so it is handled before any of the "nothing selected" states.
@@ -924,21 +988,19 @@ async function renderScreen() {
   }
 
   const policyInfo = state.policies.find((p) => p.policy === String(course.policy));
+  // The course is the heading; which of its screens is open is the tab below.
   setChildren($('crumbs'),
-    document.createTextNode(`${state.activeSemester.name} · ${course.code}`),
-    course.section ? document.createTextNode(` · Section ${course.section}`) : document.createTextNode(''),
+    document.createTextNode(state.activeSemester.name),
+    course.name ? document.createTextNode(` · ${course.name}`) : null,
     document.createTextNode(' · '),
     el('b', { text: `${course.policy}% policy` }),
-    !state.activeSemester.is_active ? document.createTextNode('  (archived)') : document.createTextNode('')
+    !state.activeSemester.is_active ? document.createTextNode('  (archived)') : null
   );
-
-  const titles = {
-    grades: 'Grade entry',
-    attendance: 'Attendance',
-    roster: 'Roster',
-    config: 'Assessments & policy',
-  };
-  $('screenTitle').textContent = titles[state.screen];
+  setChildren($('screenTitle'),
+    document.createTextNode(course.code),
+    course.section ? el('span', { class: 'dot', text: ' · ' }) : null,
+    course.section ? document.createTextNode(`Section ${course.section}`) : null
+  );
 
   // Export and issue review belong to the screens that show grades. On the
   // roster and the configuration screen they are noise, and on a narrow window
@@ -947,7 +1009,7 @@ async function renderScreen() {
     const issues = (state.computed && (await api.gradebook.issues(state.courseId))) || [];
     const errorCount = issues.filter((i) => i.severity !== 'info').length;
     const reviewBtn = el('button', {
-      class: 'btn',
+      class: `btn${errorCount ? ' attention' : ''}`,
       title: 'Things to check before you export',
       // Fetch fresh on click rather than reusing the list captured at render
       // time: scores change constantly between renders, and a stale review that
@@ -958,6 +1020,7 @@ async function renderScreen() {
         updateIssueCount(reviewBtn, current || []);
       },
     },
+      errorCount ? el('span', { class: 'ico' }, icon('alert', 15)) : null,
       'Review',
       el('span', { class: 'long', text: ' issues' }),
       errorCount ? ` (${errorCount})` : ''
@@ -974,6 +1037,7 @@ async function renderScreen() {
         : el('button', { class: 'btn', title: 'Export the summary sheet', onclick: exportSummaryFile },
             'Summary', el('span', { class: 'long', text: ' sheet' })),
       el('button', { class: 'btn primary', title: 'Export the full grade record', onclick: exportRecordFile },
+        el('span', { class: 'ico' }, icon('download', 15)),
         'Export', el('span', { class: 'long', text: ' grade sheet' }))
     );
   }
@@ -1171,19 +1235,38 @@ async function renderGradeEntry(content, course, policyInfo) {
     { score: true, grade: true }
   );
 
+  // The term switch shares the toolbar row: vertical space is what the grid
+  // needs most on a laptop.
   const bar = el('div', { class: 'entrybar' },
+    termSwitch,
     el('div', { class: 'pickgroup' }, transToggle),
     el('div', { class: 'spacer' }),
     filterBar
   );
 
-  const note = el('div', { class: 'note' },
+  const note = howTo('How grade entry works',
     'Every ', el('b', {}, termLabel.toLowerCase()), ' assessment is here at once. ',
     'Type across a row with ', el('b', {}, 'Tab'), ', or down a column with ',
     el('b', {}, 'Enter'), '. The arrow keys move either way, just like in Excel. ',
     'A blank counts as 50. Attendance works itself out from the register, and the ',
     'shaded columns work themselves out too.'
   );
+
+  const issues = (await guard(() => api.gradebook.issues(course.id), 'Reviewing')) || [];
+  let summary = gradeSummary(students, columns, termKind, termLabel, issues);
+  // Typing a score redraws only its row, so the strip is refreshed on its own
+  // after each save. It runs in the background and never holds up a keystroke.
+  state.refreshSummary = async () => {
+    try {
+      const fresh = gradeSummary(
+        (state.computed && state.computed.students) || students, columns, termKind, termLabel,
+        await api.gradebook.issues(course.id));
+      if (summary.isConnected) summary.replaceWith(fresh);
+      summary = fresh;
+    } catch {
+      // A summary a moment out of date is not worth interrupting entry over.
+    }
+  };
 
   const policyWarn = policyInfo && policyInfo.confidence !== 'grade-verified'
     ? el('div', { class: 'note warn' },
@@ -1404,7 +1487,7 @@ async function renderGradeEntry(content, course, policyInfo) {
   window.addEventListener('resize', sizeScroller);
 
   setChildren(content,
-    termSwitch,
+    summary,
     bar,
     policyWarn,
     note,
@@ -1422,6 +1505,94 @@ async function renderGradeEntry(content, course, policyInfo) {
       el('span', { class: 'narrow-only' }, 'Make the window wider to see class standing and term totals')
     )
   );
+}
+
+/**
+ * A screen's how-it-works text, folded behind one line.
+ *
+ * It was a two-line blue panel above every grid, read once and then in the way
+ * every time after. Folded, it costs one line and is still a click away.
+ */
+function howTo(label, ...children) {
+  return el('details', { class: 'howto' },
+    el('summary', { text: label }),
+    el('div', { class: 'note' }, ...children));
+}
+
+/** A figure for the summary strip: a label, the value, and a line beneath. */
+function summaryCard(label, value, sub, extra = {}) {
+  return el('div', { class: `scard${extra.kind ? ` ${extra.kind}` : ''}` },
+    el('div', { class: 'sl', text: label }),
+    value === null ? null : el('div', { class: 'sv' }, ...[].concat(value)),
+    extra.body || null,
+    sub ? el('div', { class: 'ss' }, ...[].concat(sub)) : null);
+}
+
+/** A thin progress bar, its fill set through the style object (CSP allows that). */
+function progressBar(fraction) {
+  const fill = el('span');
+  fill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
+  return el('div', { class: 'sbar' }, fill);
+}
+
+/** Two decimals, never rounded up: the same rule the final grade follows. */
+function truncate2(value) {
+  return (Math.floor(value * 100) / 100).toFixed(2);
+}
+
+/**
+ * The strip above the grade grid: how the class is doing and what is left.
+ * Everything here is read from the same computed rows the grid shows.
+ */
+function gradeSummary(students, columns, termKind, termLabel, issues) {
+  const finals = students.map((r) => r.finalGrade).filter((v) => Number.isFinite(v));
+  const average = finals.length ? finals.reduce((a, b) => a + b, 0) / finals.length : null;
+
+  // Scores still to type: every typed column (attendance fills itself in).
+  const typed = columns.filter((a) => a.kind !== 'attendance');
+  let filled = 0;
+  for (const row of students) {
+    for (const a of typed) {
+      const raw = a.kind === 'exam'
+        ? row[termKind].examRaw
+        : ((row[termKind].assessments || []).find((x) => x.assessment.id === a.id) || {}).raw;
+      if (raw !== null && raw !== undefined && raw !== '') filled += 1;
+    }
+  }
+  const expected = students.length * typed.length;
+
+  const order = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'];
+  const counts = Object.fromEntries(order.map((l) => [l, 0]));
+  for (const row of students) if (row.letter in counts) counts[row.letter] += 1;
+  const spread = el('div', { class: 'spread' },
+    ...order.filter((l) => counts[l]).map((l) => {
+      const seg = el('span', { class: `g${l}`, title: `${l}: ${counts[l]}` });
+      seg.style.flexGrow = String(counts[l]);
+      return seg;
+    }));
+  const key = el('div', { class: 'spreadkey' },
+    ...order.filter((l) => counts[l])
+      .map((l) => el('span', {}, el('b', { text: l }), ` ${counts[l]}`)));
+
+  const problems = issues.filter((i) => i.severity !== 'info');
+  const attention = problems.length
+    ? summaryCard('Before you export',
+        `${problems.length} thing${problems.length === 1 ? '' : 's'} to check`,
+        [problems[0].message, ' ',
+          el('button', { class: 'btn ghost small', onclick: () => showIssues(issues) }, 'Review')],
+        { kind: 'attention' })
+    : summaryCard('Before you export', 'Nothing to fix', 'Every student has a grade.', { kind: 'clear' });
+
+  return el('section', { class: 'summary', 'aria-label': 'This class at a glance' },
+    summaryCard('Class average',
+      average === null ? '—' : truncate2(average),
+      `Final grade across ${finals.length} student${finals.length === 1 ? '' : 's'}`),
+    summaryCard(`${termLabel} scores in`,
+      [String(filled), el('small', { text: ` of ${expected}` })],
+      null,
+      { body: progressBar(expected ? filled / expected : 0) }),
+    summaryCard('Grade spread', null, null, { body: el('div', { class: 'spreadwrap' }, spread, key) }),
+    attention);
 }
 
 /**
@@ -1540,6 +1711,7 @@ async function commitScore(input, studentId, assessment) {
   await refreshComputed();
   updateComputedColumns(assessment);
   refreshIssueBadge();
+  if (state.refreshSummary) state.refreshSummary();
 }
 
 /**
@@ -1653,7 +1825,7 @@ async function renderAttendance(content, course) {
     return;
   }
 
-  const note = el('div', { class: 'note' },
+  const note = howTo('How attendance is scored',
     'Click a cell to cycle ', el('b', {}, 'P'), ' (present, full) → ', el('b', {}, 'E'),
     ' (excused, half) → ', el('b', {}, 'A'), ' (absent, zero) → blank. ',
     `Attendance is graded on ${attendanceAssessment.max_points} points. `,
@@ -1803,7 +1975,16 @@ async function renderAttendance(content, course) {
 
   renderAttendanceRows();
 
+  let summary = attendanceSummary(sessions, marksByStudent);
+  // Marking a cell redraws only that cell, so the strip refreshes on its own.
+  state.refreshSummary = () => {
+    const fresh = attendanceSummary(sessions, marksByStudent);
+    if (summary.isConnected) summary.replaceWith(fresh);
+    summary = fresh;
+  };
+
   setChildren(content,
+    summary,
     termSwitch,
     note,
     // The button sits directly above the table rather than in the top action
@@ -1813,7 +1994,7 @@ async function renderAttendance(content, course) {
       el('span', { class: 'toolcount' },
         `${sessions.length} ${sessions.length === 1 ? 'class' : 'classes'} marked`),
       el('button', { class: 'btn primary', onclick: () => addSession(course, term) },
-        '＋ Record attendance'),
+        el('span', { class: 'ico' }, icon('plus', 15)), 'Record attendance'),
       el('div', { class: 'spacer' }),
       filterBar
     ),
@@ -1821,6 +2002,31 @@ async function renderAttendance(content, course) {
     el('div', { class: 'hint' },
       'It divides by the sessions you have actually marked, not the whole term, so the score is fair even halfway through.')
   );
+}
+
+/** The strip above the register: how many classes, how well attended. */
+function attendanceSummary(sessions, marksByStudent) {
+  const tally = { P: 0, E: 0, A: 0 };
+  for (const marks of marksByStudent.values()) {
+    for (const code of marks || []) if (code in tally) tally[code] += 1;
+  }
+  const marked = tally.P + tally.E + tally.A;
+  const rate = marked ? (tally.P + tally.E / 2) / marked : null;
+  const last = sessions.length ? sessions[sessions.length - 1].date : null;
+  const mark = (code, word) =>
+    el('span', { class: 'mkcount' }, el('span', { class: `mk ${code}`, text: code }), `${tally[code]} ${word}`);
+
+  return el('section', { class: 'summary', 'aria-label': 'Attendance at a glance' },
+    summaryCard('Classes marked', String(sessions.length),
+      last ? `Last on ${GradeDeskDates.formatDate(last)}` : 'None yet'),
+    summaryCard('Attendance rate',
+      rate === null ? '—' : `${Math.round(rate * 100)}%`,
+      null,
+      { body: progressBar(rate || 0) }),
+    summaryCard('Marks so far', null, null, {
+      body: el('div', { class: 'mkrow' },
+        mark('P', 'present'), mark('E', 'excused'), mark('A', 'absent')),
+    }));
 }
 
 const MARK_CYCLE = ['P', 'E', 'A', null];
@@ -1852,6 +2058,7 @@ async function cycleMark(
     row[register.sessionIndex] = next;
     register.marksByStudent.set(studentId, row);
   }
+  if (state.refreshSummary) state.refreshSummary();
 
   await refreshComputed();
 
@@ -1904,16 +2111,26 @@ async function removeSession(session) {
 async function renderRoster(content, course) {
   const students = await api.students.list(course.id);
 
+  // Importing the official PDF is the quickest way to a class list, so it is
+  // the primary action here; typing rows is the fallback.
   $('topActions').prepend(
-    el('button', { class: 'btn', onclick: () => pasteRoster(course) }, 'Paste list'),
-    el('button', { class: 'btn primary', onclick: () => addRosterRows(course, 5) }, '＋ Add rows')
+    el('button', { class: 'btn', onclick: () => addRosterRows(course, 5) },
+      el('span', { class: 'ico' }, icon('plus', 15)), 'Add rows'),
+    el('button', { class: 'btn', onclick: () => pasteRoster(course) },
+      el('span', { class: 'ico' }, icon('paste', 15)), 'Paste list'),
+    el('button', {
+      class: 'btn primary',
+      title: 'Read the class roster PDF printed from Smart School Online',
+      onclick: () => importRosterPdf(course),
+    }, el('span', { class: 'ico' }, icon('pdf', 15)), 'Import PDF')
   );
 
   if (!students.length) {
     setChildren(content, emptyState({
       icon: '☰',
       title: 'The class list is empty',
-      text: 'Add some rows and type each student’s ID and name, or paste a list you already have.',
+      text: 'Import the roster PDF from Smart School Online, paste a list you already have, ' +
+        'or add some rows and type each student’s ID and name.',
       actionLabel: '＋ Add rows',
       onAction: () => addRosterRows(course, 10),
     }));
@@ -1975,7 +2192,7 @@ async function renderRoster(content, course) {
     filterBar
   );
 
-  const note = el('div', { class: 'note' },
+  const note = howTo('How the class list works',
     'The columns match the official class list from administration: ',
     el('b', {}, 'Student ID, Last Name, First Name, Middle Name'), '. ',
     'Type it like a spreadsheet — Enter or Tab moves along, and a new row appears ',
@@ -2346,6 +2563,115 @@ async function pasteRoster(course) {
   await refreshComputed();
   await renderScreen();
   toast(`Added ${rows.length} student${rows.length === 1 ? '' : 's'}`);
+}
+
+/**
+ * Import the class roster PDF printed from Smart School Online.
+ *
+ * The PDF is read in the main process; nothing is saved until the instructor
+ * has seen every student it found and what will happen to each one. Empty rows
+ * are filled first, the rest are added after them, and anyone already on the
+ * list is left alone. Only the four roster columns are taken: the email and
+ * phone number printed beside each student are never read into GradeDesk.
+ */
+async function importRosterPdf(course) {
+  const found = await guard(() => api.students.readPdf(course.id), 'Reading the PDF');
+  if (!found) return;
+
+  const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+  const filling = found.rows.filter((r) => r.action === 'fill').length;
+  const adding = found.rows.filter((r) => r.action === 'add').length;
+  const skipping = found.rows.filter((r) => r.action === 'skip').length;
+  const tidied = found.rows.filter((r) => r.notes && r.notes.length).length;
+  const mismatch = found.courseCheck && !found.courseCheck.matches;
+
+  const what = (row) => {
+    const parts = [];
+    if (row.action === 'fill') parts.push(`Fills empty row ${row.intoNumber ?? ''}`.trim());
+    if (row.action === 'add') parts.push('Added');
+    if (row.action === 'skip') parts.push(`Skipped: ${row.reason}`);
+    for (const note of row.notes || []) parts.push(note);
+    return parts.join(' · ');
+  };
+
+  const body = el('div', {},
+    mismatch
+      ? el('div', { class: 'note warn' },
+          el('b', {}, 'Check this is the right roster. '),
+          `The PDF is for ${found.courseCheck.pdfLabel}, but you are adding to `,
+          `${found.courseCheck.courseLabel}.`)
+      : null,
+    el('div', { class: 'importsummary' },
+      filling ? el('span', { class: 'chip', text: `${plural(filling, 'empty row')} filled` }) : null,
+      adding ? el('span', { class: 'chip', text: `${plural(adding, 'student')} added` }) : null,
+      skipping
+        ? el('span', { class: 'chip muted', text: `${skipping} already on your list` })
+        : null),
+    found.problems.length
+      ? el('div', { class: 'note warn' },
+          el('b', {}, 'Some lines could not be read. '),
+          'Add these students by hand after importing:',
+          el('ul', {}, ...found.problems.map((p) => el('li', { text: p }))))
+      : null,
+    tidied
+      ? el('div', { class: 'hint importhint' },
+          `${plural(tidied, 'name')} had a stray comma on the official list and ` +
+          `${tidied === 1 ? 'was' : 'were'} tidied. ${tidied === 1 ? 'It is' : 'They are'} ` +
+          'highlighted below; you can correct anything on the roster afterwards.')
+      : null,
+    el('table', { class: 'previewtable importtable' },
+      el('thead', {}, el('tr', {},
+        el('th', { text: 'No.', class: 'ta-right' }),
+        el('th', { text: 'Student ID' }),
+        el('th', { text: 'Last name' }),
+        el('th', { text: 'First name' }),
+        el('th', { text: 'Middle name' }),
+        el('th', { text: 'What happens' })
+      )),
+      el('tbody', {}, ...found.rows.map((r) =>
+        el('tr', {
+          class: [
+            r.action === 'skip' ? 'previewskip' : '',
+            r.notes && r.notes.length ? 'previewcheck' : '',
+            !r.lastName ? 'previewbad' : '',
+          ].filter(Boolean).join(' '),
+        },
+          el('td', { class: 'ta-right', text: r.number ?? '' }),
+          el('td', { text: r.studentId || '—' }),
+          el('td', { text: r.lastName || '—' }),
+          el('td', { text: r.firstName || '—' }),
+          el('td', { text: r.middleName || '' }),
+          el('td', { class: 'importwhat', text: what(r) })
+        ))))
+  );
+
+  const toImport = filling + adding;
+  const ok = await modal({
+    title: 'Import the class roster',
+    subtitle: `${found.fileName} · ${plural(found.rows.length, 'student')} found`,
+    body,
+    wide: true,
+    cancelLabel: toImport ? 'Cancel' : null,
+    confirmLabel: !toImport
+      ? 'Close'
+      : mismatch
+        ? 'Import anyway'
+        : `Import ${plural(toImport, 'student')}`,
+    onConfirm: () => true,
+  });
+  if (!ok || !toImport) return;
+
+  const done = await guard(() => api.students.importRows(course.id, found.rows), 'Importing students');
+  if (!done) return;
+  await refreshComputed();
+  await renderScreen();
+  const parts = [];
+  if (done.added) parts.push(`added ${plural(done.added, 'student')}`);
+  if (done.filled) parts.push(`filled ${plural(done.filled, 'empty row')}`);
+  if (done.skipped) parts.push(`skipped ${done.skipped} already on the list`);
+  const message = parts.join(', ');
+  toast(message.charAt(0).toUpperCase() + message.slice(1));
+  saved('Roster imported');
 }
 
 async function removeStudent(student) {
@@ -3027,8 +3353,10 @@ async function changePolicy(course, newPolicy, selectEl) {
 function updateIssueCount(button, issues) {
   if (!button || !button.isConnected) return;
   const count = issues.filter((i) => i.severity !== 'info').length;
+  button.classList.toggle('attention', count > 0);
   setChildren(
     button,
+    count ? el('span', { class: 'ico' }, icon('alert', 15)) : null,
     document.createTextNode('Review'),
     el('span', { class: 'long', text: ' issues' }),
     count ? document.createTextNode(` (${count})`) : null

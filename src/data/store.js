@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const { joinName, splitName } = require('../engine/roster');
+const { planRosterImport } = require('../engine/roster-pdf');
 
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
 const SCHEMA_VERSION = '2';
@@ -369,6 +370,54 @@ class Store {
   /** Add many students at once, e.g. a typed or pasted roster. */
   addStudents(courseId, rows) {
     return this.transaction(() => rows.map((r) => this.addStudent(courseId, r)));
+  }
+
+  /**
+   * The course's students in roster order, each marked `hasWork` when a score
+   * or an attendance mark is recorded against them. An empty row with work on
+   * it is not a free row, whatever its name boxes say.
+   */
+  _studentsWithWork(courseId) {
+    const worked = new Set(
+      this.db
+        .prepare(
+          `SELECT s.id FROM students s
+            WHERE s.course_id = ?
+              AND (EXISTS (SELECT 1 FROM scores sc
+                            WHERE sc.student_id = s.id AND sc.raw_value IS NOT NULL)
+                OR EXISTS (SELECT 1 FROM marks m
+                            WHERE m.student_id = s.id AND m.code IS NOT NULL AND m.code != ''))`
+        )
+        .all(courseId)
+        .map((r) => r.id)
+    );
+    return this.listStudents(courseId).map((s) => ({ ...s, hasWork: worked.has(s.id) }));
+  }
+
+  /** Where an imported class list would go, without changing anything. */
+  planImport(courseId, rows) {
+    return planRosterImport(this._studentsWithWork(courseId), rows);
+  }
+
+  /**
+   * Import a class list: fill the empty rows first, add the rest after them,
+   * and skip anyone already in the course. All of it or none of it — the plan
+   * is worked out again inside the transaction, so it is made against the
+   * roster as it is now rather than as it was when the preview was shown.
+   */
+  importRoster(courseId, rows) {
+    return this.transaction(() => {
+      const plan = this.planImport(courseId, rows);
+      const parts = (row) => ({
+        studentId: row.studentId || '',
+        lastName: row.lastName || '',
+        firstName: row.firstName || '',
+        middleName: row.middleName || '',
+      });
+      for (const { student, row } of plan.fill) this.updateStudent(student.id, parts(row));
+      for (const row of plan.add) this.addStudent(courseId, parts(row));
+      return { filled: plan.fill.length, added: plan.add.length, skipped: plan.skip.length };
+    });
   }
 
   getStudent(id) {

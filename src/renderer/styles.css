@@ -1,4 +1,15 @@
-/* GradeDesk UI. Structure and palette follow docs/GradeDesk_Mockup.html. */
+/* GradeDesk UI — "Quiet Ledger". Calm paper, one dark ink for action, and
+   colour kept for meaning. Structure follows docs/GradeDesk_Mockup.html. */
+
+/* IBM Plex, shipped inside the app (src/renderer/fonts, SIL Open Font
+   License) so it renders the same with no internet. Plex has true tabular
+   figures, which keeps every column of scores lined up. */
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 700; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-sans-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 400; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-mono-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-style: normal; font-display: swap; src: url("fonts/ibm-plex-mono-latin-500-normal.woff2") format("woff2"); }
 
 :root {
   /*
@@ -11,7 +22,7 @@
    *
    * COLOUR CARRIES MEANING HERE, it is not decoration:
    *
-   *   indigo   the app itself -- the active course, the primary action, focus
+   *   navy     the app itself -- the active course, the primary action, focus
    *   teal     a score you typed, and the wells those live in
    *   violet   a value the app worked out for you, never typed
    *   amber    something to look at before submitting
@@ -24,58 +35,66 @@
    */
 
   /* ---- neutrals ---- */
-  --ink: #151a24;           /* body text, 17.4:1 on white */
+  --ink: #12161c;           /* body text, 18:1 on white */
   --ink-soft: #48525f;      /* secondary text, 7.9:1 on white */
-  --ink-faint: #616b78;     /* labels and hints, 5.4:1 on white, 4.9:1 on canvas */
-  --line: #dee3ea;
-  --line-strong: #c3cbd6;
+  --ink-faint: #5f6976;     /* labels and hints, 5.6:1 on white, 5.1:1 on canvas */
+  --line: #e3e7ec;
+  --line-strong: #cfd6df;
   --paper: #ffffff;
-  --canvas: #f2f5f9;        /* a cool page behind the white cards */
+  --canvas: #f3f5f8;        /* a cool page behind the white cards */
 
   /* The side panel is light. A dark panel looks smart on a laptop and turns
      into an unreadable block when projected. It is tinted just enough to read
      as a panel rather than more page. */
-  --rail: #f7f9fc;
-  --rail-edge: #dfe5ee;
-  --rail-ink: #3a4452;
-  --rail-muted: #5f6a78;
-  --rail-hover: #e8edf5;
+  --rail: #fafbfc;
+  --rail-edge: #e3e7ec;
+  --rail-ink: #2f3846;
+  --rail-muted: #5d6875;
+  --rail-hover: #eef1f5;
 
-  /* ---- indigo: the app, the active thing, the primary action ---- */
-  --brand: #2f4b8f;
-  --brand-ink: #23396d;
-  --brand-tint: #e8eefa;
-  --brand-line: #b9c9e8;
+  /* ---- navy: the app, the active thing, the primary action ---- */
+  --brand: #1e2a44;
+  --brand-ink: #1e3a6e;     /* links and the active course's text */
+  --brand-tint: #e9eef7;
+  --brand-line: #c9d5ea;
 
   /* ---- teal: what you typed ---- */
   --teal: #0f6b63;
-  --teal-tint: #e2f2f0;
+  --teal-tint: #e4f2ef;
   --teal-line: #9ccbc5;
 
   /* ---- violet: what the app worked out ---- */
-  --violet: #6b3fa0;
-  --violet-tint: #f0e9fa;
+  --violet: #5b3591;
+  --violet-tint: #f6f2fb;
   --violet-line: #cdb8e8;
 
   /* ---- status ---- */
-  --amber: #8a5300;
-  --amber-tint: #fdf3e0;
+  --amber: #7a4a00;
+  --amber-tint: #fdf4e3;
+  --amber-line: #e8c98f;
   --red: #a3231b;
-  --red-tint: #fbe6e4;
-  /* Kept as an alias: the letter badges and a few notes still name it. */
-  --blue: #2f4b8f;
-  --blue-tint: #e8eefa;
+  --red-tint: #fbe3e1;
+  --green: #0b5a41;
+  --green-tint: #ddf3ea;
+  --green-dot: #1e8a6e;
+  /* The B badge, and a few notes that still name it. */
+  --blue: #1d4a91;
+  --blue-tint: #e3ecfa;
 
-  --read: #f5f7fb;          /* computed cells */
-  --focus: #2f4b8f;
-  --entry-bg: #e6f2f0;      /* the editable column's well, teal */
+  --read: #f6f7fa;          /* computed cells */
+  --focus: #1e3a6e;
+  --entry-bg: #eef7f5;      /* the editable column's well, teal */
   --entry-line: #8fc3bc;    /* the outline around an editable cell */
+
+  --radius: 8px;
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgba(18, 22, 28, .04);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
-  font-family: "Segoe UI", system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  font-family: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: var(--ink);
   background: var(--canvas);
   font-size: 14px;
@@ -125,40 +144,65 @@ body {
   display: flex; flex-direction: column; overflow: hidden;
   border-right: 1px solid var(--rail-edge);
 }
-.brand { padding: 16px 18px 14px; border-bottom: 1px solid var(--rail-edge); flex: none; }
-.brand h1 { font-size: 17px; margin: 0; color: var(--ink); letter-spacing: -.2px; font-weight: 650; }
-.brand .tag { font-size: 11.5px; color: var(--rail-muted); margin-top: 2px; }
+.brand {
+  padding: 18px 18px 16px; flex: none;
+  display: flex; align-items: center; gap: 11px;
+}
+.brand .mark { flex: none; display: block; }
+.brand h1 { font-size: 17px; margin: 0; color: var(--ink); letter-spacing: -.2px; font-weight: 700; line-height: 1.2; }
+.brand .tag { font-size: 12px; color: var(--rail-muted); }
 
-.rail .sem { padding: 12px 14px; border-bottom: 1px solid var(--rail-edge); flex: none; }
+.rail .sem { padding: 4px 16px 14px; flex: none; }
 .rail .sem label {
-  font-size: 11px; color: var(--rail-muted); display: block; margin-bottom: 5px;
-  text-transform: uppercase; letter-spacing: .5px; font-weight: 600;
+  font-size: 11px; color: var(--rail-muted); display: block; margin-bottom: 6px;
+  text-transform: uppercase; letter-spacing: .08em; font-weight: 600;
 }
 .rail .sem select {
   width: 100%; background: var(--paper); color: var(--ink);
-  border: 1px solid var(--line-strong); border-radius: 7px;
-  padding: 8px 9px; font-size: 13px; font-family: inherit;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  padding: 9px 10px; font-size: 13.5px; font-family: inherit;
 }
 .rail .sem select:hover { border-color: var(--line-strong); }
 
 .railscroll { overflow-y: auto; flex: 1; }
 .navsec {
-  padding: 15px 14px 5px; font-size: 10.5px; letter-spacing: .6px;
-  color: var(--rail-muted); text-transform: uppercase; font-weight: 700;
+  padding: 14px 18px 6px; font-size: 11px; letter-spacing: .08em;
+  color: var(--rail-muted); text-transform: uppercase; font-weight: 600;
 }
 nav a {
-  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-  color: var(--rail-ink); text-decoration: none; border-radius: 8px;
+  display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+  color: var(--rail-ink); text-decoration: none; border-radius: 9px;
   margin: 1px 8px; font-size: 13.5px; cursor: pointer; user-select: none;
 }
 nav a .ico { width: 16px; flex: none; text-align: center; color: var(--rail-muted); }
-nav a.active { background: var(--brand); color: #fff; font-weight: 600; }
-nav a.active .ico { color: #fff; }
+/* The active course is a soft tint with dark text, not a solid slab: one
+   saturated block per screen is the primary button, and two competed. */
+nav a.active { background: var(--brand-tint); color: var(--ink); font-weight: 600; }
+nav a.active .ico { color: var(--brand-ink); }
 nav a:not(.active):hover { background: var(--rail-hover); color: var(--ink); }
 nav a .sub { font-size: 11px; color: var(--rail-muted); margin-left: auto; }
-nav a.active .sub { color: #d6ece1; }
+nav a.active .sub {
+  color: var(--brand-ink); background: var(--paper);
+  border: 1px solid var(--brand-line); border-radius: 6px; padding: 1px 6px;
+}
+/* A course reads as its code and section, with its name and size beneath. */
+nav a .cname { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+nav a .cname .ctitle { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+nav a .cname .cdesc {
+  font-size: 12px; color: var(--rail-muted); font-weight: 400;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+nav a.active .cname .cdesc { color: var(--ink-soft); }
+nav a.newcourse { color: var(--brand-ink); }
+nav a.newcourse .ico { color: var(--brand-ink); }
 
-.rail .foot { padding: 8px 16px 10px; font-size: 11px; color: var(--rail-muted); flex: none; }
+.rail .foot {
+  padding: 8px 18px 12px; font-size: 12px; color: var(--rail-muted); flex: none;
+  display: flex; align-items: center; gap: 8px;
+}
+.rail .foot::before {
+  content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--green-dot); flex: none;
+}
 /* Semester lifecycle and backup used to be three small links under the picker,
    where "Restore" (which replaces everything) sat one slip from daily
    navigation. They now live behind these deliberate footer buttons. */
@@ -171,25 +215,59 @@ nav a.active .sub { color: #d6ece1; }
 }
 .railbtn:hover { background: var(--rail-hover); color: var(--ink); }
 .railbtn .ico { width: 16px; text-align: center; color: var(--rail-muted); flex: none; }
-.railbtn.active { background: var(--brand); color: #fff; font-weight: 600; }
-.railbtn.active .ico { color: #fff; }
+.railbtn.active { background: var(--brand-tint); color: var(--ink); font-weight: 600; }
+.railbtn.active .ico { color: var(--brand-ink); }
+.railbtn svg, nav a svg, .screentabs svg { display: block; }
 
 /* ---------------- main ---------------- */
 .main { overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+/* The course is the heading of every screen; which screen of it you are on is
+   the tab row underneath. */
 .topbar {
-  background: var(--paper); border-bottom: 1px solid var(--line);
-  padding: 10px 20px; display: flex; align-items: center; gap: 12px; flex: none;
+  background: var(--paper);
+  padding: 14px 24px 8px; display: flex; align-items: center; gap: 14px; flex: none;
 }
 /* The heading block may shrink; the action buttons may not. Without this the
    buttons wrap onto a second line as soon as the window narrows. */
 .topbar .heading { min-width: 0; flex: 1 1 auto; }
 .crumbs {
-  font-size: 12.5px; color: var(--ink-soft);
+  font-size: 12px; color: var(--ink-faint);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.crumbs b { color: var(--ink); font-weight: 600; }
-.topbar h2 { font-size: 16px; margin: 0; font-weight: 600; white-space: nowrap; }
+.crumbs b { color: var(--ink-soft); font-weight: 600; }
+.topbar h2 {
+  font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -.015em; line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.topbar h2 .dot { color: #9aa3ae; font-weight: 500; }
 #topActions { display: flex; gap: 8px; flex: 0 0 auto; align-items: center; }
+
+/* The four screens of a course, as tabs under its heading. */
+.screentabs {
+  /* overflow-y has to be stated. Setting overflow-x alone makes the browser
+     compute overflow-y as auto too, and the active tab's underline sits 1px
+     below the border (margin-bottom: -1px), so the row is a pixel taller than
+     its box: a stray vertical scrollbar appeared beside the tabs on every
+     screen. */
+  display: flex; gap: 2px; padding: 0 16px; flex: none;
+  overflow-x: auto; overflow-y: hidden;
+  background: var(--paper); border-bottom: 1px solid var(--line);
+}
+.screentabs:empty { display: none; }
+.screentabs a {
+  display: flex; align-items: center; gap: 8px; padding: 9px 10px 11px;
+  font-size: 13.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap;
+  text-decoration: none; cursor: pointer; user-select: none;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+/* The tabs are a <nav> too, so the rail's course-list look has to be undone. */
+.screentabs a, .screentabs a.active, .screentabs a:not(.active):hover {
+  background: transparent; margin: 0 0 -1px; border-radius: 0;
+}
+.screentabs a:hover { color: var(--ink); }
+.screentabs a.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--brand); }
+.screentabs a:focus-visible { outline-offset: -2px; }
+.screentabs a .ico { color: inherit; display: flex; }
 .spacer { flex: 0 0 auto; }
 
 /* Below this width the button labels are shortened to their essentials rather
@@ -214,13 +292,20 @@ nav a.active .sub { color: #d6ece1; }
 
 .btn {
   border: 1px solid var(--line-strong); background: var(--paper); color: var(--ink);
-  padding: 7px 13px; border-radius: 7px; font-size: 13px; cursor: pointer; font-weight: 500;
-  font-family: inherit; white-space: nowrap;
+  padding: 8px 14px; border-radius: var(--radius); font-size: 13.5px; cursor: pointer; font-weight: 500;
+  font-family: inherit; white-space: nowrap; line-height: 1.3;
 }
 .btn:hover:not(:disabled) { border-color: #9aa6b6; background: var(--rail-hover); }
+/* Inline, not a flex row: a flex button splits "Export" and " grade sheet"
+   into separate items, and the label then reads as three broken lines. */
+.btn .ico { display: inline-block; vertical-align: -3px; margin-right: 7px; }
+.btn .ico svg { display: block; }
+/* Something to look at before exporting: amber, not alarming. */
+.btn.attention { background: var(--amber-tint); border-color: var(--amber-line); color: var(--amber); }
+.btn.attention:hover:not(:disabled) { background: #fbeccd; border-color: var(--amber); }
 .btn:disabled { opacity: .5; cursor: default; }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.primary:hover:not(:disabled) { background: var(--brand-ink); border-color: var(--brand-ink); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+.btn.primary:hover:not(:disabled) { background: #2b3a5c; border-color: #2b3a5c; }
 .btn.ghost { border-color: transparent; background: transparent; color: var(--brand-ink); }
 .btn.ghost:hover:not(:disabled) { background: var(--brand-tint); border-color: transparent; }
 /* A row's remove control is destructive, so it stays quiet until pointed at and
@@ -244,7 +329,7 @@ nav a.active .sub { color: #d6ece1; }
 }
 .btn.small { padding: 4px 9px; font-size: 12px; }
 
-.content { padding: 18px 24px 40px; overflow: auto; flex: 1; }
+.content { padding: 20px 24px 40px; overflow: auto; flex: 1; }
 /* The guide manages its own scrolling so the contents list can stay put. */
 .content:has(.guidepage) { overflow: hidden; padding-bottom: 18px; }
 
@@ -260,15 +345,20 @@ nav a.active .sub { color: #d6ece1; }
 .assessbar::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 3px; }
 .atab, .term-pill { flex: 0 0 auto; }
 .term-pill {
-  font-size: 11px; font-weight: 600; color: var(--ink-soft);
-  background: var(--rail-hover); border-radius: 5px; padding: 4px 8px; margin-right: 2px;
+  font-size: 11px; font-weight: 600; color: var(--ink-faint); letter-spacing: .08em;
+  text-transform: uppercase; padding: 4px 6px 4px 0; margin-right: 2px;
 }
+/* The term switch is one segmented control: a white "key" on a grey track. */
 .atab {
-  border: 1px solid var(--line-strong); background: var(--paper); border-radius: 20px;
-  padding: 6px 13px; font-size: 12.5px; cursor: pointer; color: var(--ink-soft);
-  font-family: inherit;
+  border: 1px solid transparent; background: var(--rail-hover); border-radius: var(--radius);
+  padding: 7px 14px; font-size: 13.5px; cursor: pointer; color: var(--ink-soft);
+  font-family: inherit; font-weight: 500;
 }
-.atab.active { background: var(--brand-tint); border-color: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.atab:hover { color: var(--ink); }
+.atab.active {
+  background: var(--paper); border-color: var(--line-strong); color: var(--ink); font-weight: 600;
+  box-shadow: 0 1px 2px rgba(18, 22, 28, .10);
+}
 .atab .max { opacity: .7; font-size: 11px; margin-left: 4px; }
 .atab.exam { border-color: #d9b57a; }
 .atab.exam.active { background: var(--amber-tint); border-color: var(--amber); color: var(--amber); }
@@ -277,9 +367,13 @@ nav a.active .sub { color: #d6ece1; }
    Replaces the old wrapping strip of assessment tabs. A course can carry a
    dozen assessments; a dropdown costs one row at any window width. */
 .entrybar {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 8px 10px;
   margin-bottom: 12px; flex-wrap: wrap;
 }
+/* The term switch sits in this row on the grade screen; it brings no margin or
+   scrollbar gutter of its own here, or the row grows past one line's worth. */
+.entrybar .assessbar { margin-bottom: 0; padding-bottom: 0; }
+@media (max-width: 1120px) { .entrybar .term-pill { display: none; } }
 .pickgroup, .filtergroup { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .apicker {
   border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
@@ -295,13 +389,13 @@ nav a.active .sub { color: #d6ece1; }
 }
 .btn.step:disabled { opacity: .35; }
 .searchbox {
-  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
-  padding: 7px 10px; font-size: 13px; font-family: inherit; color: var(--ink); width: 180px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper);
+  padding: 8px 10px; font-size: 13.5px; font-family: inherit; color: var(--ink); width: 200px;
 }
 .searchbox:focus { outline: 2px solid var(--focus); outline-offset: 1px; border-color: var(--focus); }
 .sortbox {
-  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper);
-  padding: 7px 9px; font-size: 12.5px; font-family: inherit; color: var(--ink-soft);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper);
+  padding: 8px 9px; font-size: 13px; font-family: inherit; color: var(--ink);
 }
 .rowcount { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
 td.emptyrow { text-align: center; color: var(--ink-soft); padding: 26px 12px; }
@@ -313,7 +407,7 @@ td.emptyrow { text-align: center; color: var(--ink-soft); padding: 26px 12px; }
 
 /* ---------------- grid ---------------- */
 .gridcard {
-  background: var(--paper); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card);
   overflow: auto;
   /* A shadow on the right edge while the grid is scrolled, so it is obvious
      there are more columns off-screen rather than silently hidden. */
@@ -327,14 +421,18 @@ td.emptyrow { text-align: center; color: var(--ink-soft); padding: 26px 12px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { text-align: left; padding: 0; border-bottom: 1px solid var(--line); }
 thead th {
-  background: var(--read); font-size: 11.5px; color: var(--ink-soft); font-weight: 600;
-  padding: 9px 12px; position: sticky; top: 0; z-index: 2;
+  background: var(--paper); font-size: 12px; color: var(--ink-soft); font-weight: 600;
+  padding: 10px 12px; position: sticky; top: 0; z-index: 2;
   border-bottom: 1px solid var(--line-strong); white-space: nowrap;
 }
-tbody td { padding: 0; height: 36px; }
+tbody td { padding: 0; height: 40px; border-bottom-color: #eef1f4; }
+tbody { font-variant-numeric: tabular-nums; }
 .cellpad { padding: 7px 12px; }
 td.idx { color: var(--ink-soft); width: 40px; text-align: right; padding-right: 10px; font-variant-numeric: tabular-nums; }
-td.sid { color: var(--ink-soft); font-variant-numeric: tabular-nums; width: 100px; }
+td.sid {
+  color: var(--ink-soft); font-variant-numeric: tabular-nums; width: 100px;
+  font-family: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
 /* The name column absorbs the slack so the numeric columns keep their widths.
    Long names ellipsize rather than forcing the grid wider than the window. */
 /* The name column absorbs slack so the numeric columns keep their widths, and
@@ -348,23 +446,26 @@ td.name {
    read-only computed cell, and there was nothing to tell the instructor where
    to click. It now sits in a tinted well with its own outline, lifts on hover,
    and shows a strong ring plus a caret bar when it has focus. */
+/* Quieter than a grid of white boxes: the score sits in its teal well with a
+   hairline outline, and only the cell being typed in becomes a white field
+   with a strong ring. Still plainly editable, just not shouting it 60 times. */
 td.entry { width: 90px; padding: 3px 5px; background: var(--entry-bg); }
 td.entry input {
   width: 100%; height: 30px; text-align: center; font-size: 14px;
   color: var(--ink); font-variant-numeric: tabular-nums; font-family: inherit;
-  background: #fff; border: 1px solid var(--entry-line); border-radius: 6px;
-  outline: none; cursor: text; transition: border-color .12s, box-shadow .12s;
+  background: rgba(255, 255, 255, .55); border: 1px solid #c4e1dc; border-radius: 7px;
+  outline: none; cursor: text; transition: border-color .12s, box-shadow .12s, background .12s;
 }
-td.entry input:hover:not([readonly]) { border-color: var(--brand); }
+td.entry input:hover:not([readonly]) { border-color: var(--entry-line); background: #fff; }
 td.entry input:focus {
-  border-color: var(--teal); background: #f1faf8;
-  box-shadow: 0 0 0 3px rgba(47, 109, 79, .18);
+  border-color: var(--teal); background: #fff;
+  box-shadow: 0 0 0 2px var(--teal);
   font-weight: 600;
 }
 /* The whole row lifts while a cell in it is being edited, so the eye keeps its
    place when typing down a long class list. */
-tbody tr:focus-within td { background: #f3f9f6; }
-tbody tr:focus-within td.entry { background: #d8ece9; }
+tbody tr:focus-within td { background: #f4faf8; }
+tbody tr:focus-within td.entry { background: #dcefeb; }
 td.entry input.over {
   background: var(--red-tint); color: var(--red); font-weight: 600;
   border-color: var(--red);
@@ -403,7 +504,11 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
      cut to "Midterm ...", which tells you nothing about which column you are
      typing into. The header grows; the score cells below it do not. */
   display: block; font-size: 11.5px; font-weight: 700;
-  white-space: normal; overflow-wrap: anywhere; line-height: 1.2;
+  /* break-word, not anywhere: "anywhere" lets the browser break a word to
+     make the column narrower, which split "Attendance" into "Attendanc / e".
+     break-word only breaks a word too long to fit at all, so short names stay
+     whole and the column takes the few extra pixels instead. */
+  white-space: normal; overflow-wrap: break-word; line-height: 1.2;
 }
 .entrytable th.th-entry .thmax {
   display: block; font-size: 10.5px; font-weight: 500; color: var(--ink-soft);
@@ -552,10 +657,17 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
 .gridcard.entrygrid {
   /* Whatever is left under the toolbar and the note. Not a fixed height: the
      note wraps to two lines on a narrow window and the grid has to give way. */
-  max-height: calc(100vh - 290px);
+  max-height: 100%;
   min-height: 220px;
   overflow: auto;
+  flex: 1 1 auto;
 }
+/* The screen is a column and the grid takes whatever height is left under the
+   summary and toolbar, rather than a fixed guess at their height that broke
+   each time something above it changed size. */
+.content:has(.gridcard.entrygrid) { display: flex; flex-direction: column; padding-bottom: 14px; }
+.content:has(.gridcard.entrygrid) > * { flex: none; }
+.content:has(.gridcard.entrygrid) > .gridcard.entrygrid { flex: 1 1 auto; }
 /* The page itself no longer scrolls on this screen; the grid does. */
 .content:has(.gridcard.entrygrid) { overflow: hidden; }
 
@@ -624,46 +736,134 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
    instructor entered from what GradeDesk derived, without reading a legend. */
 td.read {
   background: var(--violet-tint); color: var(--violet); text-align: center;
-  width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
+  width: 74px; font-variant-numeric: tabular-nums; font-size: 13.5px;
 }
 td.total {
   background: var(--violet-tint); color: var(--violet); text-align: center;
-  font-weight: 700; width: 82px; font-variant-numeric: tabular-nums;
+  font-weight: 600; width: 82px; font-variant-numeric: tabular-nums;
 }
 /* The final grade and letter are the point of this screen, so they are pinned
    to the right edge and stay readable however narrow the window gets. */
-/* The answer this screen exists to give, so it carries the app's own colour
-   rather than sitting blank between two tinted blocks. */
+/* The answer this screen exists to give: the largest, darkest figure in the
+   row, on a neutral ground so the letter badge beside it carries the colour. */
 td.final, th.final {
   text-align: center; font-weight: 700; width: 86px; font-variant-numeric: tabular-nums;
-  position: sticky; right: 60px; background: var(--brand-tint); color: var(--brand-ink);
-  box-shadow: inset 1px 0 0 var(--brand-line);
+  position: sticky; right: 60px; background: #f9fafb; color: var(--ink); font-size: 14.5px;
+  box-shadow: inset 1px 0 0 var(--line);
 }
 td.letter, th.letter {
   text-align: center; width: 60px; font-weight: 700;
-  position: sticky; right: 0; background: var(--paper);
+  position: sticky; right: 0; background: #f9fafb;
 }
-/* The grade and letter headings carry the app's colour, so the answer end of
-   the row is distinct from the tinted entry and computed blocks beside it. */
-thead th.final, thead th.letter { background: var(--brand); color: #fff; z-index: 3; }
+thead th.final, thead th.letter { background: var(--canvas); color: var(--ink); z-index: 3; }
 tbody tr:hover td.final, tbody tr:hover td.letter { background: var(--rail-hover); }
 tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: var(--rail-hover); }
 
-.lg { display: inline-block; min-width: 22px; padding: 2px 7px; border-radius: 5px; font-size: 12.5px; }
-.lg.A { background: var(--brand-tint); color: var(--brand); }
-.lg.B { background: var(--blue-tint); color: var(--blue); }
-.lg.C { background: var(--amber-tint); color: var(--amber); }
-.lg.D { background: #fceee2; color: #8a3d00; }
-.lg.F { background: var(--red-tint); color: var(--red); }
-.lg.I { background: var(--rail-hover); color: var(--ink-soft); }
-.lg.NG { background: var(--rail-hover); color: var(--ink-soft); }
+/* Each letter has its own badge, told apart by lightness and border as well as
+   hue, and I is dashed: it is not a grade yet, it is waiting on an exam. */
+.lg {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 30px; height: 24px; padding: 0 7px; border-radius: 7px;
+  font-size: 13px; font-weight: 700; border: 1px solid transparent; line-height: 1;
+}
+.lg.A { background: var(--green-tint); color: var(--green); border-color: #a9dcc7; }
+.lg.B { background: var(--blue-tint); color: var(--blue); border-color: #b7cbee; }
+.lg.C { background: var(--amber-tint); color: var(--amber); border-color: #ebcb91; }
+.lg.D { background: #fce6d8; color: #8c3a0e; border-color: #efbe9e; }
+.lg.F { background: var(--red-tint); color: var(--red); border-color: #edb1ac; }
+.lg.I { background: #eef0f3; color: #3f4855; border: 1px dashed #8c96a3; }
+.lg.NG { background: var(--paper); color: var(--ink-soft); border-color: var(--line-strong); font-size: 11.5px; }
 
 /* ---------------- notes, legends ---------------- */
+/* A plain tinted panel. The thick coloured stripe down the left edge it used
+   to carry is gone: the tint and the text colour already say what it is. */
 .note {
-  background: var(--brand-tint); border: 1px solid var(--brand-line); border-left: 3px solid var(--brand);
-  border-radius: 8px; padding: 10px 14px; font-size: 12.5px; color: var(--brand-ink); margin-bottom: 14px;
+  background: var(--brand-tint); border: 1px solid var(--brand-line);
+  border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--brand-ink); margin-bottom: 14px;
 }
-.note.warn { background: var(--amber-tint); border-color: #e5c48c; border-left-color: var(--amber); color: var(--amber); }
+.note.warn { background: var(--amber-tint); border-color: var(--amber-line); color: var(--amber); }
+
+/* The how-this-screen-works text, folded behind one line so it is there when
+   wanted and out of the way the other hundred times the screen is opened. */
+details.howto { margin-bottom: 14px; }
+details.howto > summary {
+  display: inline-flex; align-items: center; gap: 7px; cursor: pointer; list-style: none;
+  font-size: 13px; font-weight: 500; color: var(--brand-ink); padding: 4px 2px; user-select: none;
+}
+details.howto > summary::-webkit-details-marker { display: none; }
+details.howto > summary::before {
+  content: "?"; display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 700;
+  background: var(--brand-tint); color: var(--brand-ink); border: 1px solid var(--brand-line);
+}
+details.howto[open] > summary { margin-bottom: 8px; }
+details.howto > .note { margin-bottom: 0; }
+
+/* ---------------- the summary strip ----------------
+   A row of figures at the top of a screen: what the class looks like and what
+   is left to do, before reading down the grid. */
+.summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.scard {
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  box-shadow: var(--shadow-card);
+}
+.scard .sl { font-size: 12px; font-weight: 600; color: var(--ink-soft); }
+.scard .sv { font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.scard .sv small { font-size: 14px; font-weight: 500; color: var(--ink-faint); letter-spacing: 0; }
+.scard .ss { font-size: 12px; color: var(--ink-faint); }
+.scard.attention .sv { font-size: 15px; color: var(--amber); padding: 4px 0 2px; }
+.scard.clear .sv { font-size: 15px; color: var(--green); padding: 4px 0 2px; }
+.sbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
+.sbar > span { display: block; height: 100%; background: var(--green-dot); }
+.spread { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 6px 0 2px; background: var(--line); }
+.spread > span { display: block; height: 100%; min-width: 3px; }
+.spread .gA { background: var(--green-dot); }
+.spread .gB { background: #2f5daa; }
+.spread .gC { background: #c98a1b; }
+.spread .gD { background: #c2601f; }
+.spread .gF { background: var(--red); }
+.spread .gI, .spread .gNG { background: #8c96a3; }
+.spreadkey { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
+.spreadkey b { font-weight: 700; color: var(--ink); }
+.mkrow { display: flex; gap: 14px; flex-wrap: wrap; padding-top: 6px; font-size: 13px; color: var(--ink-soft); }
+.mkcount { display: inline-flex; align-items: center; gap: 6px; }
+.mk {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px; font-size: 12px; font-weight: 700;
+}
+.mk.P { background: var(--green-tint); color: var(--green); }
+.mk.E { background: var(--amber-tint); color: var(--amber); }
+.mk.A { background: var(--red-tint); color: var(--red); }
+.scard .btn.small { padding: 1px 6px; font-size: 12px; vertical-align: baseline; }
+.spreadwrap { display: flex; flex-direction: column; }
+
+/* On a laptop screen the cards fold into one slim line of figures, so the
+   grid keeps its rows. Below that height the strip goes altogether. */
+@media (max-height: 860px) {
+  .summary {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 26px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card);
+    padding: 8px 16px; margin-bottom: 12px; box-shadow: var(--shadow-card);
+  }
+  .scard {
+    flex-direction: row; align-items: center; gap: 8px;
+    border: 0; padding: 0; background: none; box-shadow: none;
+  }
+  .scard .sl { font-weight: 500; }
+  .scard .sv { font-size: 15px; }
+  .scard .sv small { font-size: 12px; }
+  .scard.attention .sv, .scard.clear .sv { font-size: 13.5px; padding: 0; }
+  .scard .ss { display: none; }
+  .sbar { width: 64px; margin-top: 0; }
+  .spreadwrap { flex-direction: row; align-items: center; gap: 10px; }
+  .spread { width: 84px; margin: 0; }
+  .mkrow { padding-top: 0; gap: 10px; }
+}
+@media (max-height: 560px) { .summary { display: none; } }
 .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; color: var(--ink-soft); }
 .legend .k { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin-right: 5px; }
 .hint { font-size: 12.5px; color: var(--ink-soft); margin: 10px 2px 0; }
@@ -677,21 +877,22 @@ td.att {
   user-select: none; background: var(--entry-bg);
 }
 .attchip {
-  display: block; height: 28px; line-height: 26px;
-  border: 1px solid var(--entry-line); border-radius: 6px; background: #fff;
+  display: block; height: 30px; line-height: 28px;
+  border: 1px solid var(--entry-line); border-radius: 8px; background: #fff;
   font-size: 13px; font-weight: 700; color: var(--ink-faint);
   transition: border-color .12s, box-shadow .12s;
 }
 td.att:hover .attchip { border-color: var(--brand); }
 td.att:focus-visible { outline: none; }
 td.att:focus-visible .attchip {
-  border-color: var(--focus); box-shadow: 0 0 0 3px rgba(47, 75, 143, .22);
+  border-color: var(--focus); box-shadow: 0 0 0 3px rgba(30, 58, 110, .22);
 }
-td.att.P .attchip { background: var(--teal-tint); border-color: var(--teal-line); color: var(--teal); }
-td.att.E .attchip { background: var(--amber-tint); border-color: #d9b57a; color: var(--amber); }
-td.att.A .attchip { background: var(--red-tint); border-color: #d99f9a; color: var(--red); }
-td.att.blank .attchip { color: #b7c0cd; border-style: dashed; }
-th.session { text-align: center; font-size: 11px; }
+/* Present is green, the colour of "fine"; it is a mark, not a typed score. */
+td.att.P .attchip { background: var(--green-tint); border-color: #a9dcc7; color: var(--green); }
+td.att.E .attchip { background: var(--amber-tint); border-color: #ebcb91; color: var(--amber); }
+td.att.A .attchip { background: var(--red-tint); border-color: #edb1ac; color: var(--red); }
+td.att.blank .attchip { color: #aab3bf; border-style: dashed; border-color: var(--line-strong); }
+th.session { text-align: center; font-size: 12px; }
 /* Attendance grows a column per session, so the computed result is pinned to
    the right the same way the final grade is on the entry screen. Otherwise it
    scrolls out of sight the moment a term has more than a handful of meetings. */
@@ -711,7 +912,7 @@ td.att-trans, th.att-trans {
   text-align: center; width: 74px; font-variant-numeric: tabular-nums; font-size: 13px;
 }
 thead th.att-raw, thead th.att-trans {
-  background: var(--violet); color: #fff; z-index: 3;
+  background: var(--violet-tint); color: var(--violet); z-index: 3;
 }
 th.session .del { color: var(--ink-faint); cursor: pointer; margin-left: 4px; }
 th.session .del:hover { color: var(--red); }
@@ -719,7 +920,7 @@ th.session .del:hover { color: var(--red); }
 /* ---------------- panels, config ---------------- */
 .panelgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 1100px) { .panelgrid { grid-template-columns: 1fr; } }
-.panel { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 18px 20px; box-shadow: var(--shadow-card); }
 .panel h3 { margin: 0 0 4px; font-size: 14px; }
 .panel .sub { font-size: 12px; color: var(--ink-soft); margin-bottom: 12px; }
 .arow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -742,19 +943,14 @@ th.session .del:hover { color: var(--red); }
 .addrow { margin-top: 10px; }
 
 .kpis { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
-/* A coloured edge along the top, so a row of tiles reads as a set of figures
-   rather than four empty boxes. The number carries the app's colour. */
+/* A figure and what it counts. Plain cards: the number carries the weight,
+   and colour is kept for the tiles that need a second look. */
 .kpi {
-  background: var(--paper); border: 1px solid var(--line); border-radius: 9px;
-  padding: 11px 15px; min-width: 100px; border-top: 3px solid var(--brand);
+  background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card);
+  padding: 12px 16px; min-width: 120px; box-shadow: var(--shadow-card);
 }
-.kpi .v { font-size: 20px; font-weight: 700; color: var(--brand-ink); }
-.kpi .l { font-size: 11.5px; color: var(--ink-soft); }
-/* Every other tile takes the next hue along, so a row of them is scannable. */
-.kpi:nth-child(2n) { border-top-color: var(--teal); }
-.kpi:nth-child(2n) .v { color: var(--teal); }
-.kpi:nth-child(3n) { border-top-color: var(--violet); }
-.kpi:nth-child(3n) .v { color: var(--violet); }
+.kpi .v { font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.kpi .l { font-size: 12px; color: var(--ink-soft); }
 
 .field { margin-bottom: 12px; }
 .field label { display: block; font-size: 12px; color: var(--ink-soft); margin-bottom: 4px; }
@@ -773,21 +969,21 @@ th.session .del:hover { color: var(--red); }
   display: flex; align-items: center; justify-content: center; z-index: 50;
 }
 .modal {
-  background: var(--paper); border-radius: 12px;
-  width: 440px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px);
-  box-shadow: 0 18px 48px rgba(16, 22, 34, .28);
+  background: var(--paper); border-radius: 16px;
+  width: 460px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px);
+  box-shadow: 0 24px 60px rgba(16, 22, 34, .28);
   display: flex; flex-direction: column; overflow: hidden;
 }
 .modal form { display: flex; flex-direction: column; min-height: 0; }
 /* Head and actions are fixed; only the body scrolls, so a long list never
    carries its own title off screen or pushes its buttons out of reach. */
-.modalhead { padding: 18px 22px 0; flex: none; }
-.modalbody { padding: 0 22px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
-.modal h3 { margin: 0 0 4px; font-size: 16px; }
-.modal .sub { font-size: 12.5px; color: var(--ink-soft); margin-bottom: 14px; }
+.modalhead { padding: 22px 26px 0; flex: none; }
+.modalbody { padding: 0 26px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+.modal h3 { margin: 0 0 4px; font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
+.modal .sub { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 16px; }
 .modal .actions {
-  display: flex; justify-content: flex-end; gap: 8px;
-  padding: 14px 22px 18px; flex: none; border-top: 1px solid var(--line);
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 16px 26px 20px; flex: none; border-top: 1px solid var(--line);
   background: var(--paper);
 }
 .modal ul { margin: 8px 0 0; padding-left: 20px; font-size: 13px; }
@@ -801,10 +997,12 @@ th.session .del:hover { color: var(--red); }
 .issue .sev.warning { background: var(--amber-tint); color: var(--amber); }
 .issue .sev.info { background: var(--read); color: var(--ink-soft); }
 
+/* Dark ink, so the message reads. It sat on the light panel colour with white
+   text once the panel went light, which made every toast near invisible. */
 .toast {
-  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-  background: var(--rail); color: #fff; padding: 10px 18px; border-radius: 8px;
-  font-size: 13px; z-index: 60; box-shadow: 0 8px 24px rgba(16, 22, 34, .3);
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--brand); color: #fff; padding: 11px 18px; border-radius: 10px;
+  font-size: 13.5px; font-weight: 500; z-index: 60; box-shadow: 0 10px 28px rgba(16, 22, 34, .28);
 }
 .toast.error { background: var(--red); }
 
@@ -876,6 +1074,24 @@ td.entry input.id-input:focus {
 .previewtable tr:last-child td { border-bottom: 0; }
 /* A row with no surname: the columns did not line up. */
 .previewtable tr.previewbad td { background: #fdf1ef; color: #993229; }
+
+/* Importing the roster PDF: what will happen, then every student read. */
+.importsummary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.importsummary .chip {
+  font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 999px;
+  background: var(--teal-tint); color: var(--teal); border: 1px solid var(--teal-line);
+}
+.importsummary .chip.muted {
+  background: var(--read); color: var(--ink-soft); border-color: var(--line);
+}
+.importhint { margin: 0 2px 10px; }
+.note ul { margin: 6px 0 0; padding-left: 18px; }
+.importtable td.importwhat { color: var(--ink-soft); }
+/* Already on the list: shown so nothing seems to vanish, but clearly left alone. */
+.importtable tr.previewskip td { background: var(--read); color: var(--ink-faint); }
+/* A name tidied on the way in, worth a glance before importing. */
+.importtable tr.previewcheck td { background: var(--amber-tint); }
+.importtable tr.previewcheck td.importwhat { color: var(--amber); }
 .k-entry { background: var(--entry-bg); border: 1px solid var(--teal-line); }
 .k-read { background: var(--violet-tint); border: 1px solid var(--violet-line); }
 .k-total { background: var(--violet-tint); border: 1px solid var(--violet-line); }
@@ -931,7 +1147,7 @@ td.entry input.id-input:focus {
 tbody tr.rowblank td { background: #fbfbfc; }
 tbody tr.rowblank td.idx { color: #c3cad4; }
 tbody tr.rowpartial td.entry { background: #fffdf6; }
-.kpi.warn, .kpi.flagged { border-color: #e5c48c; border-top-color: var(--amber); background: var(--amber-tint); }
+.kpi.warn, .kpi.flagged { border-color: var(--amber-line); background: var(--amber-tint); }
 .kpi.warn .v, .kpi.flagged .v { color: var(--amber); }
 .kpi.warn .l { color: var(--amber); }
 td.entry input::placeholder { color: #c3cad4; }
@@ -1081,8 +1297,6 @@ tbody tr.rowflagged:focus-within td.name { background: #fbeacb; }
 .gcallout.tip .gclabel { color: var(--brand); }
 .gcallout.warn { background: var(--amber-tint); color: var(--amber); }
 .gcallout.warn .gclabel { color: var(--amber); }
-
-.railbtn.active { background: var(--brand); color: #fff; }
 
 @media (max-width: 1000px) {
   .guidepage { grid-template-columns: 1fr; gap: 12px; }

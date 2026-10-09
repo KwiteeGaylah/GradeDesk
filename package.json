@@ -26,7 +26,8 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "electron-updater": "^6.8.9",
-    "exceljs": "^4.4.0"
+    "exceljs": "^4.4.0",
+    "pdfjs-dist": "6.3.289"
   },
   "build": {
     "appId": "lr.wvstu.gradedesk",
@@ -39,7 +40,14 @@
       "src/**/*",
       "data/transmutation_tables.json",
       "package.json",
-      "build/icon.png"
+      "build/icon.png",
+      "!node_modules/@napi-rs/**",
+      "!node_modules/pdfjs-dist/{build,web,image_decoders,types,cmaps,standard_fonts,iccs,wasm}/**",
+      "!node_modules/pdfjs-dist/legacy/{web,image_decoders}/**",
+      "!node_modules/pdfjs-dist/**/*.map",
+      "!node_modules/pdfjs-dist/**/*.min.mjs",
+      "!node_modules/pdfjs-dist/**/*.d.mts",
+      "!node_modules/pdfjs-dist/**/pdf.sandbox.mjs"
     ],
     "extraMetadata": {
       "main": "src/main.js"
