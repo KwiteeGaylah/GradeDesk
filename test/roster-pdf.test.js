@@ -214,6 +214,40 @@ test('a student already in the course is skipped, matching the ID loosely', () =
   assert.equal(plan.skip[0].reason, 'Already on your list as Bestman, Comfort');
 });
 
+test('a student typed by name alone is recognised when the PDF brings their ID', () => {
+  // The usual order of events: the instructor types the class by name to get
+  // started, enters scores, and imports the official PDF later. Matching only
+  // ID to ID, the PDF's students all looked new and the whole class was added
+  // a second time beside the rows that hold their grades.
+  const plan = planRosterImport(
+    [stored(1, '', 'Bestman', 'Comfort', { hasWork: true }), stored(2, '', 'Dolo', 'Patience', { hasWork: true })],
+    [incoming('TU-90001', 'Bestman', 'Comfort'), incoming('TU-90002', 'Dolo', 'Patience')]
+  );
+  assert.equal(plan.add.length, 0, 'nobody is added twice');
+  assert.equal(plan.fill.length, 0);
+  assert.equal(plan.skip.length, 2);
+});
+
+test('the same name under a different ID is a different student', () => {
+  // Two students can share a name. A name only stands in for an ID when the
+  // student on the list has no ID of their own to compare.
+  const plan = planRosterImport(
+    [stored(1, 'TU-90001', 'Kollie', 'James')],
+    [incoming('TU-90055', 'Kollie', 'James')]
+  );
+  assert.deepEqual(plan.add.map((r) => r.studentId), ['TU-90055']);
+  assert.equal(plan.skip.length, 0);
+});
+
+test('an ID typed with a space or without its dash still matches', () => {
+  const plan = planRosterImport(
+    [stored(1, 'tu 90001', 'Bestman', 'Comfort'), stored(2, 'TU90002', 'Dolo', 'Patience')],
+    [incoming('TU-90001', 'Bestman', 'Comfort'), incoming('TU-90002', 'Dolo', 'Patience')]
+  );
+  assert.equal(plan.add.length, 0);
+  assert.equal(plan.skip.length, 2);
+});
+
 test('without an ID, a student is matched by last and first name', () => {
   const plan = planRosterImport(
     [stored(1, '', 'Bestman', 'Comfort')],

@@ -352,7 +352,10 @@ function rosterCourseCheck(meta, course) {
 
 /** A student ID compared without case or spaces: "tu-90001" is "TU-90001". */
 function idKey(id) {
-  return tidy(id).replace(/\s+/g, '').toUpperCase();
+  // Letters and digits only: "TU-90001", "tu 90001" and "TU90002" are the same
+  // ID typed three ways, and the PDF and a hand-typed roster rarely agree on
+  // the punctuation.
+  return tidy(id).replace(/[^0-9a-z]/gi, '').toUpperCase();
 }
 /** A name compared without case, for rows with no ID to go on. */
 function nameKey(row) {
@@ -389,6 +392,8 @@ function isEmptyStudent(student) {
  */
 function planRosterImport(existing, rows) {
   const ids = new Map();
+  // Every named student, with or without an ID, so a name can be looked up
+  // either way. Whether a name match counts is decided at lookup, below.
   const names = new Map();
   const empties = [];
   for (const student of existing || []) {
@@ -397,8 +402,29 @@ function planRosterImport(existing, rows) {
       continue;
     }
     if (idKey(student.student_id)) ids.set(idKey(student.student_id), student);
-    else if (nameKey(student)) names.set(nameKey(student), student);
+    if (nameKey(student) && !names.has(nameKey(student))) names.set(nameKey(student), student);
   }
+
+  /**
+   * The student already on the list that this PDF row is, if any.
+   *
+   * By ID first. Failing that, by name -- but a name only stands in for an ID
+   * when the student on the list has no ID of their own. Two students can share
+   * a name; two different IDs are two different people.
+   *
+   * The name fallback is what catches the usual order of events: the class is
+   * typed in by name to get started, scores go in, and the official PDF is
+   * imported later. Matching ID to ID alone, every student on it looked new and
+   * the whole class was added a second time beside the rows holding its grades.
+   */
+  const findExisting = (row) => {
+    const id = idKey(row.studentId);
+    if (id && ids.has(id)) return ids.get(id);
+    const byName = names.get(nameKey(row));
+    if (!byName) return null;
+    if (id && idKey(byName.student_id)) return null;
+    return byName;
+  };
 
   const plan = { fill: [], add: [], skip: [] };
   const seen = new Set();
@@ -411,7 +437,7 @@ function planRosterImport(existing, rows) {
     }
     seen.add(key);
 
-    const already = id ? ids.get(id) : names.get(nameKey(row));
+    const already = findExisting(row);
     if (already) {
       plan.skip.push({
         row,
