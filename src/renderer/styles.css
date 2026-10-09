@@ -244,7 +244,13 @@ nav a.newcourse .ico { color: var(--brand-ink); }
 
 /* The four screens of a course, as tabs under its heading. */
 .screentabs {
-  display: flex; gap: 2px; padding: 0 16px; flex: none; overflow-x: auto;
+  /* overflow-y has to be stated. Setting overflow-x alone makes the browser
+     compute overflow-y as auto too, and the active tab's underline sits 1px
+     below the border (margin-bottom: -1px), so the row is a pixel taller than
+     its box: a stray vertical scrollbar appeared beside the tabs on every
+     screen. */
+  display: flex; gap: 2px; padding: 0 16px; flex: none;
+  overflow-x: auto; overflow-y: hidden;
   background: var(--paper); border-bottom: 1px solid var(--line);
 }
 .screentabs:empty { display: none; }
@@ -498,7 +504,11 @@ thead th.col-secondary { background: var(--violet-tint); color: var(--violet); }
      cut to "Midterm ...", which tells you nothing about which column you are
      typing into. The header grows; the score cells below it do not. */
   display: block; font-size: 11.5px; font-weight: 700;
-  white-space: normal; overflow-wrap: anywhere; line-height: 1.2;
+  /* break-word, not anywhere: "anywhere" lets the browser break a word to
+     make the column narrower, which split "Attendance" into "Attendanc / e".
+     break-word only breaks a word too long to fit at all, so short names stay
+     whole and the column takes the few extra pixels instead. */
+  white-space: normal; overflow-wrap: break-word; line-height: 1.2;
 }
 .entrytable th.th-entry .thmax {
   display: block; font-size: 10.5px; font-weight: 500; color: var(--ink-soft);
