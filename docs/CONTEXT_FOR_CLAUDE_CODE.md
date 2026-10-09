@@ -271,7 +271,14 @@ versioned. Upload the one produced by the build you are actually publishing.
    README names it.
 3. Commit, push, tag `vX.Y.Z`, push the tag.
 4. `npm run dist`.
-5. Create the release on the tag, then attach **all three** files.
+5. Create the release on the tag **as a draft** (`"draft": true`), attach
+   **all three** files, and only then publish it. The update feed is
+   `releases/latest/download/latest.yml`, so the moment a release is published
+   with `latest.yml` attached, every installed copy is told to download the
+   installer -- and the installer is the slowest file to upload. Published
+   first, there is a window of a minute or more where clients are pointed at a
+   file that does not exist yet. They fail quietly and retry next launch, so it
+   is not dangerous, but it is avoidable.
 6. **Verify the feed resolves**, from the public URL with no credentials:
 
    ```bash
@@ -285,6 +292,17 @@ versioned. Upload the one produced by the build you are actually publishing.
 `build.publish` in `package.json` is what makes electron-builder write
 `latest.yml` at all. If it is ever removed, builds keep succeeding and updates
 quietly stop. `test/updates.test.js` asserts it stays.
+
+### Never put real student data anywhere public
+
+The repository and its release pages are public. Real student names have
+leaked into a code comment, two commit messages and two release notes before,
+copied from the instructor's own class lists to illustrate a point, and
+removing them meant rewriting published history. Illustrate with invented
+names -- "Gbarbea, Jr., Alexander, Kollie" -- and invented IDs like TU-9000x.
+That covers commit messages, release notes, comments, test fixtures and
+screenshots: anything generated from the instructor's real database must not
+leave their machine.
 
 ### What the update check may and may not do
 
