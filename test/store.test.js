@@ -181,6 +181,87 @@ test('roster rows keep their typed order and auto-number', () => {
   store.close();
 });
 
+test('removing a student closes the gap in the numbering by itself', () => {
+  const store = newStore();
+  const { course } = seedCourse(store);
+  const [, middle] = store.addStudents(course.id, [
+    { studentId: '10001', fullName: 'Bestman, Comfort K.' },
+    { studentId: '10002', fullName: 'Bestman, Daniel T.' },
+    { studentId: '10003', fullName: 'Cooper, Grace A.' },
+  ]);
+  store.deleteStudent(middle.id);
+  let roster = store.listStudents(course.id);
+  assert.deepEqual(roster.map((s) => [s.student_id, s.number]), [['10001', 1], ['10003', 2]]);
+
+  // A student added afterwards goes on the end as the next number, not 4.
+  store.addStudent(course.id, { studentId: '10004', fullName: 'Dolo, Patience' });
+  roster = store.listStudents(course.id);
+  assert.deepEqual(roster.map((s) => s.number), [1, 2, 3]);
+  store.close();
+});
+
+test('the class list is kept in surname order and numbered down it', () => {
+  // Typed in no particular order, as happens when late students are added.
+  const store = newStore();
+  const { course } = seedCourse(store);
+  const [dolo] = store.addStudents(course.id, [
+    { studentId: '10003', fullName: 'Dolo, Patience' },
+    { studentId: '10001', fullName: 'Freeman, Mercy' },
+    { studentId: '10002', fullName: 'Bestman, Comfort K.' },
+    { studentId: '10004', fullName: 'Freeman, Joseph G.' },
+  ]);
+  const read = () => store.listStudents(course.id).map((s) => [s.number, s.full_name]);
+  assert.deepEqual(read(), [
+    [1, 'Bestman, Comfort K.'],
+    [2, 'Dolo, Patience'],
+    [3, 'Freeman, Joseph G.'],
+    [4, 'Freeman, Mercy'],
+  ]);
+
+  // Correcting a surname moves the student and the numbers follow.
+  store.updateStudent(dolo.id, { lastName: 'Zinnah' });
+  assert.deepEqual(read().map(([n, name]) => `${n} ${name}`), [
+    '1 Bestman, Comfort K.',
+    '2 Freeman, Joseph G.',
+    '3 Freeman, Mercy',
+    '4 Zinnah, Patience',
+  ]);
+
+  // Scores stay with the student, not with the row number.
+  const students = store.listStudents(course.id);
+  assert.equal(students[3].id, dolo.id);
+  store.close();
+});
+
+test('an import numbers the class straight through', () => {
+  const store = newStore();
+  const { course } = seedCourse(store);
+  store.addStudents(course.id, [{ studentId: '10001', fullName: 'Bestman, Comfort K.' }]);
+  store.importRoster(course.id, [
+    { studentId: '10002', lastName: 'Cooper', firstName: 'Grace', middleName: '' },
+    { studentId: '10003', lastName: 'Dolo', firstName: 'Patience', middleName: '' },
+  ]);
+  assert.deepEqual(store.listStudents(course.id).map((s) => s.number), [1, 2, 3]);
+  store.close();
+});
+
+test('gaps left by an older version are closed when the database is opened', () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'gd-renumber-')), 'g.db');
+  let store = new Store(file);
+  const { course } = seedCourse(store);
+  const students = store.addStudents(course.id, [
+    { studentId: '10001', fullName: 'Bestman, Comfort K.' },
+    { studentId: '10002', fullName: 'Cooper, Grace A.' },
+  ]);
+  // What a removal used to leave behind before numbering was automatic.
+  store.db.prepare('UPDATE students SET number = ? WHERE id = ?').run(7, students[1].id);
+  store.close();
+
+  store = new Store(file);
+  assert.deepEqual(store.listStudents(course.id).map((s) => s.number), [1, 2]);
+  store.close();
+});
+
 // --------------------------------------------------------------------- scores
 
 test('a score round-trips and a blank is stored as blank, not zero', () => {
@@ -251,12 +332,13 @@ test('attendance marks resolve into a raw score through the engine', () => {
   // Third session left unmarked for this student: excluded from the denominator.
 
   const result = computeCourse(store, course.id, tables);
-  const attendanceOf = (row) =>
-    row.midterm.assessments.find((x) => x.assessment.id === a.midAttendance.id);
+  const attendanceOf = (student) =>
+    result.students.find((row) => row.student.id === student.id)
+      .midterm.assessments.find((x) => x.assessment.id === a.midAttendance.id);
 
-  assert.equal(attendanceOf(result.students[0]).raw, 10, 'all present over 3 sessions');
+  assert.equal(attendanceOf(roster[0]).raw, 10, 'all present over 3 sessions');
   // 1 P + 1 E over 2 marked sessions is 7.5, recorded as a whole 8.
-  assert.equal(attendanceOf(result.students[1]).raw, 8, '1 P + 1 E over 2 marked sessions');
+  assert.equal(attendanceOf(roster[1]).raw, 8, '1 P + 1 E over 2 marked sessions');
   store.close();
 });
 

@@ -129,11 +129,40 @@ body {
 .railtoggle:hover { border-color: var(--brand); color: var(--brand); }
 .railtoggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
-/* The "an update is waiting" line in the left panel. Deliberately an ordinary
-   panel button rather than anything that demands attention: the update installs
-   itself when the app is next closed whether or not it is ever clicked. */
-.railbtn.update { color: var(--brand); font-weight: 600; }
-.railbtn.update .ico { color: var(--brand); }
+/* The "an update is waiting" card in the left panel. Filled in the brand
+   colour so it is noticed: a quiet panel line was being missed, and people
+   stayed on old versions. It still never interrupts; the update installs
+   itself when the app is next closed whether or not it is clicked. */
+.updatecard {
+  display: flex; align-items: center; gap: 10px; width: calc(100% - 16px);
+  margin: 2px 8px 8px; padding: 10px 12px; border-radius: 10px;
+  background: var(--brand); color: #fff; border: 1px solid var(--brand);
+  font: inherit; text-align: left; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
+  animation: updatepulse 2.4s ease-in-out 3;
+}
+.updatecard:hover { filter: brightness(1.08); }
+.updatecard:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.updatecard .ico {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, .22); font-weight: 700; font-size: 14px;
+}
+.updatecard .utext { display: flex; flex-direction: column; min-width: 0; }
+.updatecard .utitle { font-size: 13.5px; font-weight: 700; }
+.updatecard .usub { font-size: 12px; opacity: .9; }
+@keyframes updatepulse {
+  0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, .18); }
+  50% { box-shadow: 0 0 0 5px var(--brand-line); }
+}
+@media (prefers-reduced-motion: reduce) { .updatecard { animation: none; } }
+/* The dot on the panel button, shown only while the panel is hidden. */
+.railtoggle { position: relative; }
+.app.railhidden .railtoggle.hasupdate::after {
+  content: ""; position: absolute; top: -3px; right: -3px;
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--brand); border: 2px solid var(--paper);
+}
 
 /* ---------------- left panel ----------------
    Light, with a hairline separating it from the work area. The active item is
@@ -798,6 +827,9 @@ details.howto > summary::before {
 }
 details.howto[open] > summary { margin-bottom: 8px; }
 details.howto > .note { margin-bottom: 0; }
+/* Grade entry keeps its how-to behind a toolbar button instead. */
+.howtonote { margin: 0 0 10px; }
+.btn.howbtn.active { background: var(--brand-tint); border-color: var(--brand-line); color: var(--brand-ink); }
 
 /* ---------------- the summary strip ----------------
    A row of figures at the top of a screen: what the class looks like and what
@@ -819,16 +851,6 @@ details.howto > .note { margin-bottom: 0; }
 .scard.clear .sv { font-size: 15px; color: var(--green); padding: 4px 0 2px; }
 .sbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 4px; }
 .sbar > span { display: block; height: 100%; background: var(--green-dot); }
-.spread { display: flex; height: 10px; border-radius: 5px; overflow: hidden; gap: 2px; margin: 6px 0 2px; background: var(--line); }
-.spread > span { display: block; height: 100%; min-width: 3px; }
-.spread .gA { background: var(--green-dot); }
-.spread .gB { background: #2f5daa; }
-.spread .gC { background: #c98a1b; }
-.spread .gD { background: #c2601f; }
-.spread .gF { background: var(--red); }
-.spread .gI, .spread .gNG { background: #8c96a3; }
-.spreadkey { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); }
-.spreadkey b { font-weight: 700; color: var(--ink); }
 .mkrow { display: flex; gap: 14px; flex-wrap: wrap; padding-top: 6px; font-size: 13px; color: var(--ink-soft); }
 .mkcount { display: inline-flex; align-items: center; gap: 6px; }
 .mk {
@@ -839,7 +861,6 @@ details.howto > .note { margin-bottom: 0; }
 .mk.E { background: var(--amber-tint); color: var(--amber); }
 .mk.A { background: var(--red-tint); color: var(--red); }
 .scard .btn.small { padding: 1px 6px; font-size: 12px; vertical-align: baseline; }
-.spreadwrap { display: flex; flex-direction: column; }
 
 /* On a laptop screen the cards fold into one slim line of figures, so the
    grid keeps its rows. Below that height the strip goes altogether. */
@@ -859,8 +880,6 @@ details.howto > .note { margin-bottom: 0; }
   .scard.attention .sv, .scard.clear .sv { font-size: 13.5px; padding: 0; }
   .scard .ss { display: none; }
   .sbar { width: 64px; margin-top: 0; }
-  .spreadwrap { flex-direction: row; align-items: center; gap: 10px; }
-  .spread { width: 84px; margin: 0; }
   .mkrow { padding-top: 0; gap: 10px; }
 }
 @media (max-height: 560px) { .summary { display: none; } }

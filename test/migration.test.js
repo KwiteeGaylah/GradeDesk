@@ -214,7 +214,17 @@ test('every grade survives the upgrade unchanged', () => {
     .all();
 
   assert.deepEqual(afterScores, beforeScores, 'not one score is touched');
-  assert.deepEqual(afterStudents, beforeStudents, 'ids, numbers and order are unchanged');
+  // Ids, IDs and names are untouched. The class list is put in surname order
+  // and numbered down it (Store.renumber), so number and sort_order follow
+  // the names: the empty row goes last, and every number is still unique.
+  const strip = (rows) => rows.map(({ id, student_id, full_name }) => ({ id, student_id, full_name }));
+  assert.deepEqual(strip(afterStudents), strip(beforeStudents), 'ids, IDs and names are unchanged');
+  const byNumber = [...afterStudents].sort((x, y) => x.number - y.number);
+  assert.deepEqual(byNumber.map((s) => s.number), afterStudents.map((_, i) => i + 1),
+    'numbered 1 to n with no gaps');
+  assert.deepEqual(byNumber.map((s) => s.full_name), [
+    'Bestman, Comfort K.', 'Dolo, Patience', 'Nyema P. Ernest', 'Van Der Berg, Anna Marie', '',
+  ], 'in surname order, the empty row last');
 
   // And the grades still compute.
   const grades = gradesFrom(store, 1);

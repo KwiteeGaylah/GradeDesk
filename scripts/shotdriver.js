@@ -97,6 +97,20 @@ async function capture(win, app, outPath) {
     })()`);
     await new Promise((r) => setTimeout(r, 500));
 
+    // GRADEDESK_SHOT_SIZE=1350x680 photographs a laptop-sized window, and
+    // GRADEDESK_SHOT_UPDATE=1.8.0 shows the card a downloaded update puts in
+    // the left panel. Neither touches the network.
+    const size = /^(\d+)x(\d+)$/.exec(process.env.GRADEDESK_SHOT_SIZE || '');
+    if (size) {
+      if (win.isMaximized()) win.unmaximize();
+      win.setContentSize(Number(size[1]), Number(size[2]));
+      await win.webContents.executeJavaScript('renderScreen().then(() => true)');
+    }
+    if (process.env.GRADEDESK_SHOT_UPDATE) {
+      await win.webContents.executeJavaScript(
+        `showUpdateReady(${JSON.stringify(process.env.GRADEDESK_SHOT_UPDATE)}); true`);
+    }
+
     await new Promise((r) => setTimeout(r, 900));
     const image = await win.webContents.capturePage();
     fs.writeFileSync(outPath, image.toPNG());

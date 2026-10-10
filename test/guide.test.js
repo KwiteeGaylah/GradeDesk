@@ -5,7 +5,7 @@
  * It is the only documentation an instructor has in front of them, and it went
  * stale twice: it still described entering one assessment at a time after the
  * grid became a whole term, and it never mentioned presets, duplicating a
- * course, renumbering, the right-click menus or the search and sort that every
+ * course, the roster numbering, the right-click menus or the search and sort that every
  * screen carries.
  *
  * These read the guide's own data rather than the rendered page, so a feature
@@ -47,7 +47,7 @@ test('the features that are easy to miss are documented', () => {
   for (const [feature, needle] of [
     ['presets', 'preset'],
     ['duplicating a course', 'duplicate'],
-    ['renumbering the roster', 'renumber'],
+    ['automatic numbering of the roster', 'numbers itself'],
     ['the right-click menu', 'right-click'],
     ['reordering assessments', 'move it up or down'],
     ['the search box', 'search box'],

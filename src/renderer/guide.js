@@ -331,7 +331,7 @@ const GUIDE_SECTIONS = [
         'four screens, duplicate it, open its details, or delete it. Deleting always ' +
         'asks first and tells you what goes with it.' },
       { type: 'steps', title: 'On the Roster screen', items: [
-        ['Renumber', 'Numbers everyone 1, 2, 3 in the order shown. The number is only a label on the grade sheet; no grade changes.'],
+        ['The # column', 'Numbers itself 1, 2, 3 in roster order, the order the sheet is exported in. Removing or adding a student closes the gap by itself, so there is no renumbering to do.'],
         ['Add rows', 'Adds blank rows at the bottom when you have more students to type.'],
         ['On roster?', 'Flags a student who is sitting in but not on the official list yet.'],
       ] },
@@ -356,6 +356,7 @@ const GUIDE_SECTIONS = [
         'you open the app again.' },
       { type: 'steps', title: 'Staying up to date', items: [
         ['It updates itself', 'GradeDesk looks for a new version when it starts and installs it when you next close the app.'],
+        ['The blue Update button', 'Appears at the bottom of the left panel once a new version has downloaded. Click it to install now; otherwise it installs when you next close the app.'],
         ['Nothing is sent', 'It asks whether there is a newer release. No grades, no names, nothing about your students.'],
         ['No internet is fine', 'The check fails quietly and everything else works exactly the same.'],
         ['Manage, then About', 'Tells you which version you are running.'],

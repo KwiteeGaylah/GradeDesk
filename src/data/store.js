@@ -98,6 +98,11 @@ class Store {
       this.db.exec("ALTER TABLE students ADD COLUMN note TEXT NOT NULL DEFAULT ''");
     }
     this._migrateNameParts(studentCols);
+    // The class list is kept in surname order and numbered automatically now
+    // (see renumber). A class from a version that had a Renumber button is put
+    // in that order once on opening. Only labels and row order change; no
+    // score, mark or name does.
+    for (const { id } of this.db.prepare('SELECT id FROM courses').all()) this.renumber(id);
   }
 
   /**
@@ -364,12 +369,64 @@ class Store {
         parts.lastName, parts.firstName, parts.middleName, parts.fullName,
         order, unofficial ? 1 : 0, note
       );
+    this.renumber(courseId);
     return this.getStudent(info.lastInsertRowid);
   }
 
   /** Add many students at once, e.g. a typed or pasted roster. */
   addStudents(courseId, rows) {
-    return this.transaction(() => rows.map((r) => this.addStudent(courseId, r)));
+    return this.transaction(() => {
+      const added = rows.map((r) => this.addStudent(courseId, r));
+      return added.map((s) => this.getStudent(s.id));
+    });
+  }
+
+  /**
+   * Keep a course's class list in surname order, numbered 1, 2, 3.
+   *
+   * The number is the row label on the grade sheet. It used to be fixed when a
+   * student was added and closed up only by a Renumber button, which numbered
+   * in the order students happened to be typed. Every screen opens sorted by
+   * surname, so the numbers read 4, 6, 5 down the list and the button looked
+   * as if it did nothing.
+   *
+   * Now the list itself is kept in surname order (then given name), the order
+   * the administration's list and every submitted sheet use, and the number is
+   * the position in it. It is redone after every add, removal, import and name
+   * edit, so the # column always reads 1 to n down the screen and the export.
+   * Only the label and the row order change; no score is touched.
+   */
+  renumber(courseId) {
+    const rows = this.db
+      .prepare(
+        `SELECT id, number, sort_order, last_name, first_name, full_name
+           FROM students WHERE course_id = ? ORDER BY sort_order, id`
+      )
+      .all(courseId);
+    const collator = new Intl.Collator(undefined, { sensitivity: 'base' });
+    // The same reading as the screens' "Last name (A–Z)" sort (sorting.js), so
+    // the numbers run in order down the default view.
+    const part = (r, which) => {
+      const own = String(r[which] || '').trim();
+      if (own || which === 'first_name') return own;
+      const whole = String(r.full_name || '').trim();
+      const comma = whole.indexOf(',');
+      return comma === -1 ? whole.split(/\s+/)[0] || '' : whole.slice(0, comma).trim();
+    };
+    // A row with no name yet goes to the end, where "Add rows" put it.
+    const unnamed = (r) => (!part(r, 'last_name') && !part(r, 'first_name') ? 1 : 0);
+    const sorted = rows
+      .map((r, i) => ({ r, i }))
+      .sort((x, y) =>
+        unnamed(x.r) - unnamed(y.r) ||
+        collator.compare(part(x.r, 'last_name'), part(y.r, 'last_name')) ||
+        collator.compare(part(x.r, 'first_name'), part(y.r, 'first_name')) ||
+        x.i - y.i)
+      .map(({ r }) => r);
+    const set = this.db.prepare('UPDATE students SET number = ?, sort_order = ? WHERE id = ?');
+    sorted.forEach((row, i) => {
+      if (row.number !== i + 1 || row.sort_order !== i) set.run(i + 1, i, row.id);
+    });
   }
 
   /**
@@ -479,11 +536,20 @@ class Store {
     const set = keys.map((k) => `${map[k]} = ?`).join(', ');
     const values = keys.map((k) => (k === 'unofficial' ? (patch[k] ? 1 : 0) : patch[k]));
     this.db.prepare(`UPDATE students SET ${set} WHERE id = ?`).run(...values, id);
+    // A changed name can move the student in the list, and so change numbers.
+    if (touchedPart || 'fullName' in fields) {
+      const row = this.getStudent(id);
+      if (row) this.renumber(row.course_id);
+    }
     return this.getStudent(id);
   }
 
   deleteStudent(id) {
-    this.db.prepare('DELETE FROM students WHERE id = ?').run(id);
+    const student = this.getStudent(id);
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM students WHERE id = ?').run(id);
+      if (student) this.renumber(student.course_id);
+    });
   }
 
   // ------------------------------------------------------------ assessments

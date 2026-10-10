@@ -536,6 +536,9 @@ function renderRail() {
         oncontextmenu: (e) => courseMenu(e, c),
         onclick: async () => {
           state.courseId = c.id;
+          // Picking a course from the guide means "take me to it": staying on
+          // the guide left people reading help with no sign the click worked.
+          if (state.screen === 'guide') state.screen = 'grades';
           await loadCourseDetail();
           renderRail();
           await renderScreen();
@@ -845,12 +848,33 @@ function showUpdateReady(version) {
   foot.insertBefore(
     el('button', {
       id: 'updateReady',
-      class: 'railbtn update',
-      title: `GradeDesk ${version} has been downloaded and will install when you close the app`,
-      onclick: openManage,
-    }, el('span', { class: 'ico', text: '\u2191' }), `Update to ${version}`),
+      class: 'updatecard',
+      title: `GradeDesk ${version} has been downloaded. It installs when you close the app, or click to install it now.`,
+      onclick: () => installUpdate(version),
+    },
+      el('span', { class: 'ico', text: '↑' }),
+      el('span', { class: 'utext' },
+        el('span', { class: 'utitle', text: `Update to ${version}` }),
+        el('span', { class: 'usub', text: 'Click to install now' }))),
     foot.firstChild
   );
+  // With the left panel hidden the card is out of sight, so the button that
+  // brings the panel back carries a dot until it does.
+  $('railToggle').classList.add('hasupdate');
+}
+
+/** Install a downloaded update now, after saying what will happen. */
+async function installUpdate(version) {
+  const ok = await confirmDialog({
+    title: `Install GradeDesk ${version} now?`,
+    body: el('p', {},
+      'GradeDesk will close, install the update and open again. Every score you have ',
+      'typed is already saved. If you would rather not wait now, it will install by ',
+      'itself the next time you close the app.'),
+    confirmLabel: 'Install and restart',
+    danger: false,
+  });
+  if (ok) await guard(() => api.updates.install(), 'Installing the update');
 }
 
 if (api.updates && api.updates.onStatus) {
@@ -1235,38 +1259,32 @@ async function renderGradeEntry(content, course, policyInfo) {
     { score: true, grade: true }
   );
 
-  // The term switch shares the toolbar row: vertical space is what the grid
-  // needs most on a laptop.
-  const bar = el('div', { class: 'entrybar' },
-    termSwitch,
-    el('div', { class: 'pickgroup' }, transToggle),
-    el('div', { class: 'spacer' }),
-    filterBar
-  );
-
-  const note = howTo('How grade entry works',
+  // The how-to sits behind a small button on the toolbar rather than on a line
+  // of its own, so the grid keeps that line for students.
+  const note = el('div', { class: 'note howtonote', hidden: true },
     'Every ', el('b', {}, termLabel.toLowerCase()), ' assessment is here at once. ',
     'Type across a row with ', el('b', {}, 'Tab'), ', or down a column with ',
     el('b', {}, 'Enter'), '. The arrow keys move either way, just like in Excel. ',
     'A blank counts as 50. Attendance works itself out from the register, and the ',
     'shaded columns work themselves out too.'
   );
+  const howBtn = el('button', {
+    class: 'btn small ghost howbtn',
+    title: 'How grade entry works',
+    onclick: () => {
+      note.hidden = !note.hidden;
+      howBtn.classList.toggle('active', !note.hidden);
+    },
+  }, '? How it works');
 
-  const issues = (await guard(() => api.gradebook.issues(course.id), 'Reviewing')) || [];
-  let summary = gradeSummary(students, columns, termKind, termLabel, issues);
-  // Typing a score redraws only its row, so the strip is refreshed on its own
-  // after each save. It runs in the background and never holds up a keystroke.
-  state.refreshSummary = async () => {
-    try {
-      const fresh = gradeSummary(
-        (state.computed && state.computed.students) || students, columns, termKind, termLabel,
-        await api.gradebook.issues(course.id));
-      if (summary.isConnected) summary.replaceWith(fresh);
-      summary = fresh;
-    } catch {
-      // A summary a moment out of date is not worth interrupting entry over.
-    }
-  };
+  // The term switch shares the toolbar row: vertical space is what the grid
+  // needs most on a laptop.
+  const bar = el('div', { class: 'entrybar' },
+    termSwitch,
+    el('div', { class: 'pickgroup' }, transToggle, howBtn),
+    el('div', { class: 'spacer' }),
+    filterBar
+  );
 
   const policyWarn = policyInfo && policyInfo.confidence !== 'grade-verified'
     ? el('div', { class: 'note warn' },
@@ -1487,7 +1505,6 @@ async function renderGradeEntry(content, course, policyInfo) {
   window.addEventListener('resize', sizeScroller);
 
   setChildren(content,
-    summary,
     bar,
     policyWarn,
     note,
@@ -1533,66 +1550,6 @@ function progressBar(fraction) {
   const fill = el('span');
   fill.style.width = `${Math.max(0, Math.min(1, fraction)) * 100}%`;
   return el('div', { class: 'sbar' }, fill);
-}
-
-/** Two decimals, never rounded up: the same rule the final grade follows. */
-function truncate2(value) {
-  return (Math.floor(value * 100) / 100).toFixed(2);
-}
-
-/**
- * The strip above the grade grid: how the class is doing and what is left.
- * Everything here is read from the same computed rows the grid shows.
- */
-function gradeSummary(students, columns, termKind, termLabel, issues) {
-  const finals = students.map((r) => r.finalGrade).filter((v) => Number.isFinite(v));
-  const average = finals.length ? finals.reduce((a, b) => a + b, 0) / finals.length : null;
-
-  // Scores still to type: every typed column (attendance fills itself in).
-  const typed = columns.filter((a) => a.kind !== 'attendance');
-  let filled = 0;
-  for (const row of students) {
-    for (const a of typed) {
-      const raw = a.kind === 'exam'
-        ? row[termKind].examRaw
-        : ((row[termKind].assessments || []).find((x) => x.assessment.id === a.id) || {}).raw;
-      if (raw !== null && raw !== undefined && raw !== '') filled += 1;
-    }
-  }
-  const expected = students.length * typed.length;
-
-  const order = ['A', 'B', 'C', 'D', 'F', 'I', 'NG'];
-  const counts = Object.fromEntries(order.map((l) => [l, 0]));
-  for (const row of students) if (row.letter in counts) counts[row.letter] += 1;
-  const spread = el('div', { class: 'spread' },
-    ...order.filter((l) => counts[l]).map((l) => {
-      const seg = el('span', { class: `g${l}`, title: `${l}: ${counts[l]}` });
-      seg.style.flexGrow = String(counts[l]);
-      return seg;
-    }));
-  const key = el('div', { class: 'spreadkey' },
-    ...order.filter((l) => counts[l])
-      .map((l) => el('span', {}, el('b', { text: l }), ` ${counts[l]}`)));
-
-  const problems = issues.filter((i) => i.severity !== 'info');
-  const attention = problems.length
-    ? summaryCard('Before you export',
-        `${problems.length} thing${problems.length === 1 ? '' : 's'} to check`,
-        [problems[0].message, ' ',
-          el('button', { class: 'btn ghost small', onclick: () => showIssues(issues) }, 'Review')],
-        { kind: 'attention' })
-    : summaryCard('Before you export', 'Nothing to fix', 'Every student has a grade.', { kind: 'clear' });
-
-  return el('section', { class: 'summary', 'aria-label': 'This class at a glance' },
-    summaryCard('Class average',
-      average === null ? '—' : truncate2(average),
-      `Final grade across ${finals.length} student${finals.length === 1 ? '' : 's'}`),
-    summaryCard(`${termLabel} scores in`,
-      [String(filled), el('small', { text: ` of ${expected}` })],
-      null,
-      { body: progressBar(expected ? filled / expected : 0) }),
-    summaryCard('Grade spread', null, null, { body: el('div', { class: 'spreadwrap' }, spread, key) }),
-    attention);
 }
 
 /**
@@ -2181,13 +2138,9 @@ async function renderRoster(content, course) {
     { roster: true }
   );
 
+  // No Renumber button: the store numbers the class 1 to n by itself after
+  // every add, removal and import.
   const bar = el('div', { class: 'entrybar' },
-    el('div', { class: 'pickgroup' },
-      el('button', {
-        class: 'btn small',
-        title: 'Number the students 1, 2, 3 in the order shown',
-        onclick: () => renumberRoster(course),
-      }, 'Renumber')),
     el('div', { class: 'spacer' }),
     filterBar
   );
@@ -2210,6 +2163,27 @@ async function renderRoster(content, course) {
   ));
 
   const tbody = el('tbody');
+  // The # cell of each row, by student id, so the numbers can be updated in
+  // place after a name edit without redrawing the row being typed in.
+  const numberCells = new Map();
+
+  /**
+   * A name edit can move a student in the class list, which the store keeps in
+   * surname order and numbered 1 to n. Read the new numbers back and show them.
+   */
+  async function refreshNumbers() {
+    const fresh = await guard(() => api.students.list(course.id), 'Loading');
+    if (!fresh) return;
+    const byId = new Map(fresh.map((s) => [s.id, s]));
+    for (const student of students) {
+      const now = byId.get(student.id);
+      if (!now) continue;
+      student.number = now.number;
+      student.sort_order = now.sort_order;
+      const td = numberCells.get(student.id);
+      if (td) td.textContent = String(now.number);
+    }
+  }
 
   /** Rebuild only the rows, so the search caret is never disturbed. */
   function renderRosterRows() {
@@ -2274,6 +2248,7 @@ async function renderRoster(content, course) {
       saved();
       await refreshComputed();
       markRowState(tr, student);
+      if (field !== 'studentId') await refreshNumbers();
     };
 
     for (const [field, dbKey, input] of FIELDS) {
@@ -2282,8 +2257,10 @@ async function renderRoster(content, course) {
       input.addEventListener('keydown', (e) => onRosterKey(e, course, total));
     }
 
+    const numberCell = el('td', { class: 'idx', text: student.number ?? index + 1 });
+    numberCells.set(student.id, numberCell);
     const tr = el('tr', {},
-      el('td', { class: 'idx', text: student.number ?? index + 1 }),
+      numberCell,
       el('td', { class: 'entry w-id' }, idInput),
       el('td', { class: 'entry w-auto' }, lastInput),
       el('td', { class: 'entry w-auto' }, firstInput),
@@ -2367,28 +2344,6 @@ async function renderRoster(content, course) {
 
   setChildren(content, summary, bar, note,
     el('div', { class: 'gridcard' }, el('table', { class: 'rostertable' }, thead, tbody)));
-}
-
-/** Renumber students 1..n in their current stored order. */
-async function renumberRoster(course) {
-  const students = await api.students.list(course.id);
-  const ok = await confirmDialog({
-    title: 'Renumber the class list?',
-    subtitle: `Students will be numbered 1 to ${students.length} in roster order.`,
-    body: el('div', { class: 'hint' },
-      'The number is only a label on the grade sheet. No scores or grades change.'),
-    confirmLabel: 'Renumber',
-    danger: false,
-  });
-  if (!ok) return;
-  for (let i = 0; i < students.length; i++) {
-    if (students[i].number !== i + 1) {
-      await guard(() => api.students.update(students[i].id, { number: i + 1 }), 'Renumbering');
-    }
-  }
-  await refreshComputed();
-  await renderScreen();
-  saved('Renumbered');
 }
 
 function onRosterKey(event, course, rowCount) {

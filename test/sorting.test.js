@@ -213,3 +213,17 @@ test('the first-name option says "first name", not just "name"', () => {
   assert.match(labels.get('last'), /last name/i);
   assert.match(labels.get('first'), /first name/i);
 });
+
+test('a row with no name yet stays at the end of every name sort', () => {
+  // "Add rows" puts the caret in the last rows, and the store numbers the
+  // class the same way, so a blank row must not jump to the top.
+  const rows = [
+    { id: 1, sort_order: 0, last_name: '', first_name: '', full_name: '' },
+    { id: 2, sort_order: 1, last_name: 'Kollie', first_name: 'James', full_name: 'Kollie, James' },
+    { id: 3, sort_order: 2, last_name: 'Bestman', first_name: 'Comfort', full_name: 'Bestman, Comfort' },
+  ];
+  for (const sort of ['last', 'last-desc', 'first', 'first-desc']) {
+    const order = Sorting.sortRows(rows, sort, { student: (s) => s }).map((s) => s.id);
+    assert.equal(order[2], 1, `${sort}: the blank row is last (${order})`);
+  }
+});

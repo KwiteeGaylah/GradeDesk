@@ -512,6 +512,8 @@ async function drive(win, app) {
     check('the review dialog offers one dismiss button, not two',
       dlg.buttons.length === 1 && dlg.buttons[0] === 'Close', JSON.stringify(dlg.buttons));
 
+    await layoutAndNavigation(win, setSize, setup);
+
     await importRosterPdf(win);
   } catch (err) {
     check('driver completed without throwing', false, err.message);
@@ -654,6 +656,124 @@ async function importRosterPdf(win) {
     dialog.showOpenDialog = realOpen;
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * The grade grid keeps its height, the guide gives way to a course, the update
+ * card is impossible to miss, and the roster numbers itself.
+ */
+async function layoutAndNavigation(win, setSize, setup) {
+  // ---- grade entry: the grid gets the height, not a strip of figures ----
+  await setSize(1350, 680);
+  await run(win, `(async () => {
+    state.courseId = ${setup.courseId}; state.screen = 'grades';
+    await loadCourseDetail(); renderRail(); await renderScreen();
+  })()`);
+  await new Promise((r) => setTimeout(r, 400));
+  const entry = await run(win, `(async () => {
+    const card = document.querySelector('#content .gridcard.entrygrid');
+    const bar = document.querySelector('#content .entrybar');
+    const btn = document.querySelector('#content .howbtn');
+    const note = document.querySelector('#content .howtonote');
+    const before = note && note.hidden;
+    if (btn) btn.click();
+    const after = note && !note.hidden;
+    if (btn) btn.click();
+    return {
+      summary: !!document.querySelector('#content section.summary'),
+      cardHeight: card ? Math.round(card.getBoundingClientRect().height) : 0,
+      cardTop: card ? Math.round(card.getBoundingClientRect().top) : 0,
+      barHeight: bar ? Math.round(bar.getBoundingClientRect().height) : 0,
+      howBtnInBar: !!(btn && bar && bar.contains(btn)),
+      noteToggles: !!(before && after && note.hidden),
+    };
+  })()`);
+  check('grade entry has no summary strip above the grid', !entry.summary, JSON.stringify(entry));
+  check('the how-to is a button on the toolbar', entry.howBtnInBar, JSON.stringify(entry));
+  check('the how-to opens and closes from that button', entry.noteToggles, JSON.stringify(entry));
+  check('on a 680px-high window the grid gets most of the height',
+    entry.cardHeight >= 420, JSON.stringify(entry));
+  check('the grade toolbar stays one row', entry.barHeight <= 50, JSON.stringify(entry));
+
+  // ---- picking a course from the guide leaves the guide ----
+  const guide = await run(win, `(async () => {
+    document.getElementById('helpBtn').click();
+    await new Promise(r => setTimeout(r, 400));
+    const onGuide = !!document.querySelector('#content .guidepage');
+    const link = [...document.querySelectorAll('#courseNav a')]
+      .find(a => a.textContent.includes('CSE 102'));
+    link.click();
+    await new Promise(r => setTimeout(r, 600));
+    return {
+      onGuide,
+      screen: state.screen,
+      stillGuide: !!document.querySelector('#content .guidepage'),
+      tab: (document.querySelector('#screenTabs a.active') || {}).textContent,
+    };
+  })()`);
+  check('the guide opens from the left panel', guide.onGuide, JSON.stringify(guide));
+  check('clicking a course on the guide opens that course',
+    !guide.stillGuide && guide.screen === 'grades' && guide.tab === 'Grade entry', JSON.stringify(guide));
+
+  // ---- the update card ----
+  const update = await run(win, `(async () => {
+    showUpdateReady('9.9.9');
+    const card = document.getElementById('updateReady');
+    const style = card ? getComputedStyle(card) : null;
+    const out = {
+      present: !!card,
+      text: card ? card.textContent : '',
+      filled: !!style && style.backgroundColor !== 'rgba(0, 0, 0, 0)' && style.backgroundColor !== 'transparent',
+      height: card ? Math.round(card.getBoundingClientRect().height) : 0,
+    };
+    card.click();
+    await new Promise(r => setTimeout(r, 300));
+    const modal = document.querySelector('.modal');
+    out.asks = modal ? modal.textContent : '';
+    // Cancel: nothing is installed by a test.
+    const cancel = modal && [...modal.querySelectorAll('.btn')].find(b => b.textContent === 'Cancel');
+    if (cancel) cancel.click();
+    out.closed = !document.querySelector('.modal');
+    applyRailHidden(true);
+    const toggle = document.getElementById('railToggle');
+    out.dot = getComputedStyle(toggle, '::after').content !== 'none';
+    applyRailHidden(false);
+    card.remove();
+    toggle.classList.remove('hasupdate');
+    return out;
+  })()`);
+  check('a downloaded update shows a filled card in the left panel',
+    update.present && update.filled && /Update to 9\.9\.9/.test(update.text), JSON.stringify(update));
+  check('clicking the update card asks before installing',
+    /Install and restart/.test(update.asks) && update.closed, JSON.stringify(update));
+  check('with the left panel hidden the panel button shows the update', update.dot, JSON.stringify(update));
+
+  // ---- the roster numbers itself ----
+  const roster = await run(win, `(async () => {
+    const api = window.gradedesk;
+    const semester = await api.semesters.active();
+    const course = await api.courses.create({
+      semesterId: semester.id, code: 'TMP 1', name: 'Numbering', section: '1', policy: '70'
+    });
+    const added = await api.students.addMany(course.id, [
+      { studentId: '1', fullName: 'Alpha, A' },
+      { studentId: '2', fullName: 'Bravo, B' },
+      { studentId: '3', fullName: 'Charlie, C' },
+    ]);
+    await api.students.remove(added[1].id);
+    const numbers = (await api.students.list(course.id)).map(s => s.number);
+    await loadCourses(); state.courseId = course.id; state.screen = 'roster';
+    await loadCourseDetail(); renderRail(); await renderScreen();
+    const buttons = [...document.querySelectorAll('#content button')].map(b => b.textContent.trim());
+    const shown = [...document.querySelectorAll('#content .rostertable td.idx')].map(t => t.textContent);
+    await api.courses.remove(course.id);
+    await loadAll();
+    return { numbers, buttons, shown };
+  })()`);
+  check('removing a student renumbers the roster by itself',
+    JSON.stringify(roster.numbers) === '[1,2]', JSON.stringify(roster));
+  check('the roster shows the new numbers', JSON.stringify(roster.shown) === '["1","2"]', JSON.stringify(roster));
+  check('the roster has no Renumber button', !roster.buttons.includes('Renumber'), JSON.stringify(roster.buttons));
 }
 
 module.exports = { drive };

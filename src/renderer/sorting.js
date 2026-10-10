@@ -138,12 +138,21 @@ function comparator(sort, accessors) {
     return dir * (a - b);
   };
 
+  // A row with no name yet (just added, still to be typed) goes to the end
+  // whichever way a name sort runs: "Add rows" puts the caret in the last rows,
+  // and the store numbers the class the same way (Store.renumber).
+  const unnamed = (row) =>
+    !namePart(student(row), 'last_name') && !namePart(student(row), 'first_name') ? 1 : 0;
+  const namedFirst = (a, b) => unnamed(a) - unnamed(b);
+
   const byLast = (a, b) =>
+    namedFirst(a, b) ||
     byText(namePart(student(a), 'last_name'), namePart(student(b), 'last_name')) ||
     byText(namePart(student(a), 'first_name'), namePart(student(b), 'first_name')) ||
     byOrder(a, b);
 
   const byFirst = (a, b) =>
+    namedFirst(a, b) ||
     byText(namePart(student(a), 'first_name'), namePart(student(b), 'first_name')) ||
     byText(namePart(student(a), 'last_name'), namePart(student(b), 'last_name')) ||
     byOrder(a, b);
@@ -156,9 +165,9 @@ function comparator(sort, accessors) {
   const sorters = {
     roster: byOrder,
     last: byLast,
-    'last-desc': (a, b) => -byLast(a, b),
+    'last-desc': (a, b) => namedFirst(a, b) || -byLast(a, b),
     first: byFirst,
-    'first-desc': (a, b) => -byFirst(a, b),
+    'first-desc': (a, b) => namedFirst(a, b) || -byFirst(a, b),
     id: (a, b) =>
       String(student(a).student_id || '').localeCompare(
         String(student(b).student_id || ''), undefined, { numeric: true }
