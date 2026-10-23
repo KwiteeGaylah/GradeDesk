@@ -515,6 +515,8 @@ async function drive(win, app) {
     await layoutAndNavigation(win, setSize, setup);
 
     await importRosterPdf(win);
+
+    await currentTermLock(win, setup);
   } catch (err) {
     check('driver completed without throwing', false, err.message);
   }
@@ -528,6 +530,134 @@ async function drive(win, app) {
   }
   console.log(`\n${checks.length - failed.length}/${checks.length} passed`);
   app.exit(failed.length ? 1 : 0);
+}
+
+/**
+ * The current term: saved with the semester, opened on at every launch, and
+ * once it is the final term the midterm is read-only until unlocked.
+ *
+ * Runs last and puts the semester back on the midterm, so it cannot leak into
+ * any other check.
+ */
+async function currentTermLock(win, setup) {
+  const wait = (ms) => `await new Promise(r => setTimeout(r, ${ms}));`;
+  const open = `state.courseId = ${setup.courseId}; state.screen = 'grades';
+    await loadCourseDetail(); renderRail(); await renderScreen(); ${wait(400)}`;
+
+  const before = await run(win, `(async () => {
+    await loadAll(); ${open}
+    const opts = [...document.querySelectorAll('#termNow .termopt')];
+    return {
+      opts: opts.map(b => b.textContent),
+      active: (document.querySelector('#termNow .termopt.active') || {}).textContent,
+      tab: (document.querySelector('#content .termtab.active') || {}).textContent,
+    };
+  })()`);
+  check('the left panel offers a current-term switch',
+    JSON.stringify(before.opts) === '["Midterm","Final"]', JSON.stringify(before));
+  check('a new semester is in the midterm term',
+    before.active === 'Midterm' && /^Midterm term/.test(before.tab), JSON.stringify(before));
+
+  // Move on through the real button and its confirmation.
+  const moved = await run(win, `(async () => {
+    [...document.querySelectorAll('#termNow .termopt')].find(b => b.textContent === 'Final').click();
+    ${wait(300)}
+    const modal = document.querySelector('.modal');
+    const asks = modal ? modal.textContent : '';
+    const go = modal && [...modal.querySelectorAll('.btn')].find(b => b.textContent === 'Move to the final term');
+    if (go) go.click();
+    ${wait(600)}
+    const saved = await window.gradedesk.semesters.active();
+    const tab = (id) => document.querySelector('#content .termtab.term-' + id);
+    const final = [...document.querySelectorAll('#content tbody input')].filter(i => !i.readOnly);
+    return {
+      asks, savedTerm: saved.current_term,
+      tab: (document.querySelector('#content .termtab.active') || {}).textContent,
+      editable: final.length,
+      midColour: getComputedStyle(tab('midterm')).backgroundColor,
+      finColour: getComputedStyle(tab('final')).backgroundColor,
+      midLocked: !!tab('midterm').querySelector('.termlock'),
+    };
+  })()`);
+  check('moving to the final term asks first and says the midterm locks',
+    /locked/.test(moved.asks), JSON.stringify(moved.asks));
+  check('the current term is saved with the semester', moved.savedTerm === 'final', JSON.stringify(moved));
+  check('grade entry moves to the final term, and it can be typed in',
+    /^Final term/.test(moved.tab) && moved.editable > 0, JSON.stringify(moved));
+  check('the two term buttons are different colours',
+    moved.midColour !== moved.finColour, JSON.stringify(moved));
+  check('the midterm button shows a padlock', moved.midLocked, JSON.stringify(moved));
+
+  // Opening the app again lands on the final term, not the midterm.
+  const reopened = await run(win, `(async () => {
+    state.selectedTermKind = 'midterm'; state.selectedAssessmentId = null;
+    await loadAll(); ${open}
+    const tab = (document.querySelector('#content .termtab.active') || {}).textContent;
+    // Switching course must not drop back to the midterm either.
+    state.selectedAssessmentId = -1; ensureSelectedAssessment();
+    return { tab, kind: state.selectedTermKind };
+  })()`);
+  check('reopening the app opens on the current term',
+    /^Final term/.test(reopened.tab) && reopened.kind === 'final', JSON.stringify(reopened));
+
+  // The midterm, from the final term: readable, not typeable.
+  const locked = await run(win, `(async () => {
+    const api = window.gradedesk;
+    document.querySelector('#content .termtab.term-midterm').click();
+    ${wait(500)}
+    const inputs = [...document.querySelectorAll('#content tbody input')];
+    const first = inputs.find(i => i.dataset.assessmentId && !i.title.includes('attendance'));
+    const before = first.value;
+    first.value = '9'; first.dispatchEvent(new Event('change', { bubbles: true }));
+    ${wait(400)}
+    const rows = await api.gradebook.compute(state.courseId);
+    const out = {
+      allReadOnly: inputs.every(i => i.readOnly),
+      note: (document.querySelector('#content .locknote') || {}).textContent || '',
+      before,
+      stored: (() => {
+        const id = Number(first.dataset.assessmentId), sid = Number(first.dataset.studentId);
+        const row = rows.students.find(r => r.student.id === sid);
+        const c = row.midterm.assessments.find(a => a.assessment.id === id);
+        return c ? c.raw : row.midterm.examRaw;
+      })(),
+    };
+    state.screen = 'attendance'; await renderScreen(); ${wait(400)}
+    out.attButtons = [...document.querySelectorAll('#content button')].map(b => b.textContent.trim());
+    out.attCells = document.querySelectorAll('#content td.att').length;
+    out.attLocked = document.querySelectorAll('#content td.att.locked').length;
+    const cell = document.querySelector('#content td.att');
+    const mark = cell ? cell.textContent : null;
+    if (cell) cell.click();
+    ${wait(300)}
+    out.markUnchanged = !cell || cell.textContent === mark;
+
+    // Unlock for a correction.
+    state.screen = 'grades'; await renderScreen(); ${wait(300)}
+    [...document.querySelectorAll('#content .locknote .btn')].find(b => /Unlock/.test(b.textContent)).click();
+    ${wait(400)}
+    out.unlockedEditable = [...document.querySelectorAll('#content tbody input')].some(i => !i.readOnly);
+    out.unlockedNote = (document.querySelector('#content .locknote') || {}).textContent || '';
+    return out;
+  })()`);
+  check('the midterm is read-only while the semester is in the final term',
+    locked.allReadOnly && /locked/.test(locked.note), JSON.stringify(locked));
+  check('a change on a locked box is not saved',
+    String(locked.stored ?? '') === String(locked.before ?? '').trim() || (locked.stored === null && locked.before === ''),
+    JSON.stringify(locked));
+  check('a locked attendance register cannot be marked or added to',
+    locked.attCells === locked.attLocked && locked.markUnchanged &&
+      !locked.attButtons.includes('Record attendance'),
+    JSON.stringify(locked));
+  check('the midterm can be unlocked for a correction',
+    locked.unlockedEditable && /unlocked/.test(locked.unlockedNote), JSON.stringify(locked));
+
+  // Put the semester back for anything that runs after.
+  await run(win, `(async () => {
+    const s = await window.gradedesk.semesters.active();
+    await window.gradedesk.semesters.setTerm(s.id, 'midterm');
+    await loadAll(); ${open}
+  })()`);
 }
 
 /**

@@ -246,6 +246,7 @@ function registerHandlers() {
   handle('semesters:create', (name) => store.createSemester(name));
   handle('semesters:activate', (id) => store.activateSemester(id));
   handle('semesters:rename', (id, name) => store.renameSemester(id, name));
+  handle('semesters:setTerm', (id, kind) => store.setSemesterTerm(id, kind));
 
   // ---- courses ----
   handle('courses:list', (semesterId) => store.listCourses(semesterId));

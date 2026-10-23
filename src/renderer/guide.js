@@ -162,7 +162,16 @@ const GUIDE_SECTIONS = [
         'record an assignment and a quiz in the same sitting without switching anywhere. ' +
         'Type down a column with Enter, or across a row with Tab — whichever suits the ' +
         'pile of papers in front of you. Use the term buttons to move between the midterm ' +
-        'and the final term.' },
+        'and the final term: the midterm is always blue and the final term berry, so you ' +
+        'can see which one you are in without reading.' },
+      { type: 'steps', title: 'Moving on to the final term', items: [
+        ['Current term', 'In the left panel, under the semester, click Final. Every course ' +
+          'then opens on the final term, every time you start GradeDesk.'],
+        ['The midterm locks', 'Its scores and attendance become read-only, so a final-term ' +
+          'mark cannot land there by mistake. A padlock on the Midterm button shows it.'],
+        ['A correction', 'Open the midterm and click Unlock for a correction. It locks ' +
+          'again when you close GradeDesk, or straight away with Lock again.'],
+      ] },
       { type: 'text', text:
         'The transmuted value beside each score is hidden by default, to keep the columns ' +
         'wide enough to read. “Show transmuted” brings it back when you want to check a ' +

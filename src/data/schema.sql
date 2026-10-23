@@ -17,6 +17,10 @@ CREATE TABLE IF NOT EXISTS semesters (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   name        TEXT    NOT NULL,
   is_active   INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+  -- The term the instructor is teaching now. The app opens on it, and once it
+  -- is 'final' the midterm's scores are locked against an accidental edit.
+  current_term TEXT   NOT NULL DEFAULT 'midterm'
+              CHECK (current_term IN ('midterm', 'final')),
   archived_at TEXT,
   created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
 );

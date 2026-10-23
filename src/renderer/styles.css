@@ -28,6 +28,12 @@
    *   amber    something to look at before submitting
    *   red      something wrong now: over the maximum, a failing letter
    *
+   * The two terms have a colour each, used on every control and panel that
+   * belongs to one, so which term is on screen is seen rather than read:
+   *
+   *   blue     the midterm term
+   *   berry    the final term
+   *
    * An instructor reading a row should be able to tell what they entered from
    * what GradeDesk derived without reading a legend, which is why the entry
    * column and the computed columns are different hues rather than two shades
@@ -80,6 +86,14 @@
   /* The B badge, and a few notes that still name it. */
   --blue: #1d4a91;
   --blue-tint: #e3ecfa;
+
+  /* ---- the two terms ---- */
+  --term-mid: #1d4a91;
+  --term-mid-tint: #e3ecfa;
+  --term-mid-line: #b7cbee;
+  --term-fin: #8a1f57;
+  --term-fin-tint: #fbe9f1;
+  --term-fin-line: #e6b3cc;
 
   --read: #f6f7fa;          /* computed cells */
   --focus: #1e3a6e;
@@ -192,6 +206,21 @@ body {
   padding: 9px 10px; font-size: 13.5px; font-family: inherit;
 }
 .rail .sem select:hover { border-color: var(--line-strong); }
+
+/* The current term, under the semester it belongs to. Two buttons in the term
+   colours; the current one is filled. */
+.termnowbox { margin-top: 12px; }
+.termseg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.termopt {
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+  padding: 7px 8px; border-radius: var(--radius); border: 1px solid;
+}
+.termopt.term-midterm { background: var(--term-mid-tint); color: var(--term-mid); border-color: var(--term-mid-line); }
+.termopt.term-final { background: var(--term-fin-tint); color: var(--term-fin); border-color: var(--term-fin-line); }
+.termopt.term-midterm:hover { border-color: var(--term-mid); }
+.termopt.term-final:hover { border-color: var(--term-fin); }
+.termopt.term-midterm.active { background: var(--term-mid); border-color: var(--term-mid); color: #fff; cursor: default; }
+.termopt.term-final.active { background: var(--term-fin); border-color: var(--term-fin); color: #fff; cursor: default; }
 
 .railscroll { overflow-y: auto; flex: 1; }
 .navsec {
@@ -392,6 +421,21 @@ nav a.newcourse .ico { color: var(--brand-ink); }
 .atab.exam { border-color: #d9b57a; }
 .atab.exam.active { background: var(--amber-tint); border-color: var(--amber); color: var(--amber); }
 
+/* The term switch above a grid, in the term colours: tinted when not on
+   screen, filled when it is. */
+.termtab { display: inline-flex; align-items: center; gap: 6px; }
+.termtab.term-midterm { background: var(--term-mid-tint); color: var(--term-mid); border-color: var(--term-mid-line); }
+.termtab.term-final { background: var(--term-fin-tint); color: var(--term-fin); border-color: var(--term-fin-line); }
+.termtab.term-midterm:hover { color: var(--term-mid); border-color: var(--term-mid); }
+.termtab.term-final:hover { color: var(--term-fin); border-color: var(--term-fin); }
+.termtab.term-midterm.active { background: var(--term-mid); border-color: var(--term-mid); color: #fff; }
+.termtab.term-final.active { background: var(--term-fin); border-color: var(--term-fin); color: #fff; }
+.termtab .termlock { display: inline-flex; }
+.termnow {
+  font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; line-height: 15px;
+}
+
 /* ---------------- entry toolbar ----------------
    Replaces the old wrapping strip of assessment tabs. A course can carry a
    dozen assessments; a dropdown costs one row at any window width. */
@@ -504,6 +548,14 @@ td.entry input[readonly] {
   background: transparent; border-color: transparent; color: var(--ink-soft);
   cursor: default; font-weight: 500;
 }
+/* A locked term: the typing wells go grey, so it reads as finished, not as a
+   column waiting for scores. */
+.entrytable.locked td.entry,
+.entrytable.locked tbody tr:focus-within td.entry { background: var(--read); }
+.entrytable.locked td.entry input:focus { box-shadow: none; border-color: transparent; font-weight: 500; }
+/* The grid's top edge carries its term's colour too. */
+.gridcard:has(> table.term-midterm) { border-top: 3px solid var(--term-mid); }
+.gridcard:has(> table.term-final) { border-top: 3px solid var(--term-fin); }
 /* The column being typed into is tinted in the header too. */
 /* NOT position:relative. thead th is sticky so the headings stay above the
    rows while a long class scrolls, and relative here silently cancelled that,
@@ -811,6 +863,9 @@ tbody tr:hover td:not(.read):not(.total):not(.final):not(.letter) { background: 
   border-radius: 10px; padding: 11px 14px; font-size: 13px; color: var(--brand-ink); margin-bottom: 14px;
 }
 .note.warn { background: var(--amber-tint); border-color: var(--amber-line); color: var(--amber); }
+/* Why a term cannot be typed in, with the button that unlocks it. */
+.locknote { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.locknote .btn { flex: none; }
 
 /* The how-this-screen-works text, folded behind one line so it is there when
    wanted and out of the way the other hundred times the screen is opened. */
@@ -902,6 +957,9 @@ td.att {
   transition: border-color .12s, box-shadow .12s;
 }
 td.att:hover .attchip { border-color: var(--brand); }
+/* A locked term's register: readable, not clickable. */
+td.att.locked { cursor: default; background: var(--read); }
+td.att.locked:hover .attchip { border-color: var(--entry-line); }
 td.att:focus-visible { outline: none; }
 td.att:focus-visible .attchip {
   border-color: var(--focus); box-shadow: 0 0 0 3px rgba(30, 58, 110, .22);
@@ -941,6 +999,10 @@ th.session .del:hover { color: var(--red); }
 @media (max-width: 1100px) { .panelgrid { grid-template-columns: 1fr; } }
 .panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 18px 20px; box-shadow: var(--shadow-card); }
 .panel h3 { margin: 0 0 4px; font-size: 14px; }
+.termpanel.term-midterm { border-top: 3px solid var(--term-mid); }
+.termpanel.term-final { border-top: 3px solid var(--term-fin); }
+.termpanel.term-midterm h3 { color: var(--term-mid); }
+.termpanel.term-final h3 { color: var(--term-fin); }
 .panel .sub { font-size: 12px; color: var(--ink-soft); margin-bottom: 12px; }
 .arow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .arow:last-child { border-bottom: none; }

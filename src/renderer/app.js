@@ -44,6 +44,12 @@ const state = {
    * grid right now, like the search and sort.
    */
   showTransmuted: false,
+  /**
+   * The midterm, unlocked for a correction after the semester has moved on to
+   * the final term. Not persisted: the lock comes back the next time the app
+   * opens, so a correction cannot quietly leave the term open for good.
+   */
+  pastTermUnlocked: false,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -101,6 +107,7 @@ const ICONS = {
   pdf: ['M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 3v5h5', 'M12 11v6', 'M9 14l3 3 3-3'],
   sheet: ['M7 3h10a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z', 'M9 8h6M9 12h6M9 16h3'],
   paste: ['M9 4h6v3H9z', 'M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2'],
+  lock: ['M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z', 'M8 11V7a4 4 0 0 1 8 0v4'],
 };
 
 function icon(name, size = 16) {
@@ -237,6 +244,7 @@ async function loadAll() {
   state.policies = (await guard(() => api.policies.list(), 'Loading policies')) || [];
   state.semesters = (await guard(() => api.semesters.list(), 'Loading semesters')) || [];
   state.activeSemester = state.semesters.find((s) => s.is_active) || state.semesters[0] || null;
+  openOnCurrentTerm();
   await loadCourses();
   renderRail();
   await renderScreen();
@@ -285,12 +293,127 @@ async function refreshComputed() {
 function ensureSelectedAssessment() {
   const all = [...state.assessments.midterm, ...state.assessments.final];
   if (!all.some((a) => a.id === state.selectedAssessmentId)) {
-    const first = state.assessments.midterm[0] || state.assessments.final[0] || null;
+    // Stay in the term already on screen. Falling back to the midterm here is
+    // what sent every course switch back to the midterm in the final term.
+    const kind = state.selectedTermKind === 'final' ? 'final' : 'midterm';
+    const first = state.assessments[kind][0] || null;
     state.selectedAssessmentId = first ? first.id : null;
-    state.selectedTermKind = state.assessments.midterm.some((a) => a.id === state.selectedAssessmentId)
-      ? 'midterm'
-      : 'final';
   }
+}
+
+// ------------------------------------------------------------ current term
+
+const TERM_LABELS = { midterm: 'Midterm', final: 'Final' };
+
+/** The term the active semester is in now: what the app opens on. */
+function currentTerm() {
+  return state.activeSemester && state.activeSemester.current_term === 'final' ? 'final' : 'midterm';
+}
+
+/**
+ * Whether a term's scores and attendance are read-only.
+ *
+ * Only the midterm, and only once the semester has moved on to the final term:
+ * that is when a final-term mark typed into the wrong tab would silently change
+ * a grade that is already settled. The final term is never locked, since
+ * nothing comes after it.
+ */
+function termLocked(kind) {
+  return kind === 'midterm' && currentTerm() === 'final' && !state.pastTermUnlocked;
+}
+
+/** Point the screens at the semester's current term, locked. */
+function openOnCurrentTerm() {
+  state.selectedTermKind = currentTerm();
+  state.selectedAssessmentId = null;
+  state.pastTermUnlocked = false;
+}
+
+/**
+ * The midterm/final switch above the grade entry and attendance grids.
+ *
+ * Each term has its own colour, the same everywhere it appears, so which term
+ * is on screen can be told at a glance rather than by reading a label. The
+ * current term carries a "now" tag and a locked term a padlock.
+ */
+function termSwitch(activeKind, onPick) {
+  return el('div', { class: 'assessbar' },
+    el('span', { class: 'term-pill', text: 'TERM' }),
+    ...['midterm', 'final'].map((kind) =>
+      el('button', {
+        class: `atab termtab term-${kind}${kind === activeKind ? ' active' : ''}`,
+        'aria-pressed': kind === activeKind ? 'true' : 'false',
+        title: termLocked(kind)
+          ? `${TERM_LABELS[kind]} term (locked: the semester is in the final term)`
+          : kind === currentTerm() ? `${TERM_LABELS[kind]} term (the current term)` : `${TERM_LABELS[kind]} term`,
+        onclick: () => onPick(kind),
+      },
+        termLocked(kind) ? el('span', { class: 'termlock', 'aria-hidden': 'true' }, icon('lock', 13)) : null,
+        `${TERM_LABELS[kind]} term`,
+        kind === currentTerm() ? el('span', { class: 'termnow', text: 'now' }) : null)
+    )
+  );
+}
+
+/**
+ * The strip above a locked (or unlocked) midterm grid, saying why it cannot be
+ * typed in and offering the way out for a correction.
+ */
+function termLockNote(kind) {
+  if (kind !== 'midterm' || currentTerm() !== 'final') return null;
+  if (state.pastTermUnlocked) {
+    return el('div', { class: 'note warn locknote' },
+      el('span', {}, el('b', {}, 'Midterm unlocked for a correction. '),
+        'It locks again when you close GradeDesk.'),
+      el('button', {
+        class: 'btn small',
+        onclick: async () => { state.pastTermUnlocked = false; await renderScreen(); },
+      }, el('span', { class: 'ico' }, icon('lock', 14)), 'Lock again'));
+  }
+  return el('div', { class: 'note locknote' },
+    el('span', {}, el('b', {}, 'The midterm is locked. '),
+      'This semester is in the final term, so midterm scores and attendance are read-only ',
+      'and a final-term mark cannot land here by mistake.'),
+    el('button', {
+      class: 'btn small',
+      onclick: async () => { state.pastTermUnlocked = true; await renderScreen(); },
+    }, 'Unlock for a correction'));
+}
+
+/**
+ * Move the active semester on to a term, or back.
+ *
+ * Saved with the semester, so every course opens on that term from the next
+ * launch on. Confirmed first, because moving to the final term locks the
+ * midterm.
+ */
+async function setCurrentTerm(kind) {
+  const semester = state.activeSemester;
+  if (!semester || kind === currentTerm()) return;
+  const toFinal = kind === 'final';
+  const ok = await confirmDialog({
+    title: toFinal ? 'Move on to the final term?' : 'Go back to the midterm?',
+    subtitle: toFinal
+      ? `Every course in ${semester.name} will open on the final term from now on.`
+      : `Every course in ${semester.name} will open on the midterm again.`,
+    body: el('div', { class: `note${toFinal ? '' : ' warn'}` },
+      toFinal
+        ? 'Midterm scores and attendance are locked so nothing lands there by mistake. '
+          + 'You can still look at them, and unlock them for a correction.'
+        : 'The midterm will no longer be locked.'),
+    confirmLabel: toFinal ? 'Move to the final term' : 'Go back to the midterm',
+    danger: false,
+  });
+  if (!ok) return;
+  const updated = await guard(() => api.semesters.setTerm(semester.id, kind), 'Changing term');
+  if (!updated) return;
+  state.semesters = state.semesters.map((s) => (s.id === updated.id ? updated : s));
+  state.activeSemester = updated;
+  openOnCurrentTerm();
+  ensureSelectedAssessment();
+  renderRail();
+  await renderScreen();
+  toast(`${TERM_LABELS[kind]} term is now the current term`);
 }
 
 function currentCourse() {
@@ -524,6 +647,26 @@ function renderRail() {
     )
   );
 
+  // Which term the semester is in. Saved, so the app opens on it every time.
+  const termNow = $('termNow');
+  setChildren(termNow,
+    state.activeSemester
+      ? [
+          el('label', { id: 'termNowLabel', text: 'Current term' }),
+          el('div', { class: 'termseg', role: 'group', 'aria-labelledby': 'termNowLabel' },
+            ...['midterm', 'final'].map((kind) =>
+              el('button', {
+                type: 'button',
+                class: `termopt term-${kind}${kind === currentTerm() ? ' active' : ''}`,
+                'aria-pressed': kind === currentTerm() ? 'true' : 'false',
+                title: kind === currentTerm()
+                  ? `${TERM_LABELS[kind]} is the current term. GradeDesk opens on it.`
+                  : `Make the ${TERM_LABELS[kind].toLowerCase()} the current term`,
+                onclick: () => setCurrentTerm(kind),
+              }, TERM_LABELS[kind]))),
+        ]
+      : []);
+
   const courseNav = $('courseNav');
   setChildren(courseNav,
     ...state.courses.map((c) =>
@@ -622,6 +765,7 @@ async function newSemester() {
   await guard(() => api.semesters.create(result), 'Creating semester');
   state.semesters = await api.semesters.list();
   state.activeSemester = state.semesters.find((s) => s.is_active) || null;
+  openOnCurrentTerm();
   await loadCourses();
   renderRail();
   await renderScreen();
@@ -789,6 +933,7 @@ async function switchSemester(id) {
   await guard(() => api.semesters.activate(id), 'Switching semester');
   state.semesters = await api.semesters.list();
   state.activeSemester = state.semesters.find((s) => s.id === id) || null;
+  openOnCurrentTerm();
   await loadCourses();
   renderRail();
   await renderScreen();
@@ -1224,21 +1369,14 @@ async function renderGradeEntry(content, course, policyInfo) {
     state.selectedAssessmentId = selected.id;
   }
   state.selectedTermKind = termKind;
+  const locked = termLocked(termKind);
 
-  const termSwitch = el('div', { class: 'assessbar' },
-    el('span', { class: 'term-pill', text: 'TERM' }),
-    ...['midterm', 'final'].map((kind) =>
-      el('button', {
-        class: `atab${kind === termKind ? ' active' : ''}`,
-        onclick: async () => {
-          state.selectedTermKind = kind;
-          const first = all.find((a) => a.termKind === kind);
-          if (first) state.selectedAssessmentId = first.id;
-          await renderScreen();
-        },
-      }, kind === 'midterm' ? 'Midterm term' : 'Final term')
-    )
-  );
+  const switcher = termSwitch(termKind, async (kind) => {
+    state.selectedTermKind = kind;
+    const first = all.find((a) => a.termKind === kind);
+    if (first) state.selectedAssessmentId = first.id;
+    await renderScreen();
+  });
 
   // The transmuted column beside every score doubles the width and is derived,
   // not typed, so it is collapsible. Off by default: what an instructor needs
@@ -1280,7 +1418,7 @@ async function renderGradeEntry(content, course, policyInfo) {
   // The term switch shares the toolbar row: vertical space is what the grid
   // needs most on a laptop.
   const bar = el('div', { class: 'entrybar' },
-    termSwitch,
+    switcher,
     el('div', { class: 'pickgroup' }, transToggle, howBtn),
     el('div', { class: 'spacer' }),
     filterBar
@@ -1394,8 +1532,10 @@ async function renderGradeEntry(content, course, policyInfo) {
             assessmentId: String(assessment.id),
             committed: showRaw(cell.raw),
           },
-          readonly: isAtt,
-          title: isAtt ? 'Worked out from the attendance you have marked' : '',
+          readonly: isAtt || locked,
+          title: isAtt
+            ? 'Worked out from the attendance you have marked'
+            : locked ? 'The midterm is locked' : '',
           'aria-label': `${assessment.name} for ${row.student.full_name}`,
         });
         if (cell.raw !== null && Number(cell.raw) > assessment.max_points) {
@@ -1478,7 +1618,9 @@ async function renderGradeEntry(content, course, policyInfo) {
   // The grid scrolls inside its own card so the column headings can stay put
   // above the rows. A class runs well past one screen, and a grid of unlabelled
   // boxes is how a mark ends up in the wrong assessment.
-  const table = el('table', { class: `entrytable${showTransmuted ? ' with-trans' : ''}` }, thead, tbody);
+  const table = el('table', {
+    class: `entrytable term-${termKind}${showTransmuted ? ' with-trans' : ''}${locked ? ' locked' : ''}`,
+  }, thead, tbody);
   const card = el('div', { class: 'gridcard entrygrid haspeer' }, table);
 
   // A second scrollbar above the grid, driving the same box. With fifty
@@ -1506,6 +1648,7 @@ async function renderGradeEntry(content, course, policyInfo) {
 
   setChildren(content,
     bar,
+    termLockNote(termKind),
     policyWarn,
     note,
     scroller,
@@ -1637,6 +1780,9 @@ function onEntryKey(event, row, col, rowCount, colCount) {
  * standing, term total, final grade and letter together.
  */
 async function commitScore(input, studentId, assessment) {
+  // A locked term's boxes are read-only; never save through one, whatever
+  // event arrives.
+  if (input.readOnly) return;
   const text = input.value.trim();
   const previous = input.dataset.committed ?? '';
   if (text === previous) return;
@@ -1736,21 +1882,17 @@ async function renderAttendance(content, course) {
   const marksByStudent = new Map(marks);
   const students = (state.computed && state.computed.students) || [];
 
-  const termSwitch = el('div', { class: 'assessbar' },
-    el('span', { class: 'term-pill', text: 'TERM' }),
-    ...['midterm', 'final'].map((kind) =>
-      el('button', {
-        class: `atab${kind === termKind ? ' active' : ''}`,
-        onclick: async () => {
-          state.selectedTermKind = kind;
-          await renderScreen();
-        },
-      }, kind === 'midterm' ? 'Midterm term' : 'Final term')
-    )
-  );
+  // A locked term can be read but not marked: no cycling a cell, and no
+  // sessions added or removed, since either changes every attendance score.
+  const locked = termLocked(termKind);
+  const lockNote = termLockNote(termKind);
+  const switcher = termSwitch(termKind, async (kind) => {
+    state.selectedTermKind = kind;
+    await renderScreen();
+  });
 
   if (!attendanceAssessment) {
-    setChildren(content, termSwitch, emptyState({
+    setChildren(content, switcher, emptyState({
       icon: '◷',
       title: 'No attendance set up for this term',
       text: 'Add an attendance assessment so the marks you take have somewhere to go.',
@@ -1761,7 +1903,7 @@ async function renderAttendance(content, course) {
   }
 
   if (!students.length) {
-    setChildren(content, termSwitch, emptyState({
+    setChildren(content, switcher, emptyState({
       icon: '☰',
       title: 'No students yet',
       text: 'Type your class list in the Roster screen first.',
@@ -1772,12 +1914,14 @@ async function renderAttendance(content, course) {
   }
 
   if (!sessions.length) {
-    setChildren(content, termSwitch, emptyState({
+    setChildren(content, switcher, lockNote, emptyState({
       icon: '◷',
       title: 'No sessions yet',
-      text: 'Add a session for each class you hold, then mark the whole class down the column.',
-      actionLabel: '＋ Record attendance',
-      onAction: () => addSession(course, term),
+      text: locked
+        ? 'No attendance was taken in the midterm.'
+        : 'Add a session for each class you hold, then mark the whole class down the column.',
+      actionLabel: locked ? null : '＋ Record attendance',
+      onAction: locked ? null : () => addSession(course, term),
     }));
     return;
   }
@@ -1806,11 +1950,13 @@ async function renderAttendance(content, course) {
     ...sessions.map((s) =>
       el('th', { class: 'session', title: GradeDeskDates.formatDate(s.date) },
         GradeDeskDates.formatDateShort(s.date, sessions.map((x) => x.date)),
-        el('span', {
-          class: 'del',
-          title: 'Remove this session',
-          onclick: () => removeSession(s),
-        }, '✕')
+        locked
+          ? null
+          : el('span', {
+              class: 'del',
+              title: 'Remove this session',
+              onclick: () => removeSession(s),
+            }, '✕')
       )
     ),
     el('th', { class: 'th-computed att-raw', text: `Raw /${attendanceAssessment.max_points}` }),
@@ -1880,6 +2026,13 @@ async function renderAttendance(content, course) {
       // The mark sits in a chip rather than being loose text in the cell, so it
       // reads as something you click, the same way a score box does.
       const chip = el('span', { class: 'attchip', text: code || '·' });
+      if (locked) {
+        return el('td', {
+          class: `att locked ${code || 'blank'}`,
+          title: 'The midterm is locked',
+          'aria-label': `${row.student.full_name}, ${GradeDeskDates.formatDate(session.date)}: ${code || 'blank'}`,
+        }, chip);
+      }
       const td = el('td', {
         class: `att ${code || 'blank'}`,
         tabindex: '0',
@@ -1942,7 +2095,8 @@ async function renderAttendance(content, course) {
 
   setChildren(content,
     summary,
-    termSwitch,
+    switcher,
+    lockNote,
     note,
     // The button sits directly above the table rather than in the top action
     // bar: recording attendance is a thing you do to this table, so it belongs
@@ -1950,12 +2104,14 @@ async function renderAttendance(content, course) {
     el('div', { class: 'tabletools' },
       el('span', { class: 'toolcount' },
         `${sessions.length} ${sessions.length === 1 ? 'class' : 'classes'} marked`),
-      el('button', { class: 'btn primary', onclick: () => addSession(course, term) },
-        el('span', { class: 'ico' }, icon('plus', 15)), 'Record attendance'),
+      locked
+        ? null
+        : el('button', { class: 'btn primary', onclick: () => addSession(course, term) },
+            el('span', { class: 'ico' }, icon('plus', 15)), 'Record attendance'),
       el('div', { class: 'spacer' }),
       filterBar
     ),
-    el('div', { class: 'gridcard' }, el('table', {}, thead, tbody)),
+    el('div', { class: 'gridcard' }, el('table', { class: `term-${termKind}` }, thead, tbody)),
     el('div', { class: 'hint' },
       'It divides by the sessions you have actually marked, not the whole term, so the score is fair even halfway through.')
   );
@@ -2810,7 +2966,7 @@ function termPanel(kind, title, course, maximums, derived = []) {
   const other = kind === 'midterm' ? 'final' : 'midterm';
   const otherLabel = other === 'midterm' ? 'midterm' : 'final';
 
-  return el('div', { class: 'panel' },
+  return el('div', { class: `panel termpanel term-${kind}` },
     el('h3', {}, title, helpDot(
       'Each score is looked up in the transmutation table first, which turns it into a '
       + 'value between 50 and 100. Those are averaged, and the average is 60% of the term. '

@@ -20,7 +20,7 @@ const { joinName, splitName } = require('../engine/roster');
 const { planRosterImport } = require('../engine/roster-pdf');
 
 const SCHEMA_PATH = path.join(__dirname, 'schema.sql');
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '3';
 
 /** Terms every course has, in display order. */
 const TERM_KINDS = ['midterm', 'final'];
@@ -98,6 +98,14 @@ class Store {
       this.db.exec("ALTER TABLE students ADD COLUMN note TEXT NOT NULL DEFAULT ''");
     }
     this._migrateNameParts(studentCols);
+    // Version 3: which term each semester is in. Every existing semester starts
+    // on the midterm, which is what the app showed before this column existed.
+    if (!columns('semesters').includes('current_term')) {
+      this.db.exec(
+        `ALTER TABLE semesters ADD COLUMN current_term TEXT NOT NULL DEFAULT 'midterm'
+           CHECK (current_term IN ('midterm', 'final'))`
+      );
+    }
     // The class list is kept in surname order and numbered automatically now
     // (see renumber). A class from a version that had a Renumber button is put
     // in that order once on opening. Only labels and row order change; no
@@ -248,6 +256,16 @@ class Store {
 
   renameSemester(id, name) {
     this.db.prepare('UPDATE semesters SET name = ? WHERE id = ?').run(name, id);
+    return this.getSemester(id);
+  }
+
+  /**
+   * Move a semester on to a term, or back. The app opens on this term, and
+   * once it is the final term the midterm's scores are locked in the UI.
+   */
+  setSemesterTerm(id, kind) {
+    if (!TERM_KINDS.includes(kind)) throw new Error(`Unknown term: ${kind}`);
+    this.db.prepare('UPDATE semesters SET current_term = ? WHERE id = ?').run(kind, id);
     return this.getSemester(id);
   }
 

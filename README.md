@@ -61,7 +61,12 @@ assignment and a quiz from the same sitting go in without switching anywhere.
 
 Type down a column with `Enter`, or across a row with `Tab`, whichever suits the
 pile of papers in front of you. The shaded columns work themselves out as you go.
-Use the term buttons to move between the midterm and the final term.
+Use the term buttons to move between the midterm and the final term: the midterm
+is always blue and the final term berry. When the midterm is over, set
+**Current term** in the left panel to **Final**. Every course then opens on the
+final term, and the midterm's scores and attendance are locked so a final-term
+mark cannot land there by mistake. "Unlock for a correction" opens it again
+until you close GradeDesk.
 
 The line above the grid keeps the class in view while you type: the class
 average, how many of the term's scores are in, how the letter grades are spread,
@@ -153,6 +158,9 @@ A four-step wizard on first run, and a full guide you can open at any time.
   the column, exactly like a spreadsheet. Enter and Tab advance.
 - ✅ **The maths is done for you.** Transmutation, class standing, term totals,
   final grade and letter, all live as you type.
+- ✅ **Opens on the term you are in.** Move the semester on to the final term
+  once and every course opens there, with the midterm locked against stray
+  edits.
 - ✅ **Attendance scores itself.** Mark P, E or A per session; the score is
   worked out and treated like any other assessment.
 - ✅ **Search and sort.** Find one student while you fix a score, or order the

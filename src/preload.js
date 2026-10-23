@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('gradedesk', {
     create: (name) => call('semesters:create', name),
     activate: (id) => call('semesters:activate', id),
     rename: (id, name) => call('semesters:rename', id, name),
+    setTerm: (id, kind) => call('semesters:setTerm', id, kind),
   },
   courses: {
     list: (semesterId) => call('courses:list', semesterId),

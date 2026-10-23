@@ -237,7 +237,25 @@ test('the schema version is updated, not left reading as version 1', () => {
   const file = writeV1Database('version.db', V1_STUDENTS);
   const store = new Store(file);
   const version = store.db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get();
-  assert.equal(version.value, '2');
+  assert.equal(version.value, '3');
+  store.close();
+});
+
+test('an existing semester comes through upgrading on the midterm, and can move on', () => {
+  // Every database written before the current term existed was, as far as the
+  // app was concerned, in the midterm: that is the term it always opened on.
+  const file = writeV1Database('current-term.db', V1_STUDENTS);
+  let store = new Store(file);
+  const before = gradesFrom(store, 1);
+  const semester = store.getActiveSemester();
+  assert.equal(semester.current_term, 'midterm');
+  store.setSemesterTerm(semester.id, 'final');
+  store.close();
+
+  // Opening again does not reset it, and no grade moved.
+  store = new Store(file);
+  assert.equal(store.getActiveSemester().current_term, 'final');
+  assert.deepEqual(gradesFrom(store, 1), before);
   store.close();
 });
 

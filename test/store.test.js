@@ -105,6 +105,58 @@ test('a semester can be created without activating it', () => {
   store.close();
 });
 
+test('a semester starts in the midterm and remembers moving to the final term', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gradedesk-term-'));
+  const file = path.join(dir, 'term.db');
+  try {
+    let store = new Store(file);
+    const semester = store.createSemester('2026–2027 Semester 1');
+    assert.equal(semester.current_term, 'midterm');
+
+    assert.equal(store.setSemesterTerm(semester.id, 'final').current_term, 'final');
+    store.close();
+
+    // What the app opens on is read back from disk, not held in memory.
+    store = new Store(file);
+    assert.equal(store.getActiveSemester().current_term, 'final');
+    assert.equal(store.setSemesterTerm(semester.id, 'midterm').current_term, 'midterm');
+    store.close();
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a semester can only be in the midterm or the final term', () => {
+  const store = newStore();
+  const semester = store.createSemester('S1');
+  assert.throws(() => store.setSemesterTerm(semester.id, 'summer'), /Unknown term/);
+  // The database refuses it too, whatever path writes it.
+  assert.throws(() => {
+    store.db.prepare("UPDATE semesters SET current_term = 'summer' WHERE id = ?").run(semester.id);
+  }, /CHECK/);
+  assert.equal(store.getSemester(semester.id).current_term, 'midterm');
+  store.close();
+});
+
+test('the current term survives a backup, and an older backup restores on the midterm', () => {
+  const store = newStore();
+  const semester = store.createSemester('S1');
+  store.setSemesterTerm(semester.id, 'final');
+  const backup = exportData(store);
+
+  const fresh = newStore();
+  importData(fresh, backup);
+  assert.equal(fresh.getActiveSemester().current_term, 'final');
+
+  // A file saved before the current term existed has no such field.
+  const old = JSON.parse(JSON.stringify(backup));
+  for (const row of old.data.semesters) delete row.current_term;
+  importData(fresh, old);
+  assert.equal(fresh.getActiveSemester().current_term, 'midterm');
+  store.close();
+  fresh.close();
+});
+
 // -------------------------------------------------------------------- courses
 
 test('a new course gets both terms and a fixed 40-point exam in each', () => {

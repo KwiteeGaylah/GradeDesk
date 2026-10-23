@@ -101,6 +101,8 @@ test('every status colour is readable on its own tint', () => {
     ['amber', 'amber-tint'],
     ['red', 'red-tint'],
     ['blue', 'blue-tint'],
+    ['term-mid', 'term-mid-tint'],
+    ['term-fin', 'term-fin-tint'],
   ];
   const failures = [];
   for (const [fg, bg] of pairs) {
@@ -108,6 +110,19 @@ test('every status colour is readable on its own tint', () => {
     if (ratio < AA_BODY) failures.push(`${fg} on ${bg}: ${ratio.toFixed(2)}:1`);
   }
   assert.deepEqual(failures, [], `${failures.length} status colour(s) below ${AA_BODY}:1`);
+});
+
+test('the term buttons are readable filled, and tell the two terms apart', () => {
+  // The term on screen is a filled button with white text; the other is its
+  // colour on its tint, which the status-colour test above covers.
+  for (const name of ['term-mid', 'term-fin']) {
+    const ratio = contrast('#ffffff', token(name));
+    assert.ok(ratio >= AA_BODY, `white on ${name} is only ${ratio.toFixed(2)}:1`);
+  }
+  // Two hues, not two shades: told apart on a washed-out projector by colour,
+  // so they must not be the same colour under another name.
+  assert.notEqual(token('term-mid'), token('term-fin'));
+  assert.notEqual(token('term-mid-tint'), token('term-fin-tint'));
 });
 
 test('the editable-cell outline is visible against its own well', () => {
