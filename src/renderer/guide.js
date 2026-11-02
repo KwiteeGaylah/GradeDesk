@@ -275,9 +275,19 @@ const GUIDE_SECTIONS = [
         ['Export grade sheet', 'The full record, every assessment and transmuted value.'],
         ['Summary sheet', 'Just ID, name, final grade and letter.'],
       ] },
+      { type: 'steps', title: 'Choose the period', items: [
+        ['Midterm only', 'The midterm scores and each student’s midterm total out of 100, ' +
+          'with no letter grade. What the university asks for once the midterm is over.'],
+        ['Final term only', 'The final-term scores and each student’s final-term total.'],
+        ['Full semester', 'Both terms, the final grade and the letter grade, for the end ' +
+          'of the semester. Only this one carries letters.'],
+      ] },
       { type: 'text', text:
-        'Both open in Excel and are ready to submit as they are. You do not need to ' +
-        'reformat anything.' },
+        'Every export asks which period it covers, and starts on the one you are probably ' +
+        'after: the midterm while the semester is in the midterm, the full semester once ' +
+        'you have moved on to the final term. On a term on its own a blank exam counts as ' +
+        '50, so check Review issues for missing exams first. Both files open in Excel and ' +
+        'are ready to submit as they are. You do not need to reformat anything.' },
     ],
   },
   {

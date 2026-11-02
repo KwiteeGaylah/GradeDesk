@@ -86,9 +86,9 @@ contextBridge.exposeInMainWorld('gradedesk', {
     issues: (courseId) => call('gradebook:issues', courseId),
   },
   exports: {
-    gradeRecord: (courseId) => call('export:gradeRecord', courseId),
-    summary: (courseId) => call('export:summary', courseId),
-    attendance: (courseId) => call('export:attendance', courseId),
+    gradeRecord: (courseId, period) => call('export:gradeRecord', courseId, period),
+    summary: (courseId, period) => call('export:summary', courseId, period),
+    attendance: (courseId, period) => call('export:attendance', courseId, period),
     rosterTemplate: () => call('export:rosterTemplate'),
   },
   backup: {

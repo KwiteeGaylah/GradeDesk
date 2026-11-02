@@ -36,6 +36,7 @@ const {
   exportSummary,
   exportAttendance,
   exportRosterTemplate,
+  PERIODS,
 } = require('./export/excel');
 const { readPdfText } = require('./import/pdf');
 
@@ -363,6 +364,17 @@ function registerHandlers() {
     return `${label} ${kind} ${formatDateForFilename(todayStored())}.xlsx`;
   };
 
+  /**
+   * The period an export covers, checked here because it arrives from the
+   * renderer. The name goes into the file name, so a midterm sheet can never
+   * be mistaken for the semester's when it is attached to an email.
+   */
+  const PERIOD_NAMES = { full: '', midterm: 'Midterm ', final: 'Final-Term ' };
+  const exportPeriod = (period = 'full') => {
+    if (!PERIODS[period]) throw new Error(`Unknown export period: ${period}`);
+    return period;
+  };
+
   const askWhereToSave = async (title, suggested) => {
     const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
       title,
@@ -382,38 +394,45 @@ function registerHandlers() {
     return filePath;
   });
 
-  handle('export:gradeRecord', async (courseId) => {
+  handle('export:gradeRecord', async (courseId, period) => {
+    const p = exportPeriod(period);
     const result = computeCourse(store, courseId, tables);
     const filePath = await askWhereToSave(
-      'Export grade record', exportName(result.course, 'Grade Record'));
+      'Export grade record', exportName(result.course, `${PERIOD_NAMES[p]}Grade Record`));
     if (!filePath) return null;
-    await exportGradeRecord(result, filePath);
+    await exportGradeRecord(result, filePath, p);
     return filePath;
   });
 
-  handle('export:summary', async (courseId) => {
+  handle('export:summary', async (courseId, period) => {
+    const p = exportPeriod(period);
     const result = computeCourse(store, courseId, tables);
     const filePath = await askWhereToSave(
-      'Export summary sheet', exportName(result.course, 'Summary'));
+      'Export summary sheet', exportName(result.course, `${PERIOD_NAMES[p]}Summary`));
     if (!filePath) return null;
-    await exportSummary(result, filePath);
+    await exportSummary(result, filePath, p);
     return filePath;
   });
 
-  handle('export:attendance', async (courseId) => {
+  handle('export:attendance', async (courseId, period) => {
+    const p = exportPeriod(period);
     const result = computeCourse(store, courseId, tables);
     const { byKind } = store.getTerms(courseId);
     const register = {};
-    for (const kind of ['midterm', 'final']) {
+    for (const kind of PERIODS[p].terms) {
       if (!byKind[kind]) continue;
       const { sessions, byStudent } = store.getMarksForTerm(byKind[kind].id);
       register[kind] = { sessions, marks: byStudent };
     }
     const any = Object.values(register).some((t) => t.sessions.length);
-    if (!any) throw new Error('There are no attendance sessions to export yet.');
+    if (!any) {
+      throw new Error(p === 'full'
+        ? 'There are no attendance sessions to export yet.'
+        : `There are no attendance sessions in the ${p === 'midterm' ? 'midterm' : 'final term'} yet.`);
+    }
 
     const filePath = await askWhereToSave(
-      'Export attendance', exportName(result.course, 'Attendance'));
+      'Export attendance', exportName(result.course, `${PERIOD_NAMES[p]}Attendance`));
     if (!filePath) return null;
     await exportAttendance(result, register, filePath);
     return filePath;

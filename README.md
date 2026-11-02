@@ -171,6 +171,10 @@ A four-step wizard on first run, and a full guide you can open at any time.
   timetable clash or a late registration, until your addendum list goes in.
 - ✅ **Three exports.** Full grade record, summary sheet, and attendance. All
   in the familiar layout, ready to submit without reformatting.
+- ✅ **Midterm, final term, or the full semester.** Each export asks which
+  period it covers, so the midterm grades the university asks for mid-semester
+  come out on their own, as each student's midterm total. Letter grades appear
+  only on the full-semester report.
 - ✅ **Nothing to save.** Every score is written to disk the moment you leave
   the cell. A power cut costs you nothing already entered.
 - ✅ **Your data stays yours.** No accounts, and no grade ever leaves your

@@ -517,6 +517,8 @@ async function drive(win, app) {
     await importRosterPdf(win);
 
     await currentTermLock(win, setup);
+
+    await exportPeriodChooser(win, setup);
   } catch (err) {
     check('driver completed without throwing', false, err.message);
   }
@@ -657,6 +659,52 @@ async function currentTermLock(win, setup) {
     const s = await window.gradedesk.semesters.active();
     await window.gradedesk.semesters.setTerm(s.id, 'midterm');
     await loadAll(); ${open}
+  })()`);
+}
+
+/**
+ * Every export asks which period it covers, and starts on the one the
+ * semester is at. Stops at the chooser: the save dialog after it is native.
+ */
+async function exportPeriodChooser(win, setup) {
+  const open = (term) => `(async () => {
+    const api = window.gradedesk;
+    const s = await api.semesters.active();
+    await api.semesters.setTerm(s.id, '${term}');
+    await loadAll(); state.courseId = ${setup.courseId}; state.screen = 'grades';
+    await loadCourseDetail(); renderRail(); await renderScreen();
+    await new Promise(r => setTimeout(r, 300));
+    const btn = [...document.querySelectorAll('#topActions .btn.primary')]
+      .find(b => /Export/.test(b.textContent));
+    btn.click();
+    await new Promise(r => setTimeout(r, 300));
+    const modal = document.querySelector('.modal');
+    const out = {
+      title: modal ? modal.querySelector('h3').textContent : '',
+      options: [...document.querySelectorAll('.periodopt b')].map(b => b.textContent),
+      picked: (document.querySelector('.periodopt input:checked') || {}).value,
+    };
+    [...modal.querySelectorAll('.btn')].find(b => b.textContent === 'Cancel').click();
+    await new Promise(r => setTimeout(r, 200));
+    out.closed = !document.querySelector('.modal');
+    return out;
+  })()`;
+
+  const mid = await run(win, open('midterm'));
+  check('exporting the grade sheet asks which period it covers',
+    /Export grade sheet/.test(mid.title) &&
+      JSON.stringify(mid.options) === '["Midterm only","Final term only","Full semester"]',
+    JSON.stringify(mid));
+  check('in the midterm the export starts on the midterm', mid.picked === 'midterm', JSON.stringify(mid));
+  check('cancelling the period choice exports nothing', mid.closed, JSON.stringify(mid));
+
+  const fin = await run(win, open('final'));
+  check('in the final term the export starts on the full semester', fin.picked === 'full', JSON.stringify(fin));
+
+  await run(win, `(async () => {
+    const s = await window.gradedesk.semesters.active();
+    await window.gradedesk.semesters.setTerm(s.id, 'midterm');
+    await loadAll();
   })()`);
 }
 

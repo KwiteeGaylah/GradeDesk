@@ -22,7 +22,7 @@ const {
   exportSummary,
   exportRosterTemplate,
 } = require('../src/export/excel');
-const { TransmutationTables } = require('../src/engine');
+const { TransmutationTables, formatGrade } = require('../src/engine');
 
 const tables = new TransmutationTables(require('../data/transmutation_tables.json'));
 
@@ -683,5 +683,111 @@ test('an unusable assessment exports a blank transmuted cell, not a made-up numb
     'its transmuted cell is blank rather than invented');
   assert.equal(ws.getCell(hr + 1, goodCol + 1).value, tables.transmute(17, 20, '70'),
     'and the 20-point assessment beside it is unaffected');
+  store.close();
+});
+
+// ------------------------------------------------------------ export periods
+
+/** Every header on a sheet's header row, in order. */
+function headersOf(ws) {
+  const out = [];
+  ws.getRow(headerRowOf(ws)).eachCell((cell) => out.push(String(cell.value ?? '')));
+  return out;
+}
+
+/** Every value written anywhere on a sheet, as text. */
+function allText(ws) {
+  const out = [];
+  ws.eachRow((row) => row.eachCell((cell) => out.push(String(cell.value ?? ''))));
+  return out;
+}
+
+test('a midterm-only record carries the midterm, ending on its total, with no letters', async () => {
+  const { store, course } = seed();
+  const file = path.join(tmpDir, 'midterm-record.xlsx');
+  const result = computeCourse(store, course.id, tables);
+  await exportGradeRecord(result, file, 'midterm');
+
+  const wb = await readBack(file);
+  const ws = wb.worksheets[0];
+  const headers = headersOf(ws);
+  assert.ok(headers.includes('Quiz 1'), headers.join(' | '));
+  assert.equal(headers.at(-1), 'Total Mid-term Marks', 'the term total closes the sheet');
+  for (const gone of ['Quiz 3', 'Project', 'Total Final-term', 'Final Grade', 'Letter Grade']) {
+    assert.ok(!headers.includes(gone), `${gone} should not be on a midterm sheet`);
+  }
+  assert.match(String(ws.getCell(1, 1).value), /Midterm Grade Record/);
+  // A letter belongs to the semester: none anywhere, not even in a tally.
+  assert.ok(!allText(ws).some((t) => /Grade distribution/.test(t)));
+
+  // The total is text, truncated like the final grade, never rounded by a format.
+  const computed = result.students.find((r) => r.student.full_name === 'Karnga, Esther');
+  const row = rowFor(ws, headerRowOf(ws), 'Karnga');
+  assert.equal(row['Total Mid-term Marks'], formatGrade(computed.midterm.total));
+
+  // The summary sheet in the same file reports the same total, and no letter.
+  const summary = wb.getWorksheet('Summary');
+  assert.deepEqual(headersOf(summary).slice(-2), ['Middle Name', 'Midterm Total']);
+  assert.equal(rowFor(summary, headerRowOf(summary), 'Karnga')['Midterm Total'], row['Total Mid-term Marks']);
+  assert.ok(!allText(summary).some((t) => /^(Distribution|Letter Grade)$/.test(t)));
+  store.close();
+});
+
+test('a final-term-only record leaves the midterm out and ends on the final-term total', async () => {
+  const { store, course } = seed();
+  const file = path.join(tmpDir, 'final-record.xlsx');
+  const result = computeCourse(store, course.id, tables);
+  await exportGradeRecord(result, file, 'final');
+
+  const ws = (await readBack(file)).worksheets[0];
+  const headers = headersOf(ws);
+  assert.ok(headers.includes('Quiz 3'), headers.join(' | '));
+  assert.equal(headers.at(-1), 'Total Final-term');
+  for (const gone of ['Assign 1', 'Quiz 1', 'Total Mid-term Marks', 'Final Grade', 'Letter Grade']) {
+    assert.ok(!headers.includes(gone), `${gone} should not be on a final-term sheet`);
+  }
+  const alice = result.students.find((r) => r.student.full_name === 'Bestman, Comfort K.');
+  assert.equal(rowFor(ws, headerRowOf(ws), 'Bestman')['Total Final-term'], formatGrade(alice.final.total));
+  store.close();
+});
+
+test('the full semester is still the default, with both terms and the final grade', async () => {
+  const { store, course } = seed();
+  const plain = path.join(tmpDir, 'full-default.xlsx');
+  const named = path.join(tmpDir, 'full-named.xlsx');
+  const result = computeCourse(store, course.id, tables);
+  await exportGradeRecord(result, plain);
+  await exportGradeRecord(result, named, 'full');
+
+  for (const file of [plain, named]) {
+    const ws = (await readBack(file)).worksheets[0];
+    const headers = headersOf(ws);
+    for (const want of ['Quiz 1', 'Quiz 3', 'Total Mid-term Marks', 'Total Final-term', 'Final Grade', 'Letter Grade']) {
+      assert.ok(headers.includes(want), `${want} missing from ${headers.join(' | ')}`);
+    }
+    assert.match(String(ws.getCell(1, 1).value), /Students Grade Record/);
+  }
+  store.close();
+});
+
+test('a midterm summary on its own reports the midterm total and no letter', async () => {
+  const { store, course } = seed();
+  const file = path.join(tmpDir, 'midterm-summary.xlsx');
+  const result = computeCourse(store, course.id, tables);
+  await exportSummary(result, file, 'midterm');
+  const ws = (await readBack(file)).worksheets[0];
+  assert.deepEqual(headersOf(ws).slice(-2), ['Middle Name', 'Midterm Total']);
+  assert.match(String(ws.getCell(1, 1).value), /Midterm Grade Summary/);
+  store.close();
+});
+
+test('an unknown export period is refused, not quietly exported as something else', async () => {
+  const { store, course } = seed();
+  const result = computeCourse(store, course.id, tables);
+  await assert.rejects(
+    exportGradeRecord(result, path.join(tmpDir, 'bad.xlsx'), 'summer'), /Unknown export period/);
+  await assert.rejects(
+    exportSummary(result, path.join(tmpDir, 'bad2.xlsx'), 'summer'), /Unknown export period/);
+  assert.ok(!fs.existsSync(path.join(tmpDir, 'bad.xlsx')));
   store.close();
 });

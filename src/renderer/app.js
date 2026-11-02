@@ -3514,19 +3514,82 @@ function showIssues(issues) {
   });
 }
 
+/**
+ * Ask which period an export covers: the midterm, the final term, or the full
+ * semester.
+ *
+ * The university asks for midterm grades once the midterm is over, then the
+ * full semester at the end, so the choice starts on whichever of those the
+ * semester is at: the midterm while it is the current term, the full semester
+ * once it has moved on. Resolves to 'midterm', 'final', 'full', or null.
+ */
+async function choosePeriod(what) {
+  const options = [
+    ['midterm', 'Midterm only',
+      what === 'attendance'
+        ? 'The midterm register.'
+        : 'Midterm scores and each student’s midterm total. No letter grades. What the university asks for after the midterm.'],
+    ['final', 'Final term only',
+      what === 'attendance'
+        ? 'The final-term register.'
+        : 'Final-term scores and each student’s final-term total. No letter grades.'],
+    ['full', 'Full semester',
+      what === 'attendance'
+        ? 'Both registers, one sheet each.'
+        : 'Both terms, the final grade and the letter grade. The report you submit at the end of the semester.'],
+  ];
+  const preset = currentTerm() === 'final' ? 'full' : 'midterm';
+  const name = `period-${Date.now()}`;
+  const list = el('div', { class: 'periodpick', role: 'radiogroup', 'aria-label': 'Period' },
+    ...options.map(([value, label, text]) =>
+      el('label', { class: `periodopt period-${value}` },
+        el('input', { type: 'radio', name, value, checked: value === preset }),
+        el('span', { class: 'periodtext' },
+          el('b', {}, label),
+          el('span', { class: 'periodsub', text })))));
+  const titles = {
+    record: 'Export grade sheet',
+    summary: 'Export summary sheet',
+    attendance: 'Export attendance',
+  };
+  return modal({
+    title: titles[what],
+    subtitle: 'Which period should it cover?',
+    body: list,
+    confirmLabel: 'Choose where to save',
+    onConfirm: () => {
+      const picked = list.querySelector('input:checked');
+      return picked ? picked.value : false;
+    },
+  });
+}
+
+/** "Midterm grade record exported", or "Grade record exported" for the semester. */
+function exportedToast(period, thing) {
+  const which = { midterm: 'Midterm ', final: 'Final-term ', full: '' }[period];
+  const text = `${which}${thing} exported`;
+  toast(text.charAt(0).toUpperCase() + text.slice(1));
+}
+
 async function exportRecordFile() {
-  const file = await guard(() => api.exports.gradeRecord(state.courseId), 'Export');
-  if (file) toast('Grade record exported');
+  const period = await choosePeriod('record');
+  if (!period) return;
+  const file = await guard(() => api.exports.gradeRecord(state.courseId, period), 'Export');
+  if (file) exportedToast(period, 'grade record');
 }
 
 async function exportSummaryFile() {
-  const file = await guard(() => api.exports.summary(state.courseId), 'Export');
-  if (file) toast('Summary exported');
+  const period = await choosePeriod('summary');
+  if (!period) return;
+  const file = await guard(() => api.exports.summary(state.courseId, period), 'Export');
+  if (file) exportedToast(period, 'summary');
 }
 
 async function exportAttendanceFile() {
-  const file = await guard(() => api.exports.attendance(state.courseId), 'Export');
-  if (file) toast('Attendance exported');
+  const period = await choosePeriod('attendance');
+  if (!period) return;
+  const file = await guard(() => api.exports.attendance(state.courseId, period), 'Export');
+  if (file) exportedToast(period, 'attendance');
 }
 
 
